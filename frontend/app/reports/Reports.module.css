@@ -1,0 +1,19 @@
+.bookingsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.updateButton {
+  margin: 20px 0;
+  width: 200px;
+}
+
+.statusMessage {
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 4px;
+  background-color: #e3f2fd;
+  color: #1976d2;
+}

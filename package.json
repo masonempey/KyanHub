@@ -1,0 +1,26 @@
+{
+  "name": "kyanhub",
+  "version": "1.0.0",
+  "description": "Running both frontend and backend",
+  "main": "index.js",
+  "scripts": {
+    "frontend": "cd frontend && npm run dev",
+    "backend": "cd backend && npm run dev",
+    "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
+    "install-deps": "npm install && cd frontend && npm install && cd ../backend && npm install"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/x-date-pickers": "^7.24.1",
+    "@mui/x-date-pickers-pro": "^7.24.1",
+    "dayjs": "^1.11.13",
+    "moment": "^2.30.1"
+  }
+}

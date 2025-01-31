@@ -1,0 +1,59 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  width: 6vw;
+  background-color: #eccb34;
+  padding: 0;
+  position: fixed;
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.sidebarClosed {
+  width: 4vw;
+  background-color: transparent;
+  height: auto;
+  overflow: hidden;
+}
+
+.iconContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 80%;
+  padding: 0.5rem;
+  border-top-left-radius: 0.5rem;
+  border-bottom-left-radius: 0.5rem;
+  transition: background-color 0.3s;
+  margin-left: auto;
+}
+
+.arrowIconContainer {
+  transition: transform 0.3s ease;
+  width: 80%;
+  margin-top: 2.5rem;
+}
+
+.arrowIconFlipped {
+  transform: rotate(180deg);
+}
+
+.pageIcons {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 35%;
+  width: 100%;
+  flex-direction: column;
+}
+
+.notificationAndProfileIcons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2vw;
+  height: 20%;
+  width: 100%;
+}
