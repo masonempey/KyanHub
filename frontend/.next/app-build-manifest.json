@@ -6,11 +6,11 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/reports/page": [
+    "/add/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/css/app/reports/page.css",
-      "static/chunks/app/reports/page.js"
+      "static/css/app/add/page.css",
+      "static/chunks/app/add/page.js"
     ]
   }
 }

@@ -12,16 +12,12 @@ export const PropertyProvider = ({ children }) => {
     try {
       const response = await fetch("http://localhost:5000/api/igms/property");
       const data = await response.json();
-      console.log("Fetched properties:", data);
 
       if (data.success) {
-        const propertyMap = data.properties
-          .filter((prop) => prop.is_active !== 0)
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .reduce((acc, prop) => {
-            acc[prop.property_uid] = prop.name;
-            return acc;
-          }, {});
+        const propertyMap = data.properties.reduce((acc, prop) => {
+          acc[prop.property_uid] = prop.name;
+          return acc;
+        }, {});
         setProperties(propertyMap);
       }
     } catch (error) {

@@ -158,6 +158,8 @@ class GoogleService {
       const row = startRow + update.index;
       const range = `${sheetName}!${columnLetter}${row}`;
 
+      console.log(`Updating range: ${range} with value: ${update.value}`);
+
       await this.sheets.spreadsheets.values.update({
         spreadsheetId,
         range,

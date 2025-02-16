@@ -5,21 +5,25 @@ import Select from "@mui/material/Select";
 import InputLabel from "@mui/material/InputLabel";
 import Box from "@mui/material/Box";
 
-const OptionBar = ({ placeholder, options }) => {
+const OptionBar = ({ placeholder, options, label: initialLabel, onSelect }) => {
   const [selectedOption, setSelectedOption] = useState("");
-  const [label, setLabel] = useState(placeholder);
+  const [labelText, setLabelText] = useState("");
 
   const handleChange = (event) => {
     setSelectedOption(event.target.value);
+    setLabelText(initialLabel);
+    if (onSelect) {
+      onSelect(event.target.value);
+    }
   };
 
   const handleFocus = () => {
-    setLabel("Properties");
+    setLabelText(initialLabel);
   };
 
   const handleBlur = () => {
     if (!selectedOption) {
-      setLabel(placeholder);
+      setLabelText(""); // Reset to empty if no option is selected
     }
   };
 
@@ -33,18 +37,22 @@ const OptionBar = ({ placeholder, options }) => {
           id="option-select-label"
           sx={{ borderRadius: "8px", color: "#2b2b2b", opacity: 0.9 }}
         >
-          {label}
+          {labelText}
         </InputLabel>
         <Select
           labelId="option-select-label"
           id="option-select"
           value={selectedOption}
-          label="Option"
+          label={labelText}
           onChange={handleChange}
           onFocus={handleFocus}
           onBlur={handleBlur}
           sx={{ borderRadius: "8px", color: "#2b2b2b", opacity: 0.9 }}
+          displayEmpty
         >
+          <MenuItem value="" disabled>
+            {placeholder}
+          </MenuItem>
           {options.map((option, index) => (
             <MenuItem key={index} value={option.value}>
               {option.label}

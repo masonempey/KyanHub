@@ -64,8 +64,11 @@ const ReportsPage = () => {
         )}/${endDate.format("YYYY-MM-DD")}`
       );
       const data = await response.json();
-      if (data.success) {
+      console.log("Response data:", data);
+      if (data.success && data.bookings) {
         setBookings(data.bookings);
+      } else {
+        setBookings([]);
       }
     } catch (error) {
       console.error("Failed to fetch bookings:", error);
@@ -193,7 +196,10 @@ const ReportsPage = () => {
               )}
               <div className={styles.bookingsGrid}>
                 {bookings.map((booking) => (
-                  <BookingCard key={booking.bookingCode} booking={booking} />
+                  <BookingCard
+                    key={`${booking.bookingCode}-${booking.guestUid}`}
+                    booking={booking}
+                  />
                 ))}
               </div>
             </>

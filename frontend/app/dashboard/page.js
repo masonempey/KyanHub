@@ -1,21 +1,51 @@
 "use client";
 
+import React, { useState, useEffect } from "react";
+import dayjs from "dayjs";
 import { useProperties } from "../../contexts/PropertyContext";
 import styles from "./dashboard.module.css";
 import BackgroundContainer from "../components/backgroundContainer";
-import FilterBar from "../components/propertyFilterBar";
+import TopNav from "../components/topNav";
 
-const dashboardPage = () => {
-  const { properties, loading } = useProperties();
+const DashboardPage = () => {
+  const { properties: allProperties, loading } = useProperties();
+  const [filteredProperties, setFilteredProperties] = useState({});
+  const [currentMonth, setCurrentMonth] = useState(dayjs().format("MMMM"));
+  const [selectedPropertyName, setSelectedPropertyName] = useState();
+
+  const excludedProperties = ["Windsor 95/96 Combo", "Windsor 97/98 Combo"];
+
+  useEffect(() => {
+    // Filter out excluded properties
+    const filtered = Object.entries(allProperties)
+      .filter(([_, name]) => !excludedProperties.includes(name))
+      .reduce((acc, [uid, name]) => {
+        acc[uid] = name;
+        return acc;
+      }, {});
+
+    setFilteredProperties(filtered);
+  }, [allProperties]);
+
+  const handlePropertyChange = (propertyId, propertyName) => {
+    console.log("Property selected:", { id: propertyId, name: propertyName });
+    setSelectedPropertyName(propertyName);
+  };
+
+  const handleMonthChange = (newMonth) => {
+    setCurrentMonth(newMonth);
+  };
 
   return (
     <div className={styles.DashboardContainer}>
-      <div className={styles.topNav}>
-        <h1>Dashboard</h1>
-        <div className={styles.filterBarContainer}>
-          <FilterBar properties={properties} loading={loading} />
-        </div>
-      </div>
+      <TopNav
+        filteredProperties={filteredProperties}
+        loading={loading}
+        handlePropertyChange={handlePropertyChange}
+        selectedMonth={currentMonth}
+        currentPage="Analytics"
+        onMonthChange={handleMonthChange}
+      />
       <div className={styles.topLine}></div>
       <div className={styles.viewContainer}>
         <div className={styles.smallRevenueContainer}>
@@ -35,4 +65,4 @@ const dashboardPage = () => {
   );
 };
 
-export default dashboardPage;
+export default DashboardPage;

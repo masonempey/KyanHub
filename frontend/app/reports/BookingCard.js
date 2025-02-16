@@ -1,7 +1,8 @@
 import styles from "./BookingCard.module.css";
 
 const BookingCard = ({ booking }) => {
-  const formatAmount = (amount) => Number(amount).toFixed(2);
+  const formatAmount = (amount) =>
+    amount ? Number(amount).toFixed(2) : "0.00";
 
   return (
     <div className={styles.card}>
@@ -16,29 +17,40 @@ const BookingCard = ({ booking }) => {
         </div>
         <div className={styles.row}>
           <span>Nightly Rate:</span>
-          <span>${booking.nightlyRate.toFixed(2)}</span>
+          <span>
+            ${booking.nightlyRate ? booking.nightlyRate.toFixed(2) : "0.00"}
+          </span>
         </div>
         <div className={styles.row}>
           <span>Base Price:</span>
-          <span>${booking.rawPriceData.price_base}</span>
+          <span>
+            $
+            {booking.rawPriceData?.price_base
+              ? booking.rawPriceData.price_base
+              : "0.00"}
+          </span>
         </div>
         <div className={styles.nights}>
           <span>Nights by Month:</span>
-          {Object.entries(booking.nightsByMonth).map(([month, nights]) => (
-            <div key={month} className={styles.monthRow}>
-              <span>{month}:</span>
-              <span>{nights} nights</span>
-            </div>
-          ))}
+          {Object.entries(booking.nightsByMonth || {}).map(
+            ([month, nights]) => (
+              <div key={month} className={styles.monthRow}>
+                <span>{month}:</span>
+                <span>{nights} nights</span>
+              </div>
+            )
+          )}
         </div>
         <div className={styles.revenue}>
           <span>Revenue by Month:</span>
-          {Object.entries(booking.revenueByMonth).map(([month, amount]) => (
-            <div key={month} className={styles.monthRow}>
-              <span>{month}:</span>
-              <span>${formatAmount(amount)}</span>
-            </div>
-          ))}
+          {Object.entries(booking.revenueByMonth || {}).map(
+            ([month, amount]) => (
+              <div key={month} className={styles.monthRow}>
+                <span>{month}:</span>
+                <span>${formatAmount(amount)}</span>
+              </div>
+            )
+          )}
         </div>
       </div>
     </div>

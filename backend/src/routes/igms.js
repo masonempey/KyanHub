@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const axios = require("axios");
 const dotenv = require("dotenv");
+const PropertyService = require("../services/propertyService");
+const bookingService = require("../services/bookingService");
 
 dotenv.config();
 
@@ -32,12 +34,20 @@ router.get("/property", async (req, res) => {
       );
 
       if (response.data.data && response.data.data.length > 0) {
-        allProperties = [...allProperties, ...response.data.data];
+        const filteredProperties = response.data.data.filter(
+          (property) => property.is_active !== 0 && property.name !== ""
+        );
+        allProperties = [...allProperties, ...filteredProperties];
         currentPage++;
       } else {
         hasMorePages = false;
       }
     }
+
+    // Sort properties alphabetically by name
+    allProperties.sort((a, b) => a.name.localeCompare(b.name));
+
+    await PropertyService.upsertProperties(allProperties);
 
     res.json({
       success: true,
@@ -69,7 +79,7 @@ router.get(
           access_token: IGMS_CONFIG.token,
           from_date: fromDate,
           to_date: toDate,
-          property_uid: propertyId, // This should filter server-side
+          property_uid: propertyId,
           page: currentPage,
         });
 
@@ -131,8 +141,8 @@ router.get(
       }, {});
 
       // 6. Combine booking and guest data
-      const enrichedBookings = allBookings
-        .map((booking) => {
+      const enrichedBookings = await Promise.all(
+        allBookings.map(async (booking) => {
           const checkIn = new Date(booking.local_checkin_dttm);
           const checkOut = new Date(booking.local_checkout_dttm);
           const totalNights = Math.ceil(
@@ -174,9 +184,11 @@ router.get(
             {}
           );
 
-          return {
+          const newBooking = {
             propertyId: booking.property_uid,
             bookingCode: booking.readable_reservation_code,
+            guestUid: booking.guest_uid,
+            guestName: booking.guest_name,
             checkIn: booking.local_checkin_dttm,
             checkOut: booking.local_checkout_dttm,
             total: booking.price.price_total,
@@ -191,8 +203,14 @@ router.get(
             nightsByMonth,
             revenueByMonth,
           };
+
+          await bookingService.insertBooking(newBooking);
+
+          console.log("BOOKING SENT", newBooking);
+
+          return newBooking;
         })
-        .sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+      );
 
       res.json({
         success: true,
