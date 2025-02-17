@@ -10,6 +10,7 @@ const sheetsRoutes = require("./src/routes/sheets");
 const inventoryRoutes = require("./src/routes/inventory");
 const uploadRoutes = require("./src/routes/upload");
 const maintenanceRoutes = require("./src/routes/maintenance");
+const analyticsRoutes = require("./src/routes/analytics");
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ const startServer = async () => {
     app.use("/api/inventory", inventoryRoutes);
     app.use("/api/upload", uploadRoutes);
     app.use("/api/maintenance", maintenanceRoutes);
+    app.use("/api/analytics", analyticsRoutes);
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {

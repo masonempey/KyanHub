@@ -31,6 +31,54 @@ class MaintenanceService {
       client.release();
     }
   }
+
+  static async getMaintenanceByProperty(propertyId) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        `SELECT 
+          category,
+          company,
+          cost,
+          description,
+          date,
+          TO_CHAR(date, 'YYYY-MM') as month
+        FROM maintenance 
+        WHERE property_uid = $1 
+        ORDER BY date DESC`,
+        [propertyId]
+      );
+      return result.rows;
+    } finally {
+      client.release();
+    }
+  }
+
+  static async getMaintenanceCostsByMonth(propertyId) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        `SELECT 
+          TO_CHAR(date, 'YYYY-MM') as month,
+          SUM(cost) as total_cost,
+          json_agg(json_build_object(
+            'category', category,
+            'company', company,
+            'cost', cost,
+            'description', description,
+            'date', date
+          )) as maintenance_items
+        FROM maintenance 
+        WHERE property_uid = $1 
+        GROUP BY TO_CHAR(date, 'YYYY-MM')
+        ORDER BY month DESC`,
+        [propertyId]
+      );
+      return result.rows;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 module.exports = MaintenanceService;
