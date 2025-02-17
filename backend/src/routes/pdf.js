@@ -20,9 +20,7 @@ const getEndOfNextMonth = () => {
 router.post("/generate", async (req, res) => {
   try {
     await googleService.init();
-    const { propertyName, products, amounts, ownersName, rates } = req.body;
-
-    console.log("Rates:", rates);
+    const { propertyName, monthYear, products, amounts, rates } = req.body;
 
     const doc = new PDFDocument();
     const chunks = [];
@@ -33,12 +31,10 @@ router.post("/generate", async (req, res) => {
     doc.on("end", async () => {
       try {
         const pdfBuffer = Buffer.concat(chunks);
-        const parentFolderId = "1SkSWqXy_QmYiQ89X_9BqZqLy99WM64uq";
 
         const receiptsFolderId = await googleService.findReceiptsFolder(
-          parentFolderId,
-          ownersName,
-          propertyName
+          propertyName,
+          monthYear
         );
 
         const { fileId, webViewLink } = await googleService.uploadPDF(

@@ -8,6 +8,8 @@ const pdfRoutes = require("./src/routes/pdf");
 const authMiddleware = require("./src/middleware/authMiddleware");
 const sheetsRoutes = require("./src/routes/sheets");
 const inventoryRoutes = require("./src/routes/inventory");
+const uploadRoutes = require("./src/routes/upload");
+const maintenanceRoutes = require("./src/routes/maintenance");
 
 dotenv.config();
 
@@ -26,6 +28,8 @@ const startServer = async () => {
     app.use("/api/igms", igmsRoutes);
     app.use("/api/pdf", pdfRoutes);
     app.use("/api/inventory", inventoryRoutes);
+    app.use("/api/upload", uploadRoutes);
+    app.use("/api/maintenance", maintenanceRoutes);
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {

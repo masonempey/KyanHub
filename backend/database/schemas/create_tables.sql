@@ -57,3 +57,12 @@ CREATE TABLE IF NOT EXISTS revenue_by_month (
     FOREIGN KEY (booking_code) REFERENCES bookings(booking_code) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS maintenance (
+    id SERIAL PRIMARY KEY,
+    property_uid VARCHAR(255) REFERENCES properties(property_uid) ON DELETE CASCADE,
+    category VARCHAR(255) NOT NULL,
+    company VARCHAR(255) NOT NULL,
+    cost DECIMAL(10, 2) NOT NULL,
+    description VARCHAR(255),
+    date DATE NOT NULL
+);
