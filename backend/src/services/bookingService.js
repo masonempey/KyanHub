@@ -94,13 +94,15 @@ class BookingService {
       const result = await client.query(
         `SELECT 
           r.month,
+          r.booking_code,
+          b.platform,
           SUM(r.revenue) as total_revenue,
           COUNT(DISTINCT b.booking_code) as booking_count,
           SUM(b.cleaning_fee) as total_cleaning_fees
         FROM revenue_by_month r
         JOIN bookings b ON r.booking_code = b.booking_code
         WHERE b.property_uid = $1
-        GROUP BY r.month
+        GROUP BY r.month, r.booking_code, b.platform
         ORDER BY r.month DESC`,
         [propertyId]
       );

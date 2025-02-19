@@ -6,14 +6,15 @@ import { useProperties } from "../../contexts/PropertyContext";
 import styles from "./analytics.module.css";
 import BackgroundContainer from "../components/backgroundContainer";
 import TopNav from "../components/topNav";
+import MonthlyRevenueChart from "./monthlyRevenueChart";
+import MonthlyMaintenanceChart from "./monthlyMaintenanceChart";
 
 const AnalyticsPage = () => {
   const { properties: allProperties, loading } = useProperties();
   const [filteredProperties, setFilteredProperties] = useState({});
   const [currentMonth, setCurrentMonth] = useState(dayjs().format("MMMM"));
   const [selectedPropertyName, setSelectedPropertyName] = useState();
-
-  const excludedProperties = ["Windsor 95/96 Combo", "Windsor 97/98 Combo"];
+  const [propertyId, setPropertyId] = useState("");
 
   useEffect(() => {
     // Filter out excluded properties
@@ -27,8 +28,10 @@ const AnalyticsPage = () => {
     setFilteredProperties(filtered);
   }, [allProperties]);
 
+  const excludedProperties = ["Windsor 95/96 Combo", "Windsor 97/98 Combo"];
+
   const handlePropertyChange = (propertyId, propertyName) => {
-    console.log("Property selected:", { id: propertyId, name: propertyName });
+    setPropertyId(propertyId);
     setSelectedPropertyName(propertyName);
   };
 
@@ -50,12 +53,17 @@ const AnalyticsPage = () => {
       <div className={styles.viewContainer}>
         <div className={styles.smallRevenueContainer}>
           <BackgroundContainer width="100%" height="100%" />
+          <MonthlyRevenueChart propertyId={propertyId} month={currentMonth} />
         </div>
         <div className={styles.largeExpenseContainer}>
           <BackgroundContainer width="100%" height="100%" />
         </div>
         <div className={styles.smallRevenueContainer}>
           <BackgroundContainer width="100%" height="100%" />
+          <MonthlyMaintenanceChart
+            propertyId={propertyId}
+            month={currentMonth}
+          />
         </div>
         <div className={styles.largeExpenseContainer}>
           <BackgroundContainer width="100%" height="100%" />

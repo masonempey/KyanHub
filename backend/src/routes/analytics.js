@@ -2,42 +2,95 @@ const express = require("express");
 const router = express.Router();
 const BookingService = require("../services/bookingService");
 const MaintenanceService = require("../services/maintenanceService");
+const InventoryService = require("../services/inventoryService");
 
-// Get analytics data for a specific property
-router.get("/:propertyId", async (req, res) => {
+// Helper function to convert month name to number and format it for database comparison
+const formatMonthForDB = (year, monthName) => {
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  const monthIndex = months.findIndex(
+    (month) => month.toLowerCase() === monthName.toLowerCase()
+  );
+  return monthIndex !== -1 ? `${year}-${monthIndex + 1}` : null;
+};
+
+// Get analytics data for a specific property and month
+router.get("/:propertyId/:year/:month", async (req, res) => {
   try {
-    const { propertyId } = req.params;
+    const { propertyId, year, month } = req.params;
+    const formattedMonth = formatMonthForDB(year, month); // Assuming this function works as expected
 
-    const [maintenanceRecords, maintenanceCostsByMonth, revenueByMonth] =
-      await Promise.all([
-        MaintenanceService.getMaintenanceByProperty(propertyId),
-        MaintenanceService.getMaintenanceCostsByMonth(propertyId),
-        BookingService.getRevenueByMonth(propertyId),
-      ]);
+    if (!formattedMonth) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid year or month provided",
+      });
+    }
 
-    const monthlyMetrics = revenueByMonth.map((month) => {
-      const maintenanceForMonth = maintenanceCostsByMonth.find(
-        (m) => m.month === month.month
-      );
+    const [
+      maintenanceRecords,
+      maintenanceCostsByMonth,
+      revenueByMonth,
+      inventory,
+    ] = await Promise.all([
+      MaintenanceService.getMaintenanceByProperty(propertyId),
+      MaintenanceService.getMaintenanceCostsByMonth(propertyId),
+      BookingService.getRevenueByMonth(propertyId),
+      InventoryService.getInventoryByProperty(propertyId, month),
+    ]);
 
-      return {
-        month: month.month,
-        revenue: parseFloat(month.total_revenue),
-        maintenance_cost: maintenanceForMonth
-          ? parseFloat(maintenanceForMonth.total_cost)
-          : 0,
-        cleaning_fees: parseFloat(month.total_cleaning_fees),
-        booking_count: parseInt(month.booking_count),
-        profit:
-          parseFloat(month.total_revenue) -
-          (maintenanceForMonth
-            ? parseFloat(maintenanceForMonth.total_cost)
-            : 0),
-        maintenance_details: maintenanceForMonth
-          ? maintenanceForMonth.maintenance_items
-          : [],
-      };
-    });
+    // Filter revenue data to include only the specified month
+    const filteredRevenue = revenueByMonth.filter(
+      (booking) => booking.month === formattedMonth
+    );
+
+    // Group revenue by platform for the specified month and sum up total_revenue
+    const revenueByPlatform = filteredRevenue.reduce((acc, booking) => {
+      if (!acc[booking.platform]) acc[booking.platform] = [];
+      acc[booking.platform].push({
+        month: booking.month,
+        booking_code: booking.booking_code,
+        total_revenue: parseFloat(booking.total_revenue), // Ensure you have 'total_revenue' here
+        booking_count: parseInt(booking.booking_count) || 0,
+        total_cleaning_fees: parseFloat(booking.total_cleaning_fees) || 0,
+      });
+      return acc;
+    }, {});
+
+    // Calculate total revenue for the month across all platforms
+    const totalRevenueForMonth = filteredRevenue.reduce(
+      (sum, record) => sum + parseFloat(record.total_revenue),
+      0
+    );
+
+    // Filter maintenance costs to match the specified month
+    const maintenanceForMonth = maintenanceCostsByMonth.find(
+      (m) => m.month === formattedMonth
+    );
+
+    const monthlyMetrics = [
+      {
+        month: formattedMonth,
+        revenue: totalRevenueForMonth,
+        cleaning_fees: filteredRevenue.reduce(
+          (sum, record) => sum + parseFloat(record.total_cleaning_fees || 0),
+          0
+        ),
+        booking_count: filteredRevenue.length,
+      },
+    ];
 
     res.json({
       success: true,
@@ -45,18 +98,34 @@ router.get("/:propertyId", async (req, res) => {
       metrics: {
         monthly: monthlyMetrics,
         maintenance: {
-          total: maintenanceRecords.reduce(
+          total_cost: maintenanceRecords.reduce(
             (sum, record) => sum + parseFloat(record.cost),
             0
           ),
-          records: maintenanceRecords,
+          records: maintenanceRecords.map((record) => ({
+            category: record.category,
+            company: record.company,
+            cost: parseFloat(record.cost),
+            description: record.description,
+            date: record.date,
+            month: record.month,
+          })),
         },
         revenue: {
-          total: revenueByMonth.reduce(
-            (sum, record) => sum + parseFloat(record.total_revenue),
+          total: totalRevenueForMonth, // Summed total_revenue for the month
+          by_platform: revenueByPlatform,
+        },
+        inventory: {
+          products: inventory.map((item) => ({
+            product_id: item.product_id,
+            product_name: item.product_name,
+            quantity: item.quantity,
+          })),
+          total_products: inventory.length,
+          total_quantity: inventory.reduce(
+            (sum, item) => sum + (item.quantity || 0),
             0
           ),
-          by_month: revenueByMonth,
         },
       },
     });

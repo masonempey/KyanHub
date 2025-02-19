@@ -18,6 +18,7 @@ export const PropertyProvider = ({ children }) => {
           acc[prop.property_uid] = prop.name;
           return acc;
         }, {});
+        console.log("Fetched properties:", propertyMap);
         setProperties(propertyMap);
       }
     } catch (error) {

@@ -15,6 +15,19 @@ const PropertyFilterBar = ({
   const [property, setProperty] = useState("");
   const [label, setLabel] = useState("Search All Properties");
 
+  // Add useEffect to set default property
+  useEffect(() => {
+    if (!loading && Object.keys(properties).length > 0 && !property) {
+      const firstPropertyId = Object.keys(properties)[0];
+      const firstPropertyName = properties[firstPropertyId];
+      setProperty(firstPropertyId);
+      setLabel("Properties");
+      if (typeof onPropertySelect === "function") {
+        onPropertySelect(firstPropertyId, firstPropertyName);
+      }
+    }
+  }, [properties, loading, onPropertySelect]);
+
   const handleChange = (event) => {
     const selectedId = event.target.value;
     const propertyName = properties[selectedId];
