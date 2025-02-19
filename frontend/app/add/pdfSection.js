@@ -4,8 +4,8 @@ const PdfSection = ({
   selectedPropertyName,
   products,
   amounts,
-  ownersName,
   rates,
+  monthYear,
 }) => {
   const handleGeneratePDF = async () => {
     try {
@@ -13,11 +13,11 @@ const PdfSection = ({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ownersName,
           propertyName: selectedPropertyName,
           products,
           amounts,
           rates,
+          monthYear,
         }),
       });
 

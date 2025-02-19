@@ -14,8 +14,6 @@ const initDatabase = async () => {
     const sqlFilePath = path.join(__dirname, "schemas", "create_tables.sql");
     const sql = fs.readFileSync(sqlFilePath, "utf8");
 
-    console.log("Executing SQL:\n", sql);
-
     await pool.query(sql);
     console.log("Database initialized successfully");
   } catch (error) {

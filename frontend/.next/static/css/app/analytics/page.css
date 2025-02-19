@@ -1,0 +1,126 @@
+/*!******************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[13].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[13].oneOf[5].use[3]!./app/analytics/analytics.module.css ***!
+  \******************************************************************************************************************************************************************************************************************************************************************************/
+.analytics_DashboardContainer__K7fek {
+  padding: 1rem;
+  width: auto;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+.analytics_topNav__ztbeg {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 47.5vw;
+}
+
+.analytics_filterBarContainer__GljgI {
+  width: 15vw;
+  height: auto;
+}
+
+.analytics_topLine__80Pna {
+  width: 100%;
+  height: 2px;
+  background-color: #6e7f80;
+  opacity: 0.3;
+  margin-bottom: 2.5rem;
+}
+
+.analytics_viewContainer__YyAYT {
+  display: grid;
+  grid-template-columns: 35% 63%; /* Smaller containers 35%, larger containers 65% */
+  grid-template-rows: repeat(2, 1fr); /* Two equal rows */
+  grid-gap: 1.5rem;
+  gap: 1.5rem;
+  width: 100%;
+  height: calc(100% - 9rem);
+  box-sizing: border-box; /* Ensures padding is included in width */
+}
+
+.analytics_smallRevenueContainer__8onuY,
+.analytics_largeExpenseContainer__WonPq {
+  position: relative; /* Enables layering with absolute elements */
+  border-radius: 8px;
+  overflow: hidden; /* Ensures background and content stay within bounds */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  background-color: rgba(250, 250, 250, 0.8);
+}
+
+.analytics_content__2XmJh {
+  position: relative;
+  z-index: 2; /* Places content above the BackgroundContainer */
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/*!************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[13].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[13].oneOf[5].use[3]!./app/styles/topNav.module.css ***!
+  \************************************************************************************************************************************************************************************************************************************************************************/
+.topNav_topNav__RmHTp {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  padding: 0 2rem;
+}
+
+.topNav_topNav__RmHTp h1 {
+  color: #eccb34;
+  text-align: left;
+}
+
+.topNav_filterContainer__6vF6s {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.topNav_propertyBarContainer__0mb0Q,
+.topNav_monthSelectionContainer__OHaiU {
+  margin: 0 1rem;
+}
+
+.topNav_topLine__ecCHZ {
+  width: 100%;
+  opacity: 0.3;
+  margin-bottom: 2.5rem;
+  border: 1px solid #6e7f80;
+}
+
+/*!*************************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[13].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[13].oneOf[5].use[3]!./app/styles/monthlyRevenueChart.module.css ***!
+  \*************************************************************************************************************************************************************************************************************************************************************************************/
+.monthlyRevenueChart_smallRevenueContainer__1Yy9M {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  z-index: 2;
+  color: #eccb34;
+}
+
+.monthlyRevenueChart_smallRevenueContainer__1Yy9M > span {
+  font-size: 1.5em;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.monthlyRevenueChart_smallRevenueContainer__1Yy9M div::-webkit-scrollbar {
+  width: 6px;
+}
+
+.monthlyRevenueChart_smallRevenueContainer__1Yy9M div::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.monthlyRevenueChart_smallRevenueContainer__1Yy9M div::-webkit-scrollbar-thumb {
+  background-color: #eccb34;
+  border-radius: 3px;
+}
+

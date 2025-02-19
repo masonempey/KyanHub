@@ -45,7 +45,7 @@ const SideBar = () => {
   };
 
   const handleDashboardClick = () => {
-    router.push("/dashboard");
+    router.push("/analytics");
   };
 
   const handleAddClick = () => {

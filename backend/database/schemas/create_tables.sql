@@ -1,3 +1,17 @@
+CREATE TABLE IF NOT EXISTS roles (
+    id SERIAL PRIMARY KEY,
+    role VARCHAR(50) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    role_id INT NOT NULL DEFAULT 1,
+    last_login TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS properties (
     property_uid VARCHAR(255) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -57,3 +71,12 @@ CREATE TABLE IF NOT EXISTS revenue_by_month (
     FOREIGN KEY (booking_code) REFERENCES bookings(booking_code) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS maintenance (
+    id SERIAL PRIMARY KEY,
+    property_uid VARCHAR(255) REFERENCES properties(property_uid) ON DELETE CASCADE,
+    category VARCHAR(255) NOT NULL,
+    company VARCHAR(255) NOT NULL,
+    cost DECIMAL(10, 2) NOT NULL,
+    description VARCHAR(255),
+    date DATE NOT NULL
+);

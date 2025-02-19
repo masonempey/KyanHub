@@ -208,83 +208,68 @@ class GoogleService {
     }
   }
 
-  async findReceiptsFolder(parentFolderId, ownersName, propertyName) {
+  async findReceiptsFolder(propertyName, monthYear) {
     try {
-      // Find parent folder
-      const parentFolder = await this.drive.files.get({
-        fileId: parentFolderId,
-        fields: "name",
-      });
-      console.log(`Found parent folder: ${parentFolder.data.name}`);
-
-      // Find owner folder
-      const ownerQuery = [
-        `mimeType='application/vnd.google-apps.folder'`,
-        `'${parentFolderId}' in parents`,
-        `fullText contains '${ownersName}'`,
-      ].join(" and ");
-
-      const ownerFolder = await this.drive.files.list({
-        q: ownerQuery,
-        fields: "files(id, name)",
-        spaces: "drive",
-      });
-
-      if (ownerFolder.data.files.length === 0) {
-        throw new Error(`Owner folder not found for: ${ownersName}`);
-      }
-
-      const ownerFolderId = ownerFolder.data.files[0].id;
-      console.log(`Found owner folder: ${ownerFolder.data.files[0].name}`);
-
-      const allFoldersQuery = [
-        `mimeType='application/vnd.google-apps.folder'`,
-        `'${ownerFolderId}' in parents`,
-      ].join(" and ");
-
-      const allFolders = await this.drive.files.list({
-        q: allFoldersQuery,
-        fields: "files(id, name)",
-        spaces: "drive",
-      });
-
       console.log(
-        "Available folders:",
-        allFolders.data.files.map((f) => f.name)
+        `Searching for a folder containing '${propertyName}' and 'Receipts'`
       );
 
-      // Search directly for property folder
-      console.log("Searching for property:", propertyName);
-
-      const propertyQuery = [
+      const query = [
         `mimeType='application/vnd.google-apps.folder'`,
-        `'${ownerFolderId}' in parents`,
         `name contains '${propertyName}'`,
+        `name contains 'Receipts'`,
       ].join(" and ");
 
-      console.log("Property search query:", propertyQuery);
+      console.log("Search query:", query);
 
-      const propertyFolder = await this.drive.files.list({
-        q: propertyQuery,
+      const response = await this.drive.files.list({
+        q: query,
         fields: "files(id, name)",
         spaces: "drive",
       });
 
-      console.log(
-        "Property search results:",
-        propertyFolder.data.files.map((f) => f.name)
-      );
-
-      if (propertyFolder.data.files.length === 0) {
+      if (response.data.files.length === 0) {
         throw new Error(
-          `Property folder not found: ${propertyName} in ${ownerFolder.data.files[0].name}`
+          `No folder found containing '${propertyName}' and 'Receipts'`
         );
       }
 
-      console.log("Found Property folder:", propertyFolder.data.files[0].name);
-      return propertyFolder.data.files[0].id;
+      const receiptsFolder = response.data.files[0];
+      console.log(
+        `Found Receipts folder: ${receiptsFolder.name} (ID: ${receiptsFolder.id})`
+      );
+
+      // Now, search for the monthYear folder inside the Receipts folder
+      console.log(
+        `Searching for subfolder '${monthYear}' inside '${receiptsFolder.name}'`
+      );
+
+      const subfolderQuery = [
+        `mimeType='application/vnd.google-apps.folder'`,
+        `'${receiptsFolder.id}' in parents`,
+        `name = '${monthYear}'`,
+      ].join(" and ");
+
+      const subfolderResponse = await this.drive.files.list({
+        q: subfolderQuery,
+        fields: "files(id, name)",
+        spaces: "drive",
+      });
+
+      if (subfolderResponse.data.files.length === 0) {
+        throw new Error(
+          `No subfolder found named '${monthYear}' inside '${receiptsFolder.name}'`
+        );
+      }
+
+      const monthYearFolder = subfolderResponse.data.files[0];
+      console.log(
+        `Found Month-Year folder: ${monthYearFolder.name} (ID: ${monthYearFolder.id})`
+      );
+
+      return monthYearFolder.id;
     } catch (error) {
-      console.error("Error finding property folder:", error);
+      console.error("Error finding receipts subfolder:", error);
       throw error;
     }
   }

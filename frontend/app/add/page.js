@@ -4,7 +4,6 @@ import styles from "./addPage.module.css";
 import { useState, useEffect } from "react";
 import BackgroundContainer from "../components/backgroundContainer";
 import Button from "@mui/material/Button";
-import { styled } from "@mui/material/styles";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { useProperties } from "../../contexts/PropertyContext";
 import PdfSection from "./pdfSection";
@@ -22,11 +21,13 @@ const AddPage = () => {
   const [products, setProducts] = useState([]);
   const [rates] = useState([]);
   const [amounts, setAmounts] = useState([]);
-  const [ownersName] = useState("");
   const [propertyId, setPropertyId] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedCompany, setSelectedCompany] = useState("");
   const [maintenanceCost, setMaintenanceCost] = useState("");
+  const [maintenanceDescription, setMaintenanceDescription] = useState("");
+  const [isFileAttached, setIsFileAttached] = useState(false);
+  const [fileAttached, setFileAttached] = useState(null);
   const [selectedDate, setSelectedDate] = useState(
     dayjs().format("YYYY-MM-DD")
   );
@@ -57,7 +58,6 @@ const AddPage = () => {
   };
 
   const handlePropertyChange = (propertyId, propertyName) => {
-    console.log("Property selected:", { id: propertyId, name: propertyName });
     setPropertyId(propertyId);
     setSelectedPropertyName(propertyName);
   };
@@ -101,12 +101,89 @@ const AddPage = () => {
     }
   };
 
-  const handleMaintenanceSubmit = () => {
+  const handleMaintenanceSubmit = async () => {
     console.log("Selected property:", selectedPropertyName);
     console.log("Selected category:", selectedCategory);
     console.log("Selected company:", selectedCompany);
+    console.log("Description:", maintenanceDescription);
     console.log("Selected date:", selectedDate);
     console.log("Maintenance cost:", maintenanceCost);
+
+    const maintenanceMonthYear = dayjs(selectedDate).format("MMMMYYYY");
+
+    if (
+      !selectedPropertyName ||
+      !selectedCategory ||
+      !selectedCompany ||
+      !maintenanceCost
+    ) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
+    try {
+      // If a file is attached, convert it to Base64 and upload
+      if (isFileAttached && fileAttached) {
+        const fileBase64 = await convertFileToBase64(fileAttached);
+
+        const fileResponse = await fetch(
+          "http://localhost:5000/api/upload/maintenance",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              propertyName: selectedPropertyName,
+              monthYear: maintenanceMonthYear,
+              file: fileBase64,
+              fileName: fileAttached.name,
+              fileType: fileAttached.type,
+            }),
+          }
+        );
+
+        if (!fileResponse.ok) {
+          throw new Error("Failed to upload file");
+        }
+
+        alert("File uploaded successfully");
+      }
+
+      // Send maintenance request
+      const maintenanceResponse = await fetch(
+        "http://localhost:5000/api/maintenance",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            category: selectedCategory,
+            company: selectedCompany,
+            cost: maintenanceCost,
+            description: maintenanceDescription || "",
+            date: selectedDate,
+          }),
+        }
+      );
+
+      if (!maintenanceResponse.ok) {
+        throw new Error("Failed to submit maintenance request");
+      }
+
+      alert("Maintenance request submitted successfully");
+    } catch (error) {
+      console.error("Error submitting maintenance request:", error);
+      alert("An error occurred. Please try again.");
+    }
+  };
+
+  // Function to convert file to Base64
+  const convertFileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (error) => reject(error);
+    });
   };
 
   useEffect(() => {
@@ -159,22 +236,14 @@ const AddPage = () => {
     setMaintenanceCost(event.target.value);
   };
 
+  const handleMaintenanceDescriptionChange = (event) => {
+    setMaintenanceDescription(event.target.value);
+  };
+
   const handleDateChange = (date) => {
     const formattedDate = dayjs(date).format("YYYY-MM-DD");
     setSelectedDate(formattedDate);
   };
-
-  const VisuallyHiddenInput = styled("input")({
-    clip: "rect(0 0 0 0)",
-    clipPath: "inset(50%)",
-    height: 1,
-    overflow: "hidden",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    whiteSpace: "nowrap",
-    width: 1,
-  });
 
   return (
     <div className={styles.addPageContainer}>
@@ -193,7 +262,7 @@ const AddPage = () => {
             amounts={amounts}
             rates={rates}
             selectedPropertyName={selectedPropertyName}
-            ownersName={ownersName}
+            monthYear={dayjs(selectedDate).format("MMMMYYYY")}
           />
           <Button
             variant="outlined"
@@ -255,7 +324,7 @@ const AddPage = () => {
                 placeholder="Maintenance Company"
                 options={[
                   { label: "Company1", value: "Company1" },
-                  { label: "Company2", value: "Company1" },
+                  { label: "Company2", value: "Company2" },
                 ]}
                 onSelect={setSelectedCompany}
               />
@@ -268,22 +337,32 @@ const AddPage = () => {
                 className={styles.maintenanceInput}
                 placeholder="Maintenance Cost"
               />
+              <input
+                type="text"
+                pattern="\d*"
+                inputMode="numeric"
+                value={maintenanceDescription}
+                onChange={handleMaintenanceDescriptionChange}
+                className={styles.maintenanceInput}
+                placeholder="Maintenance Description"
+              />
               <DatePicker onDateChange={handleDateChange} />
               <Button
                 component="label"
-                role={undefined}
                 variant="contained"
-                tabIndex={-1}
                 startIcon={<CloudUploadIcon />}
                 sx={{
                   backgroundColor: "#eccb34",
                 }}
               >
                 Upload files
-                <VisuallyHiddenInput
+                <input
                   type="file"
-                  onChange={(event) => console.log(event.target.files)}
-                  multiple
+                  hidden
+                  onChange={(event) => {
+                    setFileAttached(event.target.files[0]);
+                    setIsFileAttached(true);
+                  }}
                 />
               </Button>
               <Button

@@ -1,6 +1,7 @@
 import "./styles/globals.css";
 import SideBar from "./components/sideBar";
 import React from "react";
+import { UserProvider } from "../contexts/UserContext";
 import { PropertyProvider } from "../contexts/PropertyContext";
 
 export default function RootLayout({ children }) {
@@ -8,10 +9,12 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         <div className="layout">
-          <PropertyProvider>
-            <SideBar />
-            <main className="main-content">{children}</main>
-          </PropertyProvider>
+          <UserProvider>
+            <PropertyProvider>
+              <SideBar />
+              <main className="main-content">{children}</main>
+            </PropertyProvider>
+          </UserProvider>
         </div>
       </body>
     </html>

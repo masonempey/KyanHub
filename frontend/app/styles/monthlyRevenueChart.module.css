@@ -1,0 +1,30 @@
+.smallRevenueContainer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  z-index: 2;
+  color: #eccb34;
+}
+
+.smallRevenueContainer > span {
+  font-size: 1.5em;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.smallRevenueContainer div::-webkit-scrollbar {
+  width: 6px;
+}
+
+.smallRevenueContainer div::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.smallRevenueContainer div::-webkit-scrollbar-thumb {
+  background-color: #eccb34;
+  border-radius: 3px;
+}
