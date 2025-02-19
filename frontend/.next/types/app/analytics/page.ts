@@ -1,4 +1,4 @@
-// File: C:\KyanHub\kyanhub\frontend\app\analytics\page.js
+// File: C:\Git\KyanHub\frontend\app\analytics\page.js
 import * as entry from '../../../../app/analytics/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
