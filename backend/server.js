@@ -53,12 +53,10 @@ app.use(async (req, res, next) => {
       isInitialized = true;
     } catch (error) {
       console.error("Database initialization failed:", error);
-      return res
-        .status(500)
-        .json({
-          error: "Server initialization failed",
-          details: error.message,
-        });
+      return res.status(500).json({
+        error: "Server initialization failed",
+        details: error.message,
+      });
     }
   }
   next();
