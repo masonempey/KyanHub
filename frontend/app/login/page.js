@@ -23,13 +23,10 @@ const Login = () => {
 
   const handleSignUp = async () => {
     try {
-      const res = await axios.post(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/register`,
-        {
-          email,
-          password,
-        }
-      );
+      const res = await axios.post(`/api/users/register`, {
+        email,
+        password,
+      });
       console.log("User created:", res.data);
       if (res) {
         window.location.href = "/";
@@ -61,22 +58,16 @@ const Login = () => {
       const user = result.user;
 
       // Check if the user exists in backend
-      const checkUserResponse = await axios.post(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/validate`,
-        {
-          uid: user.uid,
-        }
-      );
+      const checkUserResponse = await axios.post(`/api/users/validate`, {
+        uid: user.uid,
+      });
 
       if (!checkUserResponse.data.exists) {
-        await axios.post(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/googleregister`,
-          {
-            email: user.email,
-            uid: user.uid,
-            name: user.displayName || user.email,
-          }
-        );
+        await axios.post(`/api/users/googleregister`, {
+          email: user.email,
+          uid: user.uid,
+          name: user.displayName || user.email,
+        });
       }
 
       // Redirect to home or another page

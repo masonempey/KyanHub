@@ -24,7 +24,7 @@ const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 204,
 };
-
+s;
 app.use(cors(corsOptions));
 app.use(express.json());
 
@@ -48,9 +48,6 @@ app.use("/api/pdf", pdfRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
 
-// Export the serverless function (use default export for clarity)
-module.exports = serverless(app);
-
 // Initialize database on first invocation
 let isInitialized = false;
 app.use(async (req, res, next) => {
@@ -70,3 +67,6 @@ app.use(async (req, res, next) => {
   }
   next();
 });
+
+// Export the serverless function (use default export for clarity)
+module.exports = serverless(app);
