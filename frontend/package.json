@@ -17,6 +17,7 @@
     "@mui/material-nextjs": "^5.8.6",
     "@mui/styled-engine-sc": "^5.8.6",
     "@mui/system": "^5.8.6",
+    "@mui/x-date-pickers": "^7.27.0",
     "axios": "^1.7.9",
     "dayjs": "^1.11.7",
     "firebase": "^11.3.1",
