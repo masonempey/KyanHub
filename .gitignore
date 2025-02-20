@@ -5,7 +5,6 @@ node_modules/
 # Credentials and tokens
 backend/token.json
 backend/credentials.json
-/backend/src/secrets/*.json
 *.pem
 *.key
 
@@ -20,3 +19,6 @@ yarn-error.log*
 .vscode/
 *.swp
 *.swo
+
+# Next.js build output
+.next/
