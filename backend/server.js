@@ -20,11 +20,22 @@ const app = express();
 // Configure CORS to allow requests from your frontend's origin
 const corsOptions = {
   origin: "https://kyanhub.vercel.app",
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
   credentials: true,
+  allowedHeaders: [
+    "X-CSRF-Token",
+    "X-Requested-With",
+    "Accept",
+    "Accept-Version",
+    "Content-Length",
+    "Content-MD5",
+    "Content-Type",
+    "Date",
+    "X-Api-Version",
+  ],
   optionsSuccessStatus: 204,
 };
-s;
+
 app.use(cors(corsOptions));
 app.use(express.json());
 
