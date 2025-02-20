@@ -16,7 +16,16 @@ const userRoutes = require("./src/routes/users");
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
+// Configure CORS to allow requests from your frontend's origin
+const corsOptions = {
+  origin: "https://kyanhub.vercel.app",
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Test route before anything else
