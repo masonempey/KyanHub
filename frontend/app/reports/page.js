@@ -52,7 +52,7 @@ const ReportsPage = () => {
   const fetchBookings = async (propertyId) => {
     setLoading(true);
     try {
-      const baseUrl = "http://localhost:5000";
+      const baseUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}`;
       const response = await fetch(
         `${baseUrl}/api/igms/bookings-with-guests/${propertyId}/${startDate.format(
           "YYYY-MM-DD"
@@ -117,7 +117,7 @@ const ReportsPage = () => {
       const sheetName = property_to_sheet[selectedProperty.name] || "Revenue";
 
       const response = await fetch(
-        `http://localhost:5000/api/sheets/${spreadsheetId}/${sheetName}/${year}/${monthName}`,
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/sheets/${spreadsheetId}/${sheetName}/${year}/${monthName}`,
         {
           method: "PUT",
           headers: {

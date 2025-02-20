@@ -67,7 +67,7 @@ const AddPage = () => {
       console.log("Updating inventory:", amounts);
       console.log("Product ID:", products);
 
-      const baseUrl = "http://localhost:5000";
+      const baseUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}`;
 
       for (let i = 0; i < products.length; i++) {
         const product = products[i];
@@ -127,7 +127,7 @@ const AddPage = () => {
         const fileBase64 = await convertFileToBase64(fileAttached);
 
         const fileResponse = await fetch(
-          "http://localhost:5000/api/upload/maintenance",
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/upload/maintenance`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -150,7 +150,7 @@ const AddPage = () => {
 
       // Send maintenance request
       const maintenanceResponse = await fetch(
-        "http://localhost:5000/api/maintenance",
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/maintenance`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -190,7 +190,7 @@ const AddPage = () => {
     const fetchProducts = async () => {
       try {
         const response = await fetch(
-          "http://localhost:5000/api/inventory/products"
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products`
         );
         if (!response.ok) {
           throw new Error("Failed to fetch products");
@@ -210,7 +210,7 @@ const AddPage = () => {
     const fetchAmounts = async () => {
       try {
         const response = await fetch(
-          `http://localhost:5000/api/inventory/${propertyId}/${currentMonth}`
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/${propertyId}/${currentMonth}`
         );
         if (!response.ok) {
           throw new Error("Failed to fetch amounts");

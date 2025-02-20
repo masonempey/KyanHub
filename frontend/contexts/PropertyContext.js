@@ -10,7 +10,9 @@ export const PropertyProvider = ({ children }) => {
 
   const fetchProperties = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/igms/property");
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/igms/property`
+      );
       const data = await response.json();
 
       if (data.success) {

@@ -25,7 +25,7 @@ const MonthlyMaintenance = ({ propertyId, month }) => {
       setIsLoading(true);
       try {
         const response = await fetch(
-          `http://localhost:5000/api/analytics/${propertyId}/2025/${month}`
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/analytics/${propertyId}/2025/${month}`
         );
         if (!response.ok) {
           throw new Error("Failed to fetch analytics data");

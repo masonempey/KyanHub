@@ -34,7 +34,7 @@ const AddProduct = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:5000/api/inventory/products",
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products`,
         {
           method: "POST",
           headers: {

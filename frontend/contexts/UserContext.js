@@ -17,7 +17,7 @@ export const UserProvider = ({ children }) => {
       if (firebaseUser) {
         try {
           const response = await fetch(
-            `http://localhost:5000/api/users/${firebaseUser.uid}`
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/${firebaseUser.uid}`
           );
           const userData = await response.json();
           setUser({

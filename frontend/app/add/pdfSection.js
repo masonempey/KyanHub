@@ -9,17 +9,20 @@ const PdfSection = ({
 }) => {
   const handleGeneratePDF = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/pdf/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          propertyName: selectedPropertyName,
-          products,
-          amounts,
-          rates,
-          monthYear,
-        }),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/pdf/generate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyName: selectedPropertyName,
+            products,
+            amounts,
+            rates,
+            monthYear,
+          }),
+        }
+      );
 
       const data = await response.json();
 
