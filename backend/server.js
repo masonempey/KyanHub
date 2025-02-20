@@ -19,38 +19,37 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const initializeApp = async () => {
+// Define routes and middleware
+app.use("/api/inventory/products", inventoryRoutes);
+app.use("/api/inventory", inventoryRoutes);
+app.use("/api/igms", igmsRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/users", userRoutes);
+
+// Apply authentication middleware
+app.use("/api", authMiddleware);
+
+// Routes that require authentication
+app.use("/api/sheets", sheetsRoutes);
+app.use("/api/pdf", pdfRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/maintenance", maintenanceRoutes);
+
+// Add a root /api route for testing
+app.get("/api", (req, res) => {
+  res.status(200).json({ message: "Server is running!" });
+});
+
+// Initialize database and return the app handler
+module.exports.handler = async (event, context) => {
   try {
-    await initDatabase();
-
-    // Routes that do not require authentication
-    app.use("/api/inventory/products", inventoryRoutes);
-    app.use("/api/inventory", inventoryRoutes);
-    app.use("/api/igms", igmsRoutes);
-    app.use("/api/analytics", analyticsRoutes);
-    app.use("/api/users", userRoutes);
-
-    // Apply authentication middleware
-    app.use("/api", authMiddleware);
-
-    // Routes that require authentication
-    app.use("/api/sheets", sheetsRoutes);
-    app.use("/api/pdf", pdfRoutes);
-    app.use("/api/upload", uploadRoutes);
-    app.use("/api/maintenance", maintenanceRoutes);
-
-    // Optional: Add a root route for testing
-    app.get("/", (req, res) => {
-      res.send("Server is running!");
-    });
+    await initDatabase(); // Ensure DB is initialized before handling requests
+    return serverless(app)(event, context);
   } catch (error) {
-    console.error("Error initializing app:", error);
-    throw error;
+    console.error("Error initializing database:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: "Server initialization failed" }),
+    };
   }
 };
-
-// Initialize the app
-initializeApp();
-
-// Export the app as a serverless function
-module.exports.handler = serverless(app);
