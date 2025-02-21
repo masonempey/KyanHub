@@ -17,12 +17,13 @@ dotenv.config();
 const app = express();
 
 // Configure CORS to allow requests from your frontend's origin
-const corsOptions = {
-  origin: "https://kyanhub.vercel.app",
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  credentials: true,
-};
-app.use(cors(corsOptions));
+// const corsOptions = {
+//   origin: `${process.env.NEXT_PUBLIC_FRONTEND_UR}` || "http://localhost:3000",
+//   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+//   credentials: true,
+// };
+
+app.use(cors());
 app.use(express.json());
 
 // Test route before anything else
@@ -45,25 +46,44 @@ app.use("/api/pdf", pdfRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/maintenance", maintenanceRoutes);
 
-// Initialize database on first invocation
-let isInitialized = false;
-app.use(async (req, res, next) => {
-  if (!isInitialized) {
-    try {
-      console.log("Initializing database...");
-      await initDatabase();
-      console.log("Database initialized successfully");
-      isInitialized = true;
-    } catch (error) {
-      console.error("Database initialization failed:", error);
-      return res.status(500).json({
-        error: "Server initialization failed",
-        details: error.message,
-      });
-    }
+const PORT = process.env.PORT || 5000;
+
+const startServer = async () => {
+  try {
+    console.log("Initializing database...");
+    await initDatabase();
+    console.log("Database initialized successfully");
+
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Database initialization failed:", error);
+    process.exit(1); // Exit the process with failure
   }
-  next();
-});
+};
+
+startServer();
+
+// Initialize database on first invocation
+// let isInitialized = false;
+// app.use(async (req, res, next) => {
+//   if (!isInitialized) {
+//     try {
+//       console.log("Initializing database...");
+//       await initDatabase();
+//       console.log("Database initialized successfully");
+//       isInitialized = true;
+//     } catch (error) {
+//       console.error("Database initialization failed:", error);
+//       return res.status(500).json({
+//         error: "Server initialization failed",
+//         details: error.message,
+//       });
+//     }
+//   }
+//   next();
+// });
 
 // Export the serverless function (use default export for clarity)
 module.exports = app;
