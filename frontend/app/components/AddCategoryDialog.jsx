@@ -7,6 +7,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
+import fetchWithAuth from "../utils/fetchWithAuth";
 
 const AddCategoryDialog = ({ open, onClose, onAddCategory }) => {
   const [categoryName, setCategoryName] = useState("");
@@ -18,7 +19,7 @@ const AddCategoryDialog = ({ open, onClose, onAddCategory }) => {
     }
 
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${
           process.env.NEXT_PUBLIC_BACKEND_URL
         }/api/maintenance/add-category/${encodeURIComponent(categoryName)}`,

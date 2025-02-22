@@ -23,17 +23,6 @@ const Login = () => {
   const [error, setError] = useState("");
   const [isLogin, setIsLogin] = useState(true);
   const router = useRouter();
-  const { user, loading } = useUser();
-
-  useEffect(() => {
-    if (!loading && user) {
-      if (user.role === "admin") {
-        router.push("/add");
-      } else {
-        router.push("/add"); //IF NOT ADMIN PUSH HERE
-      }
-    }
-  }, [user, loading, router]);
 
   const handleSignUp = async () => {
     try {
@@ -101,7 +90,6 @@ const Login = () => {
         router.push("/add");
       } else {
         throw new Error("Failed to find user in database");
-        return;
       }
     } catch (error) {
       console.error("Error during Google sign-in:", error);

@@ -16,11 +16,14 @@ import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
 import dayjs from "dayjs";
 import MaintenanceSection from "./MaintenanceSection";
+import { useUser } from "../../contexts/UserContext";
+import fetchWithAuth from "../utils/fetchWithAuth";
 
 const AddPage = () => {
+  const { user, loading: userLoading } = useUser();
   const {
     properties: allProperties,
-    loading,
+    loading: propertiesLoading,
     propertyId,
     selectedPropertyName,
     currentMonth,
@@ -64,11 +67,10 @@ const AddPage = () => {
         const product = products[i];
         const quantity = amounts[i];
         if (quantity > 0) {
-          const response = await fetch(
+          const response = await fetchWithAuth(
             `${baseUrl}/api/inventory/${propertyId}/${product.id}/${currentMonth}`,
             {
               method: "PUT",
-              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ quantity }),
             }
           );
@@ -80,8 +82,10 @@ const AddPage = () => {
         }
       }
       console.log("Inventory updated successfully");
+      alert("Inventory updated successfully");
     } catch (error) {
       console.error("Update error:", error);
+      alert("Failed to update inventory");
     }
   };
 
@@ -93,9 +97,9 @@ const AddPage = () => {
   const handleDeleteConfirm = async () => {
     if (!productToDelete) return;
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products/${productToDelete.id}`,
-        { method: "DELETE", headers: { "Content-Type": "application/json" } }
+        { method: "DELETE" }
       );
       if (!response.ok)
         throw new Error(`Failed to delete product ${productToDelete.name}`);
@@ -121,16 +125,15 @@ const AddPage = () => {
 
   const handleAddProductConfirm = async (productData) => {
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(productData),
         }
       );
       if (!response.ok) throw new Error("Failed to add product");
-      const updatedProducts = await fetch(
+      const updatedProducts = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products`
       );
       if (!updatedProducts.ok)
@@ -147,7 +150,7 @@ const AddPage = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch(
+        const response = await fetchWithAuth(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products`
         );
         if (!response.ok) throw new Error("Failed to fetch products");
@@ -163,7 +166,7 @@ const AddPage = () => {
   useEffect(() => {
     const fetchAmounts = async () => {
       try {
-        const response = await fetch(
+        const response = await fetchWithAuth(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/${propertyId}/${currentMonth}`
         );
         if (!response.ok) throw new Error("Failed to fetch amounts");
@@ -175,6 +178,9 @@ const AddPage = () => {
     };
     if (propertyId) fetchAmounts();
   }, [propertyId, currentMonth]);
+
+  if (userLoading || propertiesLoading) return <div>Loading...</div>;
+  if (!user) return <div>Please log in to access this page.</div>;
 
   return (
     <div className={styles.addPageContainer}>

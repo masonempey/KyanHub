@@ -30,7 +30,7 @@ app.use("/api/inventory", authMiddleware, inventoryRoutes);
 app.use("/api/upload", authMiddleware, uploadRoutes);
 app.use("/api/maintenance", authMiddleware, maintenanceRoutes);
 app.use("/api/analytics", authMiddleware, analyticsRoutes);
-app.use("/api/users", authMiddleware, userRoutes);
+app.use("/api/users", userRoutes);
 
 // Apply admin middleware to specific routes
 app.use("/api/admin", adminMiddleware);

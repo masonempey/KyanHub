@@ -7,6 +7,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
+import fetchWithAuth from "../utils/fetchWithAuth";
 
 const AddCompanyDialog = ({ open, onClose, onAddCompany }) => {
   const [companyName, setCompanyName] = useState("");
@@ -18,8 +19,10 @@ const AddCompanyDialog = ({ open, onClose, onAddCompany }) => {
     }
 
     try {
-      const response = await fetch(
-        `/api/maintenance/add-company/${encodeURIComponent(companyName)}`,
+      const response = await fetchWithAuth(
+        `${
+          process.env.NEXT_PUBLIC_BACKEND_URL
+        }/api/maintenance/add-company/${encodeURIComponent(companyName)}`,
         {
           method: "POST",
           headers: {
@@ -29,7 +32,8 @@ const AddCompanyDialog = ({ open, onClose, onAddCompany }) => {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to add company");
+        const errorText = await response.text();
+        throw new Error(`Failed to add company: ${errorText}`);
       }
 
       onAddCompany(companyName);
@@ -37,7 +41,7 @@ const AddCompanyDialog = ({ open, onClose, onAddCompany }) => {
       onClose();
     } catch (error) {
       console.error("Error adding company:", error);
-      alert("Failed to add company");
+      alert(`Failed to add company: ${error.message}`);
     }
   };
 

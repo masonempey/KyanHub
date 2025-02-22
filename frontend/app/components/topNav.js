@@ -2,6 +2,8 @@ import React from "react";
 import styles from "../styles/topNav.module.css";
 import FilterBar from "../components/propertyFilterBar";
 import MonthSelection from "../components/monthSelection";
+import { Button } from "@mui/material";
+import { useUser } from "../../contexts/UserContext";
 
 const TopNav = ({
   filteredProperties,
@@ -11,6 +13,8 @@ const TopNav = ({
   currentPage,
   onMonthChange,
 }) => {
+  const { logout } = useUser();
+
   return (
     <div>
       <div className={styles.topNav}>
@@ -30,6 +34,18 @@ const TopNav = ({
             />
           </div>
         </div>
+        <Button
+          variant="contained"
+          color="secondary"
+          onClick={logout}
+          sx={{
+            marginLeft: "auto",
+            backgroundColor: "#eccb34",
+            color: "#fafafa",
+          }}
+        >
+          Logout
+        </Button>
       </div>
     </div>
   );

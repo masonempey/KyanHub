@@ -13,6 +13,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import BookingCard from "./BookingCard";
+import fetchWithAuth from "../utils/fetchWithAuth";
 import {
   property_to_spreadsheet,
   property_to_sheet,
@@ -53,7 +54,7 @@ const ReportsPage = () => {
     setLoading(true);
     try {
       const baseUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}`;
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${baseUrl}/api/igms/bookings-with-guests/${propertyId}/${startDate.format(
           "YYYY-MM-DD"
         )}/${endDate.format("YYYY-MM-DD")}`
@@ -116,7 +117,7 @@ const ReportsPage = () => {
       // Get sheet name (use property_to_sheet mapping or default to "Revenue")
       const sheetName = property_to_sheet[selectedProperty.name] || "Revenue";
 
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/sheets/${spreadsheetId}/${sheetName}/${year}/${monthName}`,
         {
           method: "PUT",

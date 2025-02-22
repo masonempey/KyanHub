@@ -2,10 +2,13 @@
 
 import dayjs from "dayjs";
 import { createContext, useContext, useState, useEffect } from "react";
+import fetchWithAuth from "../app/utils/fetchWithAuth";
+import { useUser } from "./UserContext";
 
 const PropertyContext = createContext();
 
 export const PropertyProvider = ({ children }) => {
+  const { user, loading: userLoading } = useUser();
   const [properties, setProperties] = useState({});
   const [loading, setLoading] = useState(true);
   const [propertyId, setPropertyId] = useState("");
@@ -14,7 +17,7 @@ export const PropertyProvider = ({ children }) => {
 
   const fetchProperties = async () => {
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/igms/property`
       );
       const data = await response.json();
@@ -56,8 +59,12 @@ export const PropertyProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    fetchProperties();
-  }, []);
+    if (!userLoading && user) {
+      fetchProperties();
+    } else if (!userLoading && !user) {
+      setLoading(false);
+    }
+  }, [user, userLoading]);
 
   useEffect(() => {
     if (propertyId && properties[propertyId]) {

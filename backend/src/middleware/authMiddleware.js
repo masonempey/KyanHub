@@ -1,5 +1,4 @@
-const { google } = require("googleapis");
-const googleService = require("../services/googleService");
+const admin = require("./firebaseAdmin");
 const UserService = require("../services/userService");
 
 const authMiddleware = async (req, res, next) => {
@@ -9,27 +8,29 @@ const authMiddleware = async (req, res, next) => {
     }
 
     const idToken = req.headers.authorization?.split("Bearer ")[1];
+    console.log("Received token:", idToken);
 
     if (!idToken) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res
+        .status(401)
+        .json({ message: "Unauthorized - No token provided" });
     }
 
-    const ticket = await googleService.getOAuth2Client().verifyIdToken({
-      idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-    const payload = ticket.getPayload();
-    const user = await UserService.getUserByEmail(payload.email);
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    console.log("Decoded token:", decodedToken);
+
+    const user = await UserService.getUserByEmail(decodedToken.email);
+    console.log("User:", user);
 
     if (!user) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return res.status(401).json({ message: "Unauthorized - User not found" });
     }
 
     req.user = user;
     next();
   } catch (error) {
     console.error("Authentication error:", error);
-    res.status(401).json({ message: "Unauthorized" });
+    res.status(401).json({ message: "Unauthorized - Invalid token" });
   }
 };
 

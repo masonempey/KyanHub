@@ -16,9 +16,8 @@ import AddCompanyDialog from "../components/AddCompanyDialog";
 import AddCategoryDialog from "../components/AddCategoryDialog";
 import BackgroundContainer from "../components/backgroundContainer";
 import dayjs from "dayjs";
-import { getAuth } from "firebase/auth";
-
-const auth = getAuth();
+import { useUser } from "../../contexts/UserContext";
+import fetchWithAuth from "../utils/fetchWithAuth";
 
 const MaintenanceSection = ({
   propertyId,
@@ -26,6 +25,7 @@ const MaintenanceSection = ({
   selectedDate,
   onDateChange,
 }) => {
+  const { user, loading } = useUser();
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedCompany, setSelectedCompany] = useState("");
   const [maintenanceCost, setMaintenanceCost] = useState("");
@@ -42,10 +42,13 @@ const MaintenanceSection = ({
   const [companyToDelete, setCompanyToDelete] = useState(null);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
 
+  if (loading) return <div>Loading...</div>;
+  if (!user) return <div>Please log in to access this section.</div>;
+
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
-        const response = await fetch(
+        const response = await fetchWithAuth(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/maintenance/companies`
         );
         if (!response.ok)
@@ -62,19 +65,22 @@ const MaintenanceSection = ({
         );
       } catch (error) {
         console.error("Error fetching companies:", error.message);
+        alert("Failed to load companies. Please try again.");
       }
     };
 
     const fetchCategories = async () => {
       try {
-        const response = await fetch(
+        const response = await fetchWithAuth(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/maintenance/categories`
         );
-        if (!response.ok)
+        if (!response.ok) {
           throw new Error(`Failed to fetch categories: ${response.statusText}`);
+        }
         const data = await response.json();
-        if (!data.categories)
+        if (!data.categories) {
           throw new Error("No categories property in response");
+        }
         setCategories(
           data.categories.map((category) => ({
             label: category.category,
@@ -84,6 +90,7 @@ const MaintenanceSection = ({
         );
       } catch (error) {
         console.error("Error fetching categories:", error.message);
+        alert("Failed to load categories. Please try again.");
       }
     };
 
@@ -104,18 +111,12 @@ const MaintenanceSection = ({
     }
 
     try {
-      const idToken = await auth.currentUser.getIdToken();
-
       if (isFileAttached && fileAttached) {
         const fileBase64 = await convertFileToBase64(fileAttached);
-        const fileResponse = await fetch(
+        const fileResponse = await fetchWithAuth(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/upload/maintenance`,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${idToken}`,
-            },
             body: JSON.stringify({
               propertyName: selectedPropertyName,
               monthYear: maintenanceMonthYear,
@@ -125,18 +126,16 @@ const MaintenanceSection = ({
             }),
           }
         );
-        if (!fileResponse.ok) throw new Error("Failed to upload file");
+        if (!fileResponse.ok) {
+          throw new Error("Failed to upload file");
+        }
         alert("File uploaded successfully");
       }
 
-      const maintenanceResponse = await fetch(
+      const maintenanceResponse = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/maintenance`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`,
-          },
           body: JSON.stringify({
             propertyId,
             category: selectedCategory,
@@ -147,9 +146,16 @@ const MaintenanceSection = ({
           }),
         }
       );
-      if (!maintenanceResponse.ok)
+      if (!maintenanceResponse.ok) {
         throw new Error("Failed to submit maintenance request");
+      }
       alert("Maintenance request submitted successfully");
+      setSelectedCategory("");
+      setSelectedCompany("");
+      setMaintenanceCost("");
+      setMaintenanceDescription("");
+      setIsFileAttached(false);
+      setFileAttached(null);
     } catch (error) {
       console.error("Error submitting maintenance request:", error);
       alert("An error occurred. Please try again.");
@@ -167,6 +173,7 @@ const MaintenanceSection = ({
 
   const handleMaintenanceCostChange = (event) =>
     setMaintenanceCost(event.target.value);
+
   const handleMaintenanceDescriptionChange = (event) =>
     setMaintenanceDescription(event.target.value);
 
@@ -188,16 +195,19 @@ const MaintenanceSection = ({
   const handleDeleteCompanyConfirm = async () => {
     if (!companyToDelete) return;
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${
           process.env.NEXT_PUBLIC_BACKEND_URL
         }/api/maintenance/delete-company/${encodeURIComponent(
           companyToDelete
         )}`,
-        { method: "DELETE", headers: { "Content-Type": "application/json" } }
+        {
+          method: "DELETE",
+        }
       );
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`Failed to delete company ${companyToDelete}`);
+      }
       setCompanies(companies.filter((c) => c.value !== companyToDelete));
       if (selectedCompany === companyToDelete) setSelectedCompany("");
       alert(`Company "${companyToDelete}" deleted successfully`);
@@ -222,16 +232,19 @@ const MaintenanceSection = ({
   const handleDeleteCategoryConfirm = async () => {
     if (!categoryToDelete) return;
     try {
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${
           process.env.NEXT_PUBLIC_BACKEND_URL
         }/api/maintenance/delete-category/${encodeURIComponent(
           categoryToDelete
         )}`,
-        { method: "DELETE", headers: { "Content-Type": "application/json" } }
+        {
+          method: "DELETE",
+        }
       );
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`Failed to delete category ${categoryToDelete}`);
+      }
       setCategories(categories.filter((c) => c.value !== categoryToDelete));
       if (selectedCategory === categoryToDelete) setSelectedCategory("");
       alert(`Category "${categoryToDelete}" deleted successfully`);

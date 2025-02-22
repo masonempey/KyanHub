@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../app/firebase/config";
 import { useRouter } from "next/navigation";
 
@@ -29,16 +29,12 @@ export const UserProvider = ({ children }) => {
           };
           setUser(userWithRole);
           console.log("User details:", userWithRole);
-          if (userWithRole.role === "admin") {
-            router.push("/add");
-          } else {
-            router.push("/add"); //IF NOT ADMIN PUSH HERE
-          }
         } catch (error) {
           console.error("Error fetching user data:", error);
         }
       } else {
         setUser(null);
+        router.push("/login");
       }
       setLoading(false);
     });
@@ -46,8 +42,14 @@ export const UserProvider = ({ children }) => {
     return () => unsubscribe();
   }, [router]);
 
+  const logout = async () => {
+    await signOut(auth);
+    setUser(null);
+    router.push("/login");
+  };
+
   return (
-    <UserContext.Provider value={{ user, loading }}>
+    <UserContext.Provider value={{ user, loading, logout }}>
       {children}
     </UserContext.Provider>
   );

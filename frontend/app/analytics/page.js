@@ -5,9 +5,14 @@ import BackgroundContainer from "../components/backgroundContainer";
 import MonthlyRevenueChart from "./monthlyRevenueChart";
 import MonthlyMaintenanceChart from "./monthlyMaintenanceChart";
 import { useProperties } from "../../contexts/PropertyContext";
+import { useUser } from "../../contexts/UserContext";
 
 const AnalyticsPage = () => {
+  const { user, loading: userLoading } = useUser();
   const { propertyId, currentMonth } = useProperties();
+
+  if (userLoading || propertiesLoading) return <div>Loading...</div>;
+  if (!user) return <div>Please log in to access this page.</div>;
 
   return (
     <div className={styles.DashboardContainer}>
