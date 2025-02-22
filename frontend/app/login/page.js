@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../firebase/config";
 import { TextField, Button, Typography, Paper, Alert } from "@mui/material";
@@ -8,6 +8,7 @@ import { styled } from "@mui/system";
 import styles from "../styles/login.module.css";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import { useUser } from "../../contexts/UserContext";
 
 const FormContainer = styled(Paper)({
   padding: "2rem",
@@ -22,6 +23,17 @@ const Login = () => {
   const [error, setError] = useState("");
   const [isLogin, setIsLogin] = useState(true);
   const router = useRouter();
+  const { user, loading } = useUser();
+
+  useEffect(() => {
+    if (!loading && user) {
+      if (user.role === "admin") {
+        router.push("/add");
+      } else {
+        router.push("/add"); //IF NOT ADMIN PUSH HERE
+      }
+    }
+  }, [user, loading, router]);
 
   const handleSignUp = async () => {
     try {
@@ -69,19 +81,51 @@ const Login = () => {
       );
 
       if (!checkUserResponse.data.exists) {
-        await axios.post(`/api/users/googleregister`, {
-          email: user.email,
-          uid: user.uid,
-          name: user.displayName || user.email,
-        });
+        // Create the user in the backend first
+        const backendResponse = await axios.post(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/googleregister`,
+          {
+            email: user.email,
+            uid: user.uid,
+          }
+        );
+
+        if (backendResponse.status !== 201) {
+          throw new Error("Failed to create user in backend");
+        }
       }
 
-      router.push("/analytics");
+      // Lookup user in Firebase
+      await lookupUser();
+      if (checkUserResponse.data.exists) {
+        router.push("/add");
+      } else {
+        throw new Error("Failed to find user in database");
+        return;
+      }
     } catch (error) {
       console.error("Error during Google sign-in:", error);
       setError(
         error.response?.data?.message ||
           "Failed to sign in with Google. Please try again."
+      );
+    }
+  };
+
+  const lookupUser = async () => {
+    try {
+      const idToken = await auth.currentUser.getIdToken(true);
+      const response = await axios.post(
+        `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
+        {
+          idToken,
+        }
+      );
+      console.log("User lookup response:", response.data);
+    } catch (error) {
+      console.error(
+        "Error looking up user:",
+        error.response?.data || error.message
       );
     }
   };

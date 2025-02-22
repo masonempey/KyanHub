@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const UserService = require("../services/userService");
-const admin = require("../middleware/firebase-admin");
 
 // Gets all users
 router.get("/", async (req, res) => {
@@ -46,27 +45,9 @@ router.post("/googleregister", async (req, res) => {
         .json({ message: "User already exists", user: existingUser });
     }
 
-    // Check if user already exists in Firebase
-    try {
-      await admin.auth().getUser(uid);
-      return res
-        .status(200)
-        .json({ message: "User already exists in Firebase" });
-    } catch (firebaseError) {
-      if (firebaseError.code !== "auth/user-not-found") {
-        throw firebaseError;
-      }
-    }
-
     // Create new user in PostgreSQL
     const roleId = await UserService.getDefaultRoleId();
     const newUser = await UserService.createUser(uid, email, roleId);
-
-    // Create user in Firebase
-    const firebaseUser = await admin.auth().createUser({
-      uid,
-      email,
-    });
 
     return res
       .status(201)
@@ -137,7 +118,8 @@ router.get("/:id", async (req, res) => {
   try {
     const user = await UserService.getUserById(id);
     if (user) {
-      res.status(200).json(user);
+      const role = await UserService.getRoleById(user.role_id);
+      res.status(200).json({ email: user.email, role: role.role });
     } else {
       res.status(404).json({ message: "User not found" });
     }

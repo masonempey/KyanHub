@@ -1,33 +1,36 @@
+"use client";
+
 import { useState } from "react";
 import MenuItem from "@mui/material/MenuItem";
 import FormControl from "@mui/material/FormControl";
 import Select from "@mui/material/Select";
 import Box from "@mui/material/Box";
+import IconButton from "@mui/material/IconButton";
+import DeleteIcon from "@mui/icons-material/Delete";
 
-// Custom styles for the dropdown menu (Paper component)
 const menuProps = {
   PaperProps: {
     sx: {
-      backgroundColor: "#eccb34", // Yellow background for the dropdown menu
-      color: "#fafafa", // White text for the dropdown menu items
-      "& .MuiMenuItem-root": {
-        color: "#fafafa", // Ensure menu items have white text
-      },
-      "& .MuiMenuItem-root:hover": {
-        backgroundColor: "#d9b51f", // Optional: Slightly darker yellow on hover for better UX
-      },
+      backgroundColor: "#eccb34",
+      color: "#fafafa",
+      "& .MuiMenuItem-root": { color: "#fafafa" },
+      "& .MuiMenuItem-root:hover": { backgroundColor: "#d9b51f" },
     },
   },
 };
 
-const OptionBar = ({ placeholder, options, onSelect }) => {
+const OptionBar = ({ placeholder, options = [], onSelect, onDelete }) => {
   const [selectedOption, setSelectedOption] = useState("");
 
   const handleChange = (event) => {
-    setSelectedOption(event.target.value);
-    if (onSelect) {
-      onSelect(event.target.value);
-    }
+    const value = event.target.value;
+    setSelectedOption(value);
+    if (onSelect) onSelect(value);
+  };
+
+  const handleDelete = (value) => (event) => {
+    event.stopPropagation(); // Prevent dropdown selection when clicking delete
+    if (onDelete) onDelete(value);
   };
 
   return (
@@ -41,22 +44,17 @@ const OptionBar = ({ placeholder, options, onSelect }) => {
             borderRadius: "8px",
             color: "#fafafa",
             backgroundColor: "#eccb34",
-            borderColor: "#fafafa", // Default border color set to dark gray
-            "& .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#fafafa", // Default outline color set to dark gray
-            },
+            "& .MuiOutlinedInput-notchedOutline": { borderColor: "#fafafa" },
             "&:hover .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#fafafa", // Hover state outline color
+              borderColor: "#fafafa",
             },
             "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#fafafa", // Focused state outline color (when clicked)
+              borderColor: "#fafafa",
             },
-            "& .MuiSvgIcon-root": {
-              color: "#fafafa", // White dropdown arrow
-            },
+            "& .MuiSvgIcon-root": { color: "#fafafa" },
           }}
           displayEmpty
-          MenuProps={menuProps} // Apply custom styles to the dropdown menu
+          MenuProps={menuProps}
         >
           <MenuItem value="" disabled>
             {placeholder}
@@ -65,9 +63,17 @@ const OptionBar = ({ placeholder, options, onSelect }) => {
             <MenuItem
               key={index}
               value={option.value}
-              sx={{ color: "#fafafa" }} // Ensure menu items have white text
+              sx={{ display: "flex", justifyContent: "space-between" }}
             >
               {option.label}
+              <IconButton
+                aria-label={`delete ${option.label}`}
+                onClick={handleDelete(option.value)}
+                sx={{ color: "#fafafa", "&:hover": { color: "#eccb34" } }}
+                size="small"
+              >
+                <DeleteIcon />
+              </IconButton>
             </MenuItem>
           ))}
         </Select>
