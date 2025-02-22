@@ -8,20 +8,31 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { useProperties } from "../../contexts/PropertyContext";
 import PdfSection from "./pdfSection";
 import AddProduct from "./addProduct";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
+import IconButton from "@mui/material/IconButton";
+import DeleteIcon from "@mui/icons-material/Delete";
 import dayjs from "dayjs";
-import TopNav from "../components/topNav";
 import OptionBar from "../components/optionBar";
 import DatePicker from "../components/datePicker";
 
 const AddPage = () => {
-  const { properties: allProperties, loading } = useProperties();
+  const {
+    properties: allProperties,
+    loading,
+    propertyId,
+    selectedPropertyName,
+    currentMonth,
+    setCurrentMonth,
+  } = useProperties();
+
   const [filteredProperties, setFilteredProperties] = useState({});
-  const [currentMonth, setCurrentMonth] = useState(dayjs().format("MMMM"));
-  const [selectedPropertyName, setSelectedPropertyName] = useState();
   const [products, setProducts] = useState([]);
   const [rates] = useState([]);
   const [amounts, setAmounts] = useState([]);
-  const [propertyId, setPropertyId] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedCompany, setSelectedCompany] = useState("");
   const [maintenanceCost, setMaintenanceCost] = useState("");
@@ -31,6 +42,8 @@ const AddPage = () => {
   const [selectedDate, setSelectedDate] = useState(
     dayjs().format("YYYY-MM-DD")
   );
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState(null);
 
   const excludedProperties = [
     "London - 4",
@@ -55,11 +68,6 @@ const AddPage = () => {
     const parsedValue = parseInt(value.replace(/^0+/, "")) || 0;
     newAmounts[index] = parsedValue;
     setAmounts(newAmounts);
-  };
-
-  const handlePropertyChange = (propertyId, propertyName) => {
-    setPropertyId(propertyId);
-    setSelectedPropertyName(propertyName);
   };
 
   const handleButtonSubmit = () => async () => {
@@ -245,37 +253,99 @@ const AddPage = () => {
     setSelectedDate(formattedDate);
   };
 
+  // Handle product deletion
+  const handleDeleteClick = (product) => {
+    setProductToDelete(product);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!productToDelete) return;
+
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products/${productToDelete.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete product ${productToDelete.name}`);
+      }
+
+      // Update products state to remove the deleted product
+      setProducts(products.filter((p) => p.id !== productToDelete.id));
+      // Reset amounts for the deleted product (if it exists in amounts)
+      setAmounts(
+        amounts.filter(
+          (_, i) => i !== products.findIndex((p) => p.id === productToDelete.id)
+        )
+      );
+      console.log(`Product ${productToDelete.name} deleted successfully`);
+      alert(`Product "${productToDelete.name}" deleted successfully`);
+
+      setDeleteDialogOpen(false);
+      setProductToDelete(null);
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      alert("Failed to delete product");
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setProductToDelete(null);
+  };
+
+  // Handle product addition callback from AddProduct
+  const handleAddProductConfirm = async (productData) => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(productData),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to add product");
+      }
+
+      const result = await response.json();
+      console.log("Product added:", result);
+      alert(`Product "${productData.name}" added successfully`);
+
+      // Fetch updated products list
+      const updatedProducts = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products`
+      );
+      if (!updatedProducts.ok) {
+        throw new Error("Failed to fetch updated products");
+      }
+      const data = await updatedProducts.json();
+      setProducts(data);
+    } catch (error) {
+      console.error("Error adding product:", error);
+      alert("Failed to add product");
+    }
+  };
+
   return (
     <div className={styles.addPageContainer}>
-      <TopNav
-        filteredProperties={filteredProperties}
-        loading={loading}
-        handlePropertyChange={handlePropertyChange}
-        selectedMonth={currentMonth}
-        currentPage="Analytics"
-        onMonthChange={handleMonthChange}
-      />
       <div className={styles.mainContainer}>
-        <div className={styles.buttonContainer}>
-          <PdfSection
-            products={products}
-            amounts={amounts}
-            rates={rates}
-            selectedPropertyName={selectedPropertyName}
-            monthYear={dayjs(selectedDate).format("MMMMYYYY")}
-          />
-          <Button
-            variant="outlined"
-            sx={{ color: "#eccb34", borderColor: "#eccb34" }}
-            onClick={handleButtonSubmit("update")}
-          >
-            Update Sheet
-          </Button>
-        </div>
         <div className={styles.contentContainer}>
           <div className={styles.leftContainer}>
             <BackgroundContainer width="100%" height="100%" />
             <div className={styles.productListContainer}>
+              <div className={styles.leftHeader}>Inventory Management</div>
               <div className={styles.header}>
                 <span>Product</span>
                 <span>Amount</span>
@@ -283,7 +353,22 @@ const AddPage = () => {
               <div className={styles.listContainer}>
                 {products.map((product, index) => (
                   <div key={index} className={styles.productRow}>
-                    <span className={styles.productName}>{product.name}</span>
+                    <span className={styles.productName}>
+                      {product.name}
+                      <IconButton
+                        aria-label={`delete ${product.name}`}
+                        onClick={() => handleDeleteClick(product)}
+                        sx={{
+                          color: "#fafafa", // White icon color
+                          "&:hover": {
+                            color: "#eccb34", // Yellow on hover for visual feedback
+                          },
+                          ml: 1, // Margin-left for small space after product name
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </span>
                     <input
                       type="text"
                       pattern="\d*"
@@ -298,16 +383,31 @@ const AddPage = () => {
                 ))}
               </div>
             </div>
+            <div className={styles.buttonContainer}>
+              <PdfSection
+                products={products}
+                amounts={amounts}
+                rates={rates}
+                selectedPropertyName={selectedPropertyName}
+                monthYear={dayjs(selectedDate).format("MMMMYYYY")}
+              />
+              <Button
+                variant="outlined"
+                sx={{ color: "#eccb34", borderColor: "#eccb34" }}
+                onClick={handleButtonSubmit("update")}
+              >
+                Update Inventory
+              </Button>
+              <AddProduct onAddProduct={handleAddProductConfirm} />
+            </div>
           </div>
 
           <div className={styles.rightContainer}>
-            <div className={styles.backgroundWrapper}>
-              <BackgroundContainer width="100%" height="100%" />
-            </div>
-            <div className={styles.rightHeader}>
-              {selectedPropertyName || "Select a Property"}
-            </div>
+            <BackgroundContainer width="100%" height="100%" />
             <div className={styles.maintenanceContainer}>
+              <div className={styles.rightHeader}>
+                {selectedPropertyName || "Select a Property"}
+              </div>
               <OptionBar
                 label={"Category"}
                 placeholder="Maintenance Category"
@@ -376,7 +476,62 @@ const AddPage = () => {
           </div>
         </div>
       </div>
-      <AddProduct />
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleDeleteCancel}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+        PaperProps={{
+          sx: {
+            backgroundColor: "#eccb34", // Yellow background for dialog
+            color: "#fafafa", // White text
+            borderRadius: "8px",
+          },
+        }}
+      >
+        <DialogTitle id="delete-dialog-title" sx={{ color: "#fafafa" }}>
+          Confirm Deletion
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText
+            id="delete-dialog-description"
+            sx={{ color: "#fafafa" }}
+          >
+            Are you sure you want to delete the product "{productToDelete?.name}
+            "? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handleDeleteCancel}
+            sx={{
+              color: "#fafafa",
+              borderColor: "#fafafa",
+              backgroundColor: "transparent",
+              "&:hover": {
+                backgroundColor: "rgba(250, 250, 250, 0.1)",
+                borderColor: "#fafafa",
+              },
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            sx={{
+              color: "#fafafa",
+              borderColor: "#eccb34",
+              backgroundColor: "transparent",
+              "&:hover": {
+                backgroundColor: "rgba(236, 203, 52, 0.1)",
+                borderColor: "#eccb34",
+              },
+            }}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

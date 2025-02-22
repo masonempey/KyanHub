@@ -2,59 +2,71 @@ import { useState } from "react";
 import MenuItem from "@mui/material/MenuItem";
 import FormControl from "@mui/material/FormControl";
 import Select from "@mui/material/Select";
-import InputLabel from "@mui/material/InputLabel";
 import Box from "@mui/material/Box";
 
-const OptionBar = ({ placeholder, options, label: initialLabel, onSelect }) => {
+// Custom styles for the dropdown menu (Paper component)
+const menuProps = {
+  PaperProps: {
+    sx: {
+      backgroundColor: "#eccb34", // Yellow background for the dropdown menu
+      color: "#fafafa", // White text for the dropdown menu items
+      "& .MuiMenuItem-root": {
+        color: "#fafafa", // Ensure menu items have white text
+      },
+      "& .MuiMenuItem-root:hover": {
+        backgroundColor: "#d9b51f", // Optional: Slightly darker yellow on hover for better UX
+      },
+    },
+  },
+};
+
+const OptionBar = ({ placeholder, options, onSelect }) => {
   const [selectedOption, setSelectedOption] = useState("");
-  const [labelText, setLabelText] = useState("");
 
   const handleChange = (event) => {
     setSelectedOption(event.target.value);
-    setLabelText(initialLabel);
     if (onSelect) {
       onSelect(event.target.value);
     }
   };
 
-  const handleFocus = () => {
-    setLabelText(initialLabel);
-  };
-
-  const handleBlur = () => {
-    if (!selectedOption) {
-      setLabelText(""); // Reset to empty if no option is selected
-    }
-  };
-
   return (
     <Box>
-      <FormControl
-        sx={{ m: 1, minWidth: 300, color: "#2b2b2b", opacity: 0.9 }}
-        size="large"
-      >
-        <InputLabel
-          id="option-select-label"
-          sx={{ borderRadius: "8px", color: "#2b2b2b", opacity: 0.9 }}
-        >
-          {labelText}
-        </InputLabel>
+      <FormControl sx={{ m: 1, minWidth: 300, opacity: 0.9 }} size="large">
         <Select
-          labelId="option-select-label"
           id="option-select"
           value={selectedOption}
-          label={labelText}
           onChange={handleChange}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          sx={{ borderRadius: "8px", color: "#2b2b2b", opacity: 0.9 }}
+          sx={{
+            borderRadius: "8px",
+            color: "#fafafa",
+            backgroundColor: "#eccb34",
+            borderColor: "#fafafa", // Default border color set to dark gray
+            "& .MuiOutlinedInput-notchedOutline": {
+              borderColor: "#fafafa", // Default outline color set to dark gray
+            },
+            "&:hover .MuiOutlinedInput-notchedOutline": {
+              borderColor: "#fafafa", // Hover state outline color
+            },
+            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+              borderColor: "#fafafa", // Focused state outline color (when clicked)
+            },
+            "& .MuiSvgIcon-root": {
+              color: "#fafafa", // White dropdown arrow
+            },
+          }}
           displayEmpty
+          MenuProps={menuProps} // Apply custom styles to the dropdown menu
         >
           <MenuItem value="" disabled>
             {placeholder}
           </MenuItem>
           {options.map((option, index) => (
-            <MenuItem key={index} value={option.value}>
+            <MenuItem
+              key={index}
+              value={option.value}
+              sx={{ color: "#fafafa" }} // Ensure menu items have white text
+            >
               {option.label}
             </MenuItem>
           ))}

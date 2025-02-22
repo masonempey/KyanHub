@@ -1,5 +1,6 @@
 "use client";
 
+import dayjs from "dayjs";
 import { createContext, useContext, useState, useEffect } from "react";
 
 const PropertyContext = createContext();
@@ -7,6 +8,9 @@ const PropertyContext = createContext();
 export const PropertyProvider = ({ children }) => {
   const [properties, setProperties] = useState({});
   const [loading, setLoading] = useState(true);
+  const [propertyId, setPropertyId] = useState("");
+  const [selectedPropertyName, setSelectedPropertyName] = useState("");
+  const [currentMonth, setCurrentMonth] = useState(dayjs().format("MMMM"));
 
   const fetchProperties = async () => {
     try {
@@ -22,6 +26,27 @@ export const PropertyProvider = ({ children }) => {
         }, {});
         console.log("Fetched properties:", propertyMap);
         setProperties(propertyMap);
+
+        // Set default property and selectedPropertyName if no propertyId is set
+        if (!propertyId && Object.keys(propertyMap).length > 0) {
+          const firstPropertyId = Object.keys(propertyMap)[0];
+          setPropertyId(firstPropertyId);
+          setSelectedPropertyName(propertyMap[firstPropertyId]);
+          console.log("Setting default property:", {
+            propertyId: firstPropertyId,
+            selectedPropertyName: propertyMap[firstPropertyId],
+          });
+        } else if (propertyId && propertyMap[propertyId]) {
+          // Update selectedPropertyName if propertyId exists
+          setSelectedPropertyName(propertyMap[propertyId]);
+          console.log(
+            "Updating selectedPropertyName for existing propertyId:",
+            {
+              propertyId,
+              selectedPropertyName: propertyMap[propertyId],
+            }
+          );
+        }
       }
     } catch (error) {
       console.error("Property fetch failed:", error);
@@ -34,8 +59,25 @@ export const PropertyProvider = ({ children }) => {
     fetchProperties();
   }, []);
 
+  useEffect(() => {
+    if (propertyId && properties[propertyId]) {
+      setSelectedPropertyName(properties[propertyId]);
+    }
+  }, [propertyId, properties]);
+
   return (
-    <PropertyContext.Provider value={{ properties, loading }}>
+    <PropertyContext.Provider
+      value={{
+        properties,
+        loading,
+        propertyId,
+        setPropertyId,
+        selectedPropertyName,
+        setSelectedPropertyName,
+        currentMonth,
+        setCurrentMonth,
+      }}
+    >
       {children}
     </PropertyContext.Provider>
   );

@@ -3,6 +3,7 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
 .filterBarContainer {
@@ -19,6 +20,7 @@
 .contentContainer {
   display: flex;
   flex: 1;
+  padding-bottom: 5rem;
 }
 
 .leftContainer {
@@ -46,10 +48,13 @@
   display: flex;
   gap: 1rem;
   margin-top: 1rem;
+  z-index: 2;
+  align-items: center;
 }
 
 .buttonContainer button {
   min-width: 100px;
+  height: 40px;
 }
 
 .pdfSection {
@@ -61,8 +66,7 @@
   justify-content: space-between;
   font-weight: bold;
   margin-bottom: 0.5rem;
-  color: #2b2b2b;
-  opacity: 0.9;
+  color: #eccb34;
 }
 
 .header span:first-child {
@@ -79,6 +83,7 @@
   padding-right: 10px;
   margin-bottom: 1rem;
   max-height: calc(100vh - 250px);
+  color: #fafafa;
 }
 
 .productRow {
@@ -86,15 +91,15 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem;
-  border: 1px solid rgba(110, 127, 128, 0.3);
   border-radius: 4px;
-  background-color: transparent;
+  background-color: #eccb34;
   margin-bottom: 0.5rem;
   min-height: 40px;
 }
 
 .productName {
   font-size: 0.9rem;
+  color: #fafafa;
 }
 
 .amountInput {
@@ -102,8 +107,10 @@
   padding: 0.3rem;
   font-size: 0.9rem;
   text-align: center;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  border: none;
+  border-radius: 10;
+  background-color: #fafafa;
+  color: #eccb34;
 }
 
 .maintenanceInput {
@@ -111,8 +118,35 @@
   padding: 1rem;
   font-size: 0.9rem;
   text-align: center;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  border: 1px solid #fafafa;
+  border-radius: 8px;
+  background-color: #eccb34;
+  color: #fafafa;
+}
+
+.maintenanceInput::placeholder {
+  color: #fafafa;
+  opacity: 1;
+}
+
+.maintenanceInput::-webkit-input-placeholder {
+  color: #fafafa;
+  opacity: 1;
+}
+
+.maintenanceInput::-moz-placeholder {
+  color: #fafafa;
+  opacity: 1;
+}
+
+.maintenanceInput:-ms-input-placeholder {
+  color: #fafafa;
+  opacity: 1;
+}
+
+.maintenanceInput:focus {
+  border: 1px solid #fafafa;
+  outline: none;
 }
 
 .rightContainer {
@@ -121,15 +155,6 @@
   flex-direction: column;
   height: 100%;
   position: relative;
-}
-
-.backgroundWrapper {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
 }
 
 .maintenanceContainer {
@@ -141,14 +166,19 @@
   padding: 2rem;
 }
 
-.rightHeader {
+.rightHeader,
+.leftHeader {
   position: relative;
   z-index: 2;
   padding: 2rem;
   font-weight: bold;
   font-size: 1.2rem;
-  color: #2b2b2b;
+  color: #fafafa;
   text-align: center;
+  background-color: #eccb34;
+  border-radius: 8px;
+  border: none;
+  margin-bottom: 2rem;
 }
 
 .rightContentContainer {
@@ -175,9 +205,37 @@
 .dateContainer span,
 .companyContainer span {
   font-weight: bold;
-  color: #2b2b2b;
+  color: #2b2b2b; /* Keep dark gray for labels if present */
 }
 
-.optionBar {
-  z-index: 2;
+/* Style for buttons to match OptionBar */
+.Button {
+  background-color: #eccb34 !important; /* Yellow background */
+  color: #fafafa !important; /* White text */
+  border: 1px solid #2b2b2b !important; /* Keep border for buttons */
+  border-radius: 8px !important; /* Match OptionBar's border radius */
+  padding: 0.5rem 1rem !important;
+  min-width: 100px !important;
+  height: 40px !important;
+}
+
+/* Ensure the DatePicker (if styled similarly) matches */
+.DatePicker {
+  border: 1px solid #2b2b2b; /* Keep border for DatePicker */
+  border-radius: 8px; /* Match OptionBar's border radius */
+  background-color: #eccb34; /* Yellow background */
+  color: #fafafa; /* White text */
+  padding: 0.5rem;
+}
+
+/* Optional: If you want to override any Material-UI default styles for consistency */
+.MuiInputBase-root {
+  background-color: #eccb34 !important;
+  color: #fafafa !important;
+  border: 1px solid #2b2b2b !important; /* Keep border for Material-UI inputs */
+  border-radius: 8px !important;
+}
+
+.MuiInputBase-input {
+  color: #fafafa !important;
 }

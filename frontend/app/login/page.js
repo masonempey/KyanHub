@@ -7,11 +7,12 @@ import { TextField, Button, Typography, Paper, Alert } from "@mui/material";
 import { styled } from "@mui/system";
 import styles from "../styles/login.module.css";
 import axios from "axios";
+import { useRouter } from "next/navigation";
 
 const FormContainer = styled(Paper)({
   padding: "2rem",
-  maxWidth: "400px",
-  width: "100%",
+  maxWidth: "20vw",
+  width: "100vw",
   backgroundColor: "#fafafa",
 });
 
@@ -20,6 +21,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLogin, setIsLogin] = useState(true);
+  const router = useRouter();
 
   const handleSignUp = async () => {
     try {
@@ -31,9 +33,7 @@ const Login = () => {
         }
       );
       console.log("User created:", res.data);
-      if (res) {
-        window.location.href = "/";
-      }
+      router.push("/analytics");
     } catch (error) {
       setError(error.message);
     }
@@ -47,7 +47,7 @@ const Login = () => {
       setPassword("");
       setError("");
       if (res) {
-        window.location.href = "/";
+        router.push("/analytics");
       }
     } catch (error) {
       setError(error.message);
@@ -76,8 +76,7 @@ const Login = () => {
         });
       }
 
-      // Redirect to home or another page
-      window.location.href = "/";
+      router.push("/analytics");
     } catch (error) {
       console.error("Error during Google sign-in:", error);
       setError(
@@ -97,8 +96,8 @@ const Login = () => {
           sx={{
             fontFamily: "Lato",
             fontWeight: 800,
-            fontStyle: "normal",
-            color: "#35281f",
+            fontStyle: "Bold",
+            color: "#eccb34",
           }}
         >
           {isLogin ? "Login" : "Sign Up"}
@@ -117,20 +116,20 @@ const Login = () => {
             fontStyle: "normal",
             "& .MuiOutlinedInput-root": {
               "& fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
               "&:hover fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
               "&.Mui-focused fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
             },
             "& .MuiInputLabel-root": {
-              color: "#35281f",
+              color: "#eccb34",
             },
             "& .MuiInputLabel-root.Mui-focused": {
-              color: "#35281f",
+              color: "#eccb34",
             },
           }}
         />
@@ -148,20 +147,20 @@ const Login = () => {
             fontStyle: "normal",
             "& .MuiOutlinedInput-root": {
               "& fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
               "&:hover fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
               "&.Mui-focused fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
             },
             "& .MuiInputLabel-root": {
-              color: "#35281f",
+              color: "#eccb34",
             },
             "& .MuiInputLabel-root.Mui-focused": {
-              color: "#35281f",
+              color: "#eccb34",
             },
           }}
         />
@@ -172,44 +171,52 @@ const Login = () => {
           onClick={isLogin ? handleLogin : handleSignUp}
           sx={{
             mt: 2,
-            backgroundColor: "#35281f",
+            backgroundColor: "#eccb34",
             color: "#fafafa",
             fontFamily: "Lato",
             fontWeight: 800,
             fontStyle: "normal",
+            "&:hover": {
+              backgroundColor: "#2b2b2b",
+            },
           }}
         >
           {isLogin ? "Login" : "Sign Up"}
         </Button>
         <Button
-          variant="outlined"
-          color="secondary"
+          variant="contained"
+          color="primary"
           fullWidth
           onClick={() => setIsLogin(!isLogin)}
           sx={{
             mt: 2,
-            borderColor: "#35281f",
-            color: "#35281f",
+            backgroundColor: "#eccb34",
+            color: "#fafafa",
             fontFamily: "Lato",
             fontWeight: 800,
             fontStyle: "normal",
+            "&:hover": {
+              backgroundColor: "#2b2b2b",
+            },
           }}
         >
           {isLogin ? "Sign Up" : "Login"}
         </Button>
         <Button
           variant="contained"
-          color="secondary"
+          color="primary"
           fullWidth
           onClick={handleGoogleSignIn}
           sx={{
             mt: 2,
-            backgroundColor: "#fafafa",
-            color: "#35281f",
-            border: "1px solid #35281f",
+            backgroundColor: "#eccb34",
+            color: "#fafafa",
             fontFamily: "Lato",
             fontWeight: 800,
             fontStyle: "normal",
+            "&:hover": {
+              backgroundColor: "#2b2b2b",
+            },
           }}
         >
           Sign in with Google

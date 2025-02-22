@@ -2,28 +2,27 @@
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  padding: 0 2rem;
+  padding: 1rem;
+  position: sticky;
+  top: 0;
+  left: 5.9vw;
+  width: calc(100vw - 5.9vw);
+  background-color: #eccb34;
+  z-index: 1000;
 }
 
 .topNav h1 {
-  color: #eccb34;
+  color: #fafafa;
   text-align: left;
+  margin-left: 5rem;
 }
 
 .filterContainer {
   display: flex;
-  justify-content: center;
+  justify-content: left;
   align-items: center;
 }
 
-.propertyBarContainer,
-.monthSelectionContainer {
-  margin: 0 1rem;
-}
-
-.topLine {
-  width: 100%;
-  opacity: 0.3;
-  margin-bottom: 2.5rem;
-  border: 1px solid #6e7f80;
+.propertyBarContainer {
+  margin-left: 10rem;
 }

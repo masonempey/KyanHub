@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS inventory (
     id SERIAL PRIMARY KEY,
     property_uid VARCHAR(255) REFERENCES properties(property_uid) ON DELETE CASCADE,
     product_id INT REFERENCES products(id) ON DELETE CASCADE,
-    month VARCHAR(7) NOT NULL,
+    month VARCHAR(10) NOT NULL, -- Changed from VARCHAR(7) to VARCHAR(10)
     quantity INT NOT NULL DEFAULT 0,
     UNIQUE (property_uid, product_id, month)
 );
