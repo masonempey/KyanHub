@@ -4,7 +4,8 @@ const googleService = require("../services/googleService");
 
 router.get("/", async (req, res) => {
   try {
-    const authUrl = await googleService.generateAuthUrl();
+    const authUrl = googleService.getAuthUrl();
+    console.log("Generated auth URL:", authUrl);
     res.redirect(authUrl);
   } catch (error) {
     console.error("Auth error:", error);
@@ -22,13 +23,16 @@ router.get("/check-auth", async (req, res) => {
 });
 
 router.get("/callback", async (req, res) => {
+  const code = req.query.code;
+  console.log("Received query:", req.query);
+  console.log("Received code:", code);
   try {
-    const { code } = req.query;
-    await googleService.handleCallback(code);
-    res.redirect("http://localhost:3000/add"); // Redirect to frontend
+    const tokens = await googleService.getTokens(code);
+    console.log("Tokens:", tokens);
+    res.send("Tokens fetched! Check your console.");
   } catch (error) {
-    console.error("Callback error:", error);
-    res.redirect("http://localhost:3000/error");
+    console.error("Error getting tokens:", error.response?.data || error);
+    res.status(500).send("Something went wrong.");
   }
 });
 

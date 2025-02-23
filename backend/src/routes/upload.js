@@ -31,6 +31,7 @@ router.post("/maintenance", async (req, res) => {
 
     // Find or create the receipts folder
     const receiptsFolderId = await GoogleService.findReceiptsFolder(
+      console.log(monthYear),
       propertyName,
       monthYear
     );

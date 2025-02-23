@@ -99,7 +99,13 @@ const MaintenanceSection = ({
   }, []);
 
   const handleMaintenanceSubmit = async () => {
-    const maintenanceMonthYear = dayjs(selectedDate).format("MMMMYYYY");
+    const currentYear = dayjs().year();
+    const formattedDate = dayjs(`${selectedDate} ${currentYear}`, "MMMM YYYY");
+    const maintenanceMonthYear = formattedDate.isValid()
+      ? formattedDate.format("MMMMYYYY")
+      : "InvalidDate";
+
+    console.log("Maintenance Month/Year:", maintenanceMonthYear);
     if (
       !selectedPropertyName ||
       !selectedCategory ||

@@ -14,6 +14,7 @@ const uploadRoutes = require("./src/routes/upload");
 const maintenanceRoutes = require("./src/routes/maintenance");
 const analyticsRoutes = require("./src/routes/analytics");
 const userRoutes = require("./src/routes/users");
+const googleRoutes = require("./src/routes/google");
 
 dotenv.config();
 
@@ -31,6 +32,7 @@ app.use("/api/upload", authMiddleware, uploadRoutes);
 app.use("/api/maintenance", authMiddleware, maintenanceRoutes);
 app.use("/api/analytics", authMiddleware, analyticsRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/google", googleRoutes);
 
 // Apply admin middleware to specific routes
 app.use("/api/admin", adminMiddleware);
