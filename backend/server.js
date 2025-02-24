@@ -1,9 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
+const serverless = require("serverless-http");
 const { initDatabase } = require("./database/initDatabase");
-const igmsRoutes = require("./src/routes/igms");
-const pdfRoutes = require("./src/routes/pdf");
 const {
   authMiddleware,
   adminMiddleware,
@@ -20,8 +19,31 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors());
+const corsOptions = {
+  origin: "https://kyanhub.vercel.app",
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+  credentials: true,
+  allowedHeaders: [
+    "X-CSRF-Token",
+    "X-Requested-With",
+    "Accept",
+    "Accept-Version",
+    "Content-Length",
+    "Content-MD5",
+    "Content-Type",
+    "Date",
+    "X-Api-Version",
+  ],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
+
+app.get("/api", (req, res) => {
+  console.log("Accessed /api route");
+  res.status(200).json({ message: "Server is running!" });
+});
 
 // Define routes with authentication middleware
 app.use("/api/igms", authMiddleware, igmsRoutes);
@@ -37,23 +59,28 @@ app.use("/api/google", googleRoutes);
 // Apply admin middleware to specific routes
 app.use("/api/admin", adminMiddleware);
 
-const PORT = process.env.PORT || 5000;
-
-const startServer = async () => {
-  try {
+let dbPromise = null;
+async function ensureDbInitialized() {
+  if (!dbPromise) {
     console.log("Initializing database...");
-    await initDatabase();
-    console.log("Database initialized successfully");
-
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+    dbPromise = initDatabase().then(() => {
+      console.log("Database initialized successfully");
     });
+  }
+  await dbPromise;
+}
+
+app.use(async (req, res, next) => {
+  try {
+    await ensureDbInitialized();
+    next();
   } catch (error) {
     console.error("Database initialization failed:", error);
-    process.exit(1);
+    res.status(500).json({
+      error: "Server initialization failed",
+      details: error.message,
+    });
   }
-};
+});
 
-startServer();
-
-module.exports = app;
+module.exports = serverless(app);
