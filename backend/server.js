@@ -134,7 +134,6 @@
 
 const express = require("express");
 const cors = require("cors");
-const serverless = require("serverless-http");
 
 const app = express();
 
@@ -143,7 +142,9 @@ app.use(express.json());
 
 app.get("/", (req, res) => {
   console.log("Root route accessed");
-  res.status(200).json({ message: "Minimal server running!" });
+  res
+    .status(200)
+    .json({ message: "Minimal server running without serverless-http!" });
 });
 
 app.get("/test", (req, res) => {
@@ -151,4 +152,5 @@ app.get("/test", (req, res) => {
   res.status(200).json({ message: "Test endpoint!" });
 });
 
-module.exports = serverless(app);
+// Export directly for Vercel
+module.exports = app;
