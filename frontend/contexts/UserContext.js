@@ -48,8 +48,12 @@ export const UserProvider = ({ children }) => {
     router.push("/login");
   };
 
+  const login = () => {
+    router.push("/login");
+  };
+
   return (
-    <UserContext.Provider value={{ user, loading, logout }}>
+    <UserContext.Provider value={{ user, loading, logout, login }}>
       {children}
     </UserContext.Provider>
   );

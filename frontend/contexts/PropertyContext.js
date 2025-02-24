@@ -30,7 +30,6 @@ export const PropertyProvider = ({ children }) => {
         console.log("Fetched properties:", propertyMap);
         setProperties(propertyMap);
 
-        // Set default property and selectedPropertyName if no propertyId is set
         if (!propertyId && Object.keys(propertyMap).length > 0) {
           const firstPropertyId = Object.keys(propertyMap)[0];
           setPropertyId(firstPropertyId);

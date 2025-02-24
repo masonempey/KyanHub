@@ -13,7 +13,8 @@ const TopNav = ({
   currentPage,
   onMonthChange,
 }) => {
-  const { logout } = useUser();
+  const { logout, login } = useUser();
+  const { user } = useUser();
 
   return (
     <div>
@@ -34,22 +35,41 @@ const TopNav = ({
             />
           </div>
         </div>
-        <Button
-          variant="contained"
-          color="secondary"
-          onClick={logout}
-          sx={{
-            marginLeft: "auto",
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            "&:hover": {
-              backgroundColor: "#fafafa",
-              color: "#eccb34",
-            },
-          }}
-        >
-          Logout
-        </Button>
+        {user ? (
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={logout}
+            sx={{
+              marginLeft: "auto",
+              backgroundColor: "#eccb34",
+              color: "#fafafa",
+              "&:hover": {
+                backgroundColor: "#fafafa",
+                color: "#eccb34",
+              },
+            }}
+          >
+            Logout
+          </Button>
+        ) : (
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={login}
+            sx={{
+              marginLeft: "auto",
+              backgroundColor: "#eccb34",
+              color: "#fafafa",
+              "&:hover": {
+                backgroundColor: "#fafafa",
+                color: "#eccb34",
+              },
+            }}
+          >
+            Login
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -1,25 +1,27 @@
+// layout.js
 "use client";
 
 import "./styles/globals.css";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { UserProvider, useUser } from "../contexts/UserContext";
-import { PropertyProvider } from "../contexts/PropertyContext";
+import { PropertyProvider, useProperties } from "../contexts/PropertyContext";
 import RootLayoutClient from "./components/RootLayoutClient";
 
 const AuthWrapper = ({ children }) => {
-  const { user, loading } = useUser();
+  const { user, loading: userLoading } = useUser();
+  const { properties, loading: propertiesLoading } = useProperties();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
-      if (router.pathname !== "/login") {
+    if (!userLoading && !propertiesLoading) {
+      if (!user && router.pathname !== "/login") {
         router.push("/login");
       }
     }
-  }, [user, loading, router]);
+  }, [user, userLoading, propertiesLoading, router]);
 
-  if (loading) {
+  if (userLoading || propertiesLoading) {
     return <div>Loading...</div>;
   }
 
