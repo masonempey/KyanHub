@@ -2,6 +2,25 @@ const express = require("express");
 const router = express.Router();
 const UserService = require("../services/userService");
 
+const corsOptions = {
+  origin: "https://kyanhubfrontend.vercel.app",
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+  credentials: true,
+  allowedHeaders: [
+    "X-CSRF-Token",
+    "X-Requested-With",
+    "Accept",
+    "Accept-Version",
+    "Content-Length",
+    "Content-MD5",
+    "Content-Type",
+    "Date",
+    "X-Api-Version",
+    "Authorization",
+  ],
+  optionsSuccessStatus: 204,
+};
+
 // Gets all users
 router.get("/", async (req, res) => {
   try {
@@ -14,7 +33,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.options("/validate", (req, res) => {
+router.options("/validate", cors(corsOptions), (req, res) => {
   console.log("OPTIONS request for /validate received");
   res.status(204).end();
 });

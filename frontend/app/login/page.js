@@ -8,7 +8,6 @@ import { styled } from "@mui/system";
 import styles from "../styles/login.module.css";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { useUser } from "../../contexts/UserContext";
 
 const FormContainer = styled(Paper)({
   padding: "2rem",
