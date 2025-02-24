@@ -34,6 +34,21 @@ export default function RootLayoutClient({ children }) {
     setIsLoginPage(pathname === "/login");
   }, [pathname]);
 
+  const setPageName = (pathname) => {
+    if (pathname === "/analytics") {
+      return "Analytics";
+    }
+    if (pathname === "/property-management") {
+      return "Property Management";
+    }
+    if (pathname === "/reports") {
+      return "Reports";
+    }
+    if (pathname === "/profile") {
+      return "Profile";
+    }
+  };
+
   return (
     <div className={`layout ${isLoginPage ? "no-sidebar" : ""}`}>
       {!isLoginPage && <SideBar />}
@@ -43,7 +58,7 @@ export default function RootLayoutClient({ children }) {
           loading={loading}
           handlePropertyChange={handlePropertyChange}
           selectedMonth={currentMonth}
-          currentPage="Analytics"
+          currentPage={setPageName(pathname)}
           onMonthChange={handleMonthChange}
         />
       )}

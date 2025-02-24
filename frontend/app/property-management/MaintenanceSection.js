@@ -1,7 +1,7 @@
 "use client";
 
 import styles from "./addPage.module.css";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Button from "@mui/material/Button";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
@@ -10,6 +10,7 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
+import TextField from "@mui/material/TextField";
 import OptionBar from "../components/optionBar";
 import DatePicker from "../components/datePicker";
 import AddCompanyDialog from "../components/AddCompanyDialog";
@@ -22,7 +23,6 @@ import fetchWithAuth from "../utils/fetchWithAuth";
 const MaintenanceSection = ({
   propertyId,
   selectedPropertyName,
-  selectedDate,
   onDateChange,
 }) => {
   const { user, loading } = useUser();
@@ -41,6 +41,11 @@ const MaintenanceSection = ({
     useState(false);
   const [companyToDelete, setCompanyToDelete] = useState(null);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [selectedDate, setSelectedDate] = useState(dayjs());
 
   if (loading) return <div>Loading...</div>;
   if (!user) return <div>Please log in to access this section.</div>;
@@ -65,7 +70,8 @@ const MaintenanceSection = ({
         );
       } catch (error) {
         console.error("Error fetching companies:", error.message);
-        alert("Failed to load companies. Please try again.");
+        setErrorMessage("Failed to load companies. Please try again.");
+        setErrorDialogOpen(true);
       }
     };
 
@@ -74,13 +80,11 @@ const MaintenanceSection = ({
         const response = await fetchWithAuth(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/maintenance/categories`
         );
-        if (!response.ok) {
+        if (!response.ok)
           throw new Error(`Failed to fetch categories: ${response.statusText}`);
-        }
         const data = await response.json();
-        if (!data.categories) {
+        if (!data.categories)
           throw new Error("No categories property in response");
-        }
         setCategories(
           data.categories.map((category) => ({
             label: category.category,
@@ -90,7 +94,8 @@ const MaintenanceSection = ({
         );
       } catch (error) {
         console.error("Error fetching categories:", error.message);
-        alert("Failed to load categories. Please try again.");
+        setErrorMessage("Failed to load categories. Please try again.");
+        setErrorDialogOpen(true);
       }
     };
 
@@ -98,25 +103,33 @@ const MaintenanceSection = ({
     fetchCategories();
   }, []);
 
-  const handleMaintenanceSubmit = async () => {
-    const currentYear = dayjs().year();
-    const formattedDate = dayjs(`${selectedDate} ${currentYear}`, "MMMM YYYY");
-    const maintenanceMonthYear = formattedDate.isValid()
-      ? formattedDate.format("MMMMYYYY")
-      : "InvalidDate";
+  const validateInputs = () => {
+    const newErrors = {};
+    if (!selectedPropertyName)
+      newErrors.selectedPropertyName = "Property is required.";
+    if (!selectedCategory) newErrors.selectedCategory = "Category is required.";
+    if (!selectedCompany) newErrors.selectedCompany = "Company is required.";
+    if (!maintenanceCost) {
+      newErrors.maintenanceCost = "Cost is required.";
+    } else if (isNaN(maintenanceCost) || Number(maintenanceCost) <= 0) {
+      newErrors.maintenanceCost = "Cost must be a positive number.";
+    }
+    if (!dayjs(selectedDate).isValid())
+      newErrors.selectedDate = "Please select a valid date.";
+    return newErrors;
+  };
 
-    console.log("Maintenance Month/Year:", maintenanceMonthYear);
-    if (
-      !selectedPropertyName ||
-      !selectedCategory ||
-      !selectedCompany ||
-      !maintenanceCost
-    ) {
-      alert("Please fill in all required fields.");
+  const handleMaintenanceSubmit = async () => {
+    const newErrors = validateInputs();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
     try {
+      const maintenanceMonthYear = dayjs(selectedDate).format("MMMMYYYY");
+      const maintenanceDate = dayjs(selectedDate).format("YYYY-MM-DD");
+
       if (isFileAttached && fileAttached) {
         const fileBase64 = await convertFileToBase64(fileAttached);
         const fileResponse = await fetchWithAuth(
@@ -132,10 +145,7 @@ const MaintenanceSection = ({
             }),
           }
         );
-        if (!fileResponse.ok) {
-          throw new Error("Failed to upload file");
-        }
-        alert("File uploaded successfully");
+        if (!fileResponse.ok) throw new Error("Failed to upload file");
       }
 
       const maintenanceResponse = await fetchWithAuth(
@@ -146,25 +156,27 @@ const MaintenanceSection = ({
             propertyId,
             category: selectedCategory,
             company: selectedCompany,
-            cost: maintenanceCost,
+            cost: Number(maintenanceCost), // Ensure cost is a number
             description: maintenanceDescription || "",
-            date: selectedDate,
+            date: maintenanceDate,
           }),
         }
       );
-      if (!maintenanceResponse.ok) {
+      if (!maintenanceResponse.ok)
         throw new Error("Failed to submit maintenance request");
-      }
-      alert("Maintenance request submitted successfully");
+
+      setSuccessDialogOpen(true);
       setSelectedCategory("");
       setSelectedCompany("");
       setMaintenanceCost("");
       setMaintenanceDescription("");
       setIsFileAttached(false);
       setFileAttached(null);
+      setErrors({});
     } catch (error) {
-      console.error("Error submitting maintenance request:", error);
-      alert("An error occurred. Please try again.");
+      console.error("Error submitting maintenance request:", error.message);
+      setErrorMessage(error.message || "An error occurred. Please try again.");
+      setErrorDialogOpen(true);
     }
   };
 
@@ -177,11 +189,23 @@ const MaintenanceSection = ({
     });
   };
 
-  const handleMaintenanceCostChange = (event) =>
-    setMaintenanceCost(event.target.value);
+  const handleMaintenanceCostChange = (event) => {
+    const value = event.target.value;
+    setMaintenanceCost(value);
+    const newErrors = { ...errors };
+    if (!value) {
+      newErrors.maintenanceCost = "Cost is required.";
+    } else if (isNaN(value) || Number(value) <= 0) {
+      newErrors.maintenanceCost = "Cost must be a positive number.";
+    } else {
+      delete newErrors.maintenanceCost;
+    }
+    setErrors(newErrors);
+  };
 
-  const handleMaintenanceDescriptionChange = (event) =>
+  const handleMaintenanceDescriptionChange = (event) => {
     setMaintenanceDescription(event.target.value);
+  };
 
   const handleAddCompany = (newCompanyName) => {
     const newCompany = { label: newCompanyName, value: newCompanyName };
@@ -207,21 +231,18 @@ const MaintenanceSection = ({
         }/api/maintenance/delete-company/${encodeURIComponent(
           companyToDelete
         )}`,
-        {
-          method: "DELETE",
-        }
+        { method: "DELETE" }
       );
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`Failed to delete company ${companyToDelete}`);
-      }
       setCompanies(companies.filter((c) => c.value !== companyToDelete));
       if (selectedCompany === companyToDelete) setSelectedCompany("");
-      alert(`Company "${companyToDelete}" deleted successfully`);
       setDeleteCompanyDialogOpen(false);
       setCompanyToDelete(null);
     } catch (error) {
       console.error("Error deleting company:", error);
-      alert("Failed to delete company");
+      setErrorMessage("Failed to delete company.");
+      setErrorDialogOpen(true);
     }
   };
 
@@ -244,21 +265,18 @@ const MaintenanceSection = ({
         }/api/maintenance/delete-category/${encodeURIComponent(
           categoryToDelete
         )}`,
-        {
-          method: "DELETE",
-        }
+        { method: "DELETE" }
       );
-      if (!response.ok) {
+      if (!response.ok)
         throw new Error(`Failed to delete category ${categoryToDelete}`);
-      }
       setCategories(categories.filter((c) => c.value !== categoryToDelete));
       if (selectedCategory === categoryToDelete) setSelectedCategory("");
-      alert(`Category "${categoryToDelete}" deleted successfully`);
       setDeleteCategoryDialogOpen(false);
       setCategoryToDelete(null);
     } catch (error) {
       console.error("Error deleting category:", error);
-      alert("Failed to delete category");
+      setErrorMessage("Failed to delete category.");
+      setErrorDialogOpen(true);
     }
   };
 
@@ -267,6 +285,21 @@ const MaintenanceSection = ({
     setCategoryToDelete(null);
   };
 
+  const handleDateChange = useCallback(
+    (newDate) => {
+      setSelectedDate(newDate);
+      if (onDateChange) onDateChange(newDate);
+      const newErrors = { ...errors };
+      if (!dayjs(newDate).isValid()) {
+        newErrors.selectedDate = "Please select a valid date.";
+      } else {
+        delete newErrors.selectedDate;
+      }
+      setErrors(newErrors);
+    },
+    [onDateChange]
+  );
+
   return (
     <div className={styles.rightContainer}>
       <BackgroundContainer width="100%" height="100%" />
@@ -274,12 +307,23 @@ const MaintenanceSection = ({
         <div className={styles.rightHeader}>
           {selectedPropertyName || "Select a Property"}
         </div>
+        {errors.selectedPropertyName && (
+          <div style={{ color: "#eccb34", marginBottom: "10px" }}>
+            {errors.selectedPropertyName}
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <OptionBar
             label="Category"
             placeholder="Maintenance Category"
             options={categories}
-            onSelect={setSelectedCategory}
+            onSelect={(value) => {
+              setSelectedCategory(value);
+              const newErrors = { ...errors };
+              if (!value) newErrors.selectedCategory = "Category is required.";
+              else delete newErrors.selectedCategory;
+              setErrors(newErrors);
+            }}
             onDelete={handleDeleteCategoryClick}
           />
           <Button
@@ -295,12 +339,23 @@ const MaintenanceSection = ({
             Add Category
           </Button>
         </div>
+        {errors.selectedCategory && (
+          <div style={{ color: "#eccb34", marginBottom: "10px" }}>
+            {errors.selectedCategory}
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <OptionBar
             label="Company"
             placeholder="Maintenance Company"
             options={companies}
-            onSelect={setSelectedCompany}
+            onSelect={(value) => {
+              setSelectedCompany(value);
+              const newErrors = { ...errors };
+              if (!value) newErrors.selectedCompany = "Company is required.";
+              else delete newErrors.selectedCompany;
+              setErrors(newErrors);
+            }}
             onDelete={handleDeleteCompanyClick}
           />
           <Button
@@ -316,25 +371,51 @@ const MaintenanceSection = ({
             Add Company
           </Button>
         </div>
-        <input
+        {errors.selectedCompany && (
+          <div style={{ color: "#eccb34", marginBottom: "10px" }}>
+            {errors.selectedCompany}
+          </div>
+        )}
+        <TextField
           type="text"
-          pattern="\d*"
           inputMode="numeric"
           value={maintenanceCost}
           onChange={handleMaintenanceCostChange}
           className={styles.maintenanceInput}
           placeholder="Maintenance Cost"
+          error={!!errors.maintenanceCost}
+          helperText={errors.maintenanceCost}
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              "& fieldset": { borderColor: "#eccb34" },
+              "&:hover fieldset": { borderColor: "#eccb34" },
+              "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+            },
+            "& .MuiInputBase-input": { color: "#fafafa" },
+            "& .MuiFormHelperText-root": { color: "#eccb34" },
+          }}
         />
-        <input
+        <TextField
           type="text"
-          pattern="\d*"
-          inputMode="numeric"
           value={maintenanceDescription}
           onChange={handleMaintenanceDescriptionChange}
           className={styles.maintenanceInput}
           placeholder="Maintenance Description"
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              "& fieldset": { borderColor: "#eccb34" },
+              "&:hover fieldset": { borderColor: "#eccb34" },
+              "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+            },
+            "& .MuiInputBase-input": { color: "#fafafa" },
+          }}
         />
-        <DatePicker onDateChange={onDateChange} />
+        <DatePicker value={selectedDate} onDateChange={handleDateChange} />
+        {errors.selectedDate && (
+          <div style={{ color: "#eccb34", marginBottom: "10px" }}>
+            {errors.selectedDate}
+          </div>
+        )}
         <Button
           component="label"
           variant="contained"
@@ -454,6 +535,64 @@ const MaintenanceSection = ({
             }}
           >
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={successDialogOpen}
+        onClose={() => setSuccessDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#eccb34",
+            color: "#fafafa",
+            borderRadius: "8px",
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: "#fafafa" }}>Success</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: "#fafafa" }}>
+            Maintenance request submitted successfully!
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setSuccessDialogOpen(false)}
+            sx={{
+              color: "#fafafa",
+              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={errorDialogOpen}
+        onClose={() => setErrorDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#eccb34",
+            color: "#fafafa",
+            borderRadius: "8px",
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: "#fafafa" }}>Error</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: "#fafafa" }}>
+            {errorMessage}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setErrorDialogOpen(false)}
+            sx={{
+              color: "#fafafa",
+              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
+            }}
+          >
+            Close
           </Button>
         </DialogActions>
       </Dialog>

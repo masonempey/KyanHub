@@ -7,7 +7,7 @@ const HomePage = () => {
   const router = useRouter();
 
   useEffect(() => {
-    router.push("/add");
+    router.push("/property-management");
   }, [router]);
 
   return null;

@@ -22,6 +22,8 @@ router.post("/generate", async (req, res) => {
     await googleService.init();
     const { propertyName, monthYear, products, amounts } = req.body;
 
+    console.log("Generating PDF for:", propertyName, monthYear);
+
     const rates = products.map((product) => parseFloat(product.price));
 
     const doc = new PDFDocument();
@@ -33,6 +35,8 @@ router.post("/generate", async (req, res) => {
     doc.on("end", async () => {
       try {
         const pdfBuffer = Buffer.concat(chunks);
+
+        console.log("Uploading PDF for:", propertyName, monthYear);
 
         const receiptsFolderId = await googleService.findReceiptsFolder(
           propertyName,

@@ -42,6 +42,10 @@ const TopNav = ({
             marginLeft: "auto",
             backgroundColor: "#eccb34",
             color: "#fafafa",
+            "&:hover": {
+              backgroundColor: "#fafafa",
+              color: "#eccb34",
+            },
           }}
         >
           Logout

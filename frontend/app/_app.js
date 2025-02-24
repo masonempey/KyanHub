@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { UserProvider, useUser } from "../contexts/UserContext";
+import { ThemeProvider } from "../contexts/ThemeContext";
 
 const MyApp = ({ Component, pageProps }) => {
   const { user, loading } = useUser();
@@ -20,9 +21,11 @@ const MyApp = ({ Component, pageProps }) => {
 };
 
 const AppWrapper = (props) => (
-  <UserProvider>
-    <MyApp {...props} />
-  </UserProvider>
+  <ThemeProvider>
+    <UserProvider>
+      <MyApp {...props} />
+    </UserProvider>
+  </ThemeProvider>
 );
 
 export default AppWrapper;

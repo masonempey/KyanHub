@@ -14,10 +14,10 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
-import dayjs from "dayjs";
 import MaintenanceSection from "./MaintenanceSection";
 import { useUser } from "../../contexts/UserContext";
 import fetchWithAuth from "../utils/fetchWithAuth";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const AddPage = () => {
   const { user, loading: userLoading } = useUser();
@@ -36,6 +36,11 @@ const AddPage = () => {
   const [amounts, setAmounts] = useState([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
 
   const excludedProperties = [
     "London - 4",
@@ -55,17 +60,47 @@ const AddPage = () => {
 
   const handleAmountChange = (index, value) => {
     const newAmounts = [...amounts];
-    const parsedValue = parseInt(value.replace(/^0+/, "")) || 0;
+    const parsedValue = value.replace(/^0+/, "") || "0";
     newAmounts[index] = parsedValue;
     setAmounts(newAmounts);
+
+    const newErrors = { ...errors };
+    if (!parsedValue || isNaN(parsedValue) || Number(parsedValue) < 0) {
+      newErrors[`amount_${index}`] = "Amount must be a non-negative number.";
+    } else {
+      delete newErrors[`amount_${index}`];
+    }
+    setErrors(newErrors);
+  };
+
+  const validateInputs = () => {
+    const newErrors = {};
+    amounts.forEach((amount, index) => {
+      if (!amount || isNaN(amount) || Number(amount) < 0) {
+        newErrors[`amount_${index}`] = "Amount must be a non-negative number.";
+      }
+    });
+    if (!propertyId) newErrors.propertyId = "Please select a property.";
+    if (!currentMonth || typeof currentMonth !== "string") {
+      newErrors.currentMonth = "Please select a valid month.";
+    }
+    return newErrors;
   };
 
   const handleButtonSubmit = async () => {
+    console.log("THE MONTH: ", currentMonth);
+    const newErrors = validateInputs();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const baseUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}`;
       for (let i = 0; i < products.length; i++) {
         const product = products[i];
-        const quantity = amounts[i];
+        const quantity = Number(amounts[i] || 0);
         if (quantity > 0) {
           const response = await fetchWithAuth(
             `${baseUrl}/api/inventory/${propertyId}/${product.id}/${currentMonth}`,
@@ -81,11 +116,14 @@ const AddPage = () => {
           }
         }
       }
-      console.log("Inventory updated successfully");
-      alert("Inventory updated successfully");
+      setSuccessDialogOpen(true);
+      setErrors({});
     } catch (error) {
-      console.error("Update error:", error);
-      alert("Failed to update inventory");
+      console.error("Update error:", error.message);
+      setErrorMessage(error.message || "Failed to update inventory.");
+      setErrorDialogOpen(true);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -96,6 +134,7 @@ const AddPage = () => {
 
   const handleDeleteConfirm = async () => {
     if (!productToDelete) return;
+    setIsLoading(true);
     try {
       const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products/${productToDelete.id}`,
@@ -109,12 +148,14 @@ const AddPage = () => {
           (_, i) => i !== products.findIndex((p) => p.id === productToDelete.id)
         )
       );
-      alert(`Product "${productToDelete.name}" deleted successfully`);
       setDeleteDialogOpen(false);
       setProductToDelete(null);
     } catch (error) {
-      console.error("Error deleting product:", error);
-      alert("Failed to delete product");
+      console.error("Error deleting product:", error.message);
+      setErrorMessage(error.message || "Failed to delete product.");
+      setErrorDialogOpen(true);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -124,6 +165,7 @@ const AddPage = () => {
   };
 
   const handleAddProductConfirm = async (productData) => {
+    setIsLoading(true);
     try {
       const response = await fetchWithAuth(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products`,
@@ -140,15 +182,19 @@ const AddPage = () => {
         throw new Error("Failed to fetch updated products");
       const data = await updatedProducts.json();
       setProducts(data);
-      alert(`Product "${productData.name}" added successfully`);
+      setAmounts([...amounts, "0"]);
     } catch (error) {
-      console.error("Error adding product:", error);
-      alert("Failed to add product");
+      console.error("Error adding product:", error.message);
+      setErrorMessage(error.message || "Failed to add product.");
+      setErrorDialogOpen(true);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
     const fetchProducts = async () => {
+      setIsLoading(true);
       try {
         const response = await fetchWithAuth(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/products`
@@ -156,8 +202,13 @@ const AddPage = () => {
         if (!response.ok) throw new Error("Failed to fetch products");
         const data = await response.json();
         setProducts(data);
+        setAmounts(data.map(() => "0"));
       } catch (error) {
-        console.error("Error fetching products:", error);
+        console.error("Error fetching products:", error.message);
+        setErrorMessage("Failed to fetch products.");
+        setErrorDialogOpen(true);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchProducts();
@@ -165,21 +216,39 @@ const AddPage = () => {
 
   useEffect(() => {
     const fetchAmounts = async () => {
+      setIsLoading(true);
       try {
         const response = await fetchWithAuth(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/inventory/${propertyId}/${currentMonth}`
         );
         if (!response.ok) throw new Error("Failed to fetch amounts");
         const data = await response.json();
-        setAmounts(data.map((item) => item.quantity));
+        setAmounts(data.map((item) => item.quantity.toString()));
       } catch (error) {
-        console.error("Error fetching amounts:", error);
+        console.error("Error fetching amounts:", error.message);
+        setErrorMessage("Failed to fetch amounts.");
+        setErrorDialogOpen(true);
+      } finally {
+        setIsLoading(false);
       }
     };
     if (propertyId) fetchAmounts();
   }, [propertyId, currentMonth]);
 
-  if (userLoading || propertiesLoading) return <div>Loading...</div>;
+  const setCurrentMonthYear = (month) => {
+    const currentMonth = month;
+    const currentYear = new Date().getFullYear();
+    return `${month}${currentYear}`;
+  };
+
+  if (userLoading || propertiesLoading || isLoading) {
+    return (
+      <div className={styles.loadingContainer}>
+        <CircularProgress sx={{ color: "#eccb34" }} />
+      </div>
+    );
+  }
+
   if (!user) return <div>Please log in to access this page.</div>;
 
   return (
@@ -190,6 +259,16 @@ const AddPage = () => {
             <BackgroundContainer width="100%" height="100%" />
             <div className={styles.productListContainer}>
               <div className={styles.leftHeader}>Inventory Management</div>
+              {errors.propertyId && (
+                <div style={{ color: "#eccb34", marginBottom: "10px" }}>
+                  {errors.propertyId}
+                </div>
+              )}
+              {errors.currentMonth && (
+                <div style={{ color: "#eccb34", marginBottom: "10px" }}>
+                  {errors.currentMonth}
+                </div>
+              )}
               <div className={styles.header}>
                 <span>Product</span>
                 <span>Amount</span>
@@ -211,16 +290,28 @@ const AddPage = () => {
                         <DeleteIcon />
                       </IconButton>
                     </span>
-                    <input
-                      type="text"
-                      pattern="\d*"
-                      inputMode="numeric"
-                      value={amounts[index] || ""}
-                      onChange={(e) =>
-                        handleAmountChange(index, e.target.value)
-                      }
-                      className={styles.amountInput}
-                    />
+                    <div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={amounts[index] || ""}
+                        onChange={(e) =>
+                          handleAmountChange(index, e.target.value)
+                        }
+                        className={styles.amountInput}
+                      />
+                      {errors[`amount_${index}`] && (
+                        <div
+                          style={{
+                            color: "#eccb34",
+                            fontSize: "12px",
+                            marginTop: "4px",
+                          }}
+                        >
+                          {errors[`amount_${index}`]}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -231,11 +322,15 @@ const AddPage = () => {
                 amounts={amounts}
                 rates={rates}
                 selectedPropertyName={selectedPropertyName}
-                monthYear={dayjs(currentMonth).format("MMMMYYYY")}
+                monthYear={setCurrentMonthYear(currentMonth)}
               />
               <Button
                 variant="outlined"
-                sx={{ color: "#eccb34", borderColor: "#eccb34" }}
+                sx={{
+                  color: "#eccb34",
+                  borderColor: "#eccb34",
+                  "&:hover": { borderColor: "#eccb34" },
+                }}
                 onClick={handleButtonSubmit}
               >
                 Update Inventory
@@ -246,7 +341,6 @@ const AddPage = () => {
           <MaintenanceSection
             propertyId={propertyId}
             selectedPropertyName={selectedPropertyName}
-            selectedDate={currentMonth}
           />
         </div>
       </div>
@@ -286,6 +380,64 @@ const AddPage = () => {
             }}
           >
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={successDialogOpen}
+        onClose={() => setSuccessDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#eccb34",
+            color: "#fafafa",
+            borderRadius: "8px",
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: "#fafafa" }}>Success</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: "#fafafa" }}>
+            Inventory updated successfully!
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setSuccessDialogOpen(false)}
+            sx={{
+              color: "#fafafa",
+              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={errorDialogOpen}
+        onClose={() => setErrorDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#eccb34",
+            color: "#fafafa",
+            borderRadius: "8px",
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: "#fafafa" }}>Error</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: "#fafafa" }}>
+            {errorMessage}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setErrorDialogOpen(false)}
+            sx={{
+              color: "#fafafa",
+              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
+            }}
+          >
+            Close
           </Button>
         </DialogActions>
       </Dialog>

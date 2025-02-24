@@ -13,44 +13,72 @@ const AddProduct = ({ onAddProduct }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [productName, setProductName] = useState("");
   const [productPrice, setProductPrice] = useState("");
+  const [errors, setErrors] = useState({});
 
   const handleProductChange = (event) => {
-    setProductName(event.target.value);
+    const value = event.target.value;
+    setProductName(value);
+    const newErrors = { ...errors };
+    if (!value) newErrors.productName = "Product name is required.";
+    else delete newErrors.productName;
+    setErrors(newErrors);
   };
 
   const handlePriceChange = (event) => {
-    setProductPrice(event.target.value);
+    const value = event.target.value;
+    setProductPrice(value);
+    const newErrors = { ...errors };
+    if (!value) {
+      newErrors.productPrice = "Price is required.";
+    } else if (isNaN(value) || Number(value) <= 0) {
+      newErrors.productPrice = "Price must be a positive number.";
+    } else {
+      delete newErrors.productPrice;
+    }
+    setErrors(newErrors);
+  };
+
+  const validateInputs = () => {
+    const newErrors = {};
+    if (!productName) newErrors.productName = "Product name is required.";
+    if (!productPrice) {
+      newErrors.productPrice = "Price is required.";
+    } else if (isNaN(productPrice) || Number(productPrice) <= 0) {
+      newErrors.productPrice = "Price must be a positive number.";
+    }
+    return newErrors;
   };
 
   const handleAddClick = () => {
-    setDialogOpen(true); // Open the dialog when "Add Product" is clicked
+    setDialogOpen(true);
   };
 
   const handleConfirmAdd = () => {
-    if (!productName || !productPrice || isNaN(productPrice)) {
-      alert("Please enter a valid product name and price.");
+    const newErrors = validateInputs();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
     const productData = {
       name: productName,
-      price: parseFloat(productPrice),
+      price: Number(productPrice),
     };
 
     if (onAddProduct) {
-      onAddProduct(productData); // Pass the product data to AddPage for processing
+      onAddProduct(productData);
     }
 
-    // Reset form and close dialog
     setProductName("");
     setProductPrice("");
+    setErrors({});
     setDialogOpen(false);
   };
 
   const handleCancel = () => {
-    // Reset form and close dialog without adding
     setProductName("");
     setProductPrice("");
+    setErrors({});
     setDialogOpen(false);
   };
 
@@ -64,9 +92,7 @@ const AddProduct = ({ onAddProduct }) => {
           color: "#eccb34",
           borderColor: "#eccb34",
           backgroundColor: "transparent",
-          "&:hover": {
-            borderColor: "#eccb34",
-          },
+          "&:hover": { borderColor: "#eccb34" },
           marginBottom: "1rem",
         }}
       >
@@ -76,11 +102,10 @@ const AddProduct = ({ onAddProduct }) => {
         open={dialogOpen}
         onClose={handleCancel}
         aria-labelledby="add-dialog-title"
-        aria-describedby="add-dialog-description"
         PaperProps={{
           sx: {
-            backgroundColor: "#eccb34", // Yellow background for dialog
-            color: "#fafafa", // White text
+            backgroundColor: "#eccb34",
+            color: "#fafafa",
             borderRadius: "8px",
           },
         }}
@@ -95,27 +120,23 @@ const AddProduct = ({ onAddProduct }) => {
             value={productName}
             onChange={handleProductChange}
             fullWidth
+            error={!!errors.productName}
+            helperText={errors.productName}
             sx={{
               "& .MuiOutlinedInput-root": {
-                backgroundColor: "#eccb34", // Yellow background
-                color: "#fafafa", // White text
-                borderColor: "#fafafa", // White border
-                borderRadius: "8px", // Match other components' border radius
-                "&:hover .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#fafafa", // White border on hover
-                },
-                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#fafafa", // White border when focused
-                },
+                backgroundColor: "#eccb34",
+                color: "#fafafa",
+                "& fieldset": { borderColor: "#fafafa" },
+                "&:hover fieldset": { borderColor: "#fafafa" },
+                "&.Mui-focused fieldset": { borderColor: "#fafafa" },
               },
-              "& .MuiInputBase-input": {
-                color: "#fafafa", // White input text
-              },
+              "& .MuiInputBase-input": { color: "#fafafa" },
               "& .MuiInputBase-input::placeholder": {
-                color: "#fafafa", // White placeholder text
-                opacity: 1, // Ensure full opacity
+                color: "#fafafa",
+                opacity: 1,
               },
-              mb: 2, // Margin bottom for spacing between fields
+              "& .MuiFormHelperText-root": { color: "#fafafa" },
+              mb: 2,
             }}
           />
           <TextField
@@ -124,26 +145,22 @@ const AddProduct = ({ onAddProduct }) => {
             value={productPrice}
             onChange={handlePriceChange}
             fullWidth
+            error={!!errors.productPrice}
+            helperText={errors.productPrice}
             sx={{
               "& .MuiOutlinedInput-root": {
-                backgroundColor: "#eccb34", // Yellow background
-                color: "#fafafa", // White text
-                borderColor: "#fafafa", // White border
-                borderRadius: "8px", // Match other components' border radius
-                "&:hover .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#fafafa", // White border on hover
-                },
-                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#fafafa", // White border when focused
-                },
+                backgroundColor: "#eccb34",
+                color: "#fafafa",
+                "& fieldset": { borderColor: "#fafafa" },
+                "&:hover fieldset": { borderColor: "#fafafa" },
+                "&.Mui-focused fieldset": { borderColor: "#fafafa" },
               },
-              "& .MuiInputBase-input": {
-                color: "#fafafa", // White input text
-              },
+              "& .MuiInputBase-input": { color: "#fafafa" },
               "& .MuiInputBase-input::placeholder": {
-                color: "#fafafa", // White placeholder text
-                opacity: 1, // Ensure full opacity
+                color: "#fafafa",
+                opacity: 1,
               },
+              "& .MuiFormHelperText-root": { color: "#fafafa" },
             }}
           />
         </DialogContent>
@@ -152,12 +169,7 @@ const AddProduct = ({ onAddProduct }) => {
             onClick={handleCancel}
             sx={{
               color: "#fafafa",
-              borderColor: "#fafafa",
-              backgroundColor: "transparent",
-              "&:hover": {
-                backgroundColor: "rgba(250, 250, 250, 0.1)",
-                borderColor: "#fafafa",
-              },
+              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
             }}
           >
             Cancel
@@ -166,12 +178,7 @@ const AddProduct = ({ onAddProduct }) => {
             onClick={handleConfirmAdd}
             sx={{
               color: "#fafafa",
-              borderColor: "#eccb34",
-              backgroundColor: "transparent",
-              "&:hover": {
-                backgroundColor: "rgba(236, 203, 52, 0.1)",
-                borderColor: "#eccb34",
-              },
+              "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
             }}
           >
             Add

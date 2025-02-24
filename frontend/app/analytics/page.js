@@ -9,14 +9,20 @@ import { useUser } from "../../contexts/UserContext";
 
 const AnalyticsPage = () => {
   const { user, loading: userLoading } = useUser();
-  const { propertyId, currentMonth } = useProperties();
+  const {
+    properties: allProperties,
+    loading: propertiesLoading,
+    propertyId,
+    selectedPropertyName,
+    currentMonth,
+    setCurrentMonth,
+  } = useProperties();
 
   if (userLoading || propertiesLoading) return <div>Loading...</div>;
   if (!user) return <div>Please log in to access this page.</div>;
 
   return (
     <div className={styles.DashboardContainer}>
-      <div className={styles.topLine}></div>
       <div className={styles.viewContainer}>
         <div className={styles.smallRevenueContainer}>
           <BackgroundContainer width="100%" height="100%" />

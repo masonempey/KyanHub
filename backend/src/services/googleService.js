@@ -1,4 +1,5 @@
 const { google } = require("googleapis");
+const { Readable } = require("stream");
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -61,27 +62,55 @@ const googleService = {
 
   // Find or create a receipts folder for the property and month
   findReceiptsFolder: async (propertyName, monthYear) => {
-    const folderName = `${propertyName} - ${monthYear} Receipts`;
-    const query = `'${folderName}' in:name mimeType='application/vnd.google-apps.folder'`;
-    console.log("Searching Drive with query:", query);
+    const propertyFolderName = `${propertyName} - Receipts`;
+    const propertyQuery = `name='${propertyFolderName}' and mimeType='application/vnd.google-apps.folder'`;
+    console.log("Searching Drive with query:", propertyQuery);
     try {
-      const response = await drive.files.list({
-        q: query,
+      const propertyResponse = await drive.files.list({
+        q: propertyQuery,
         fields: "files(id)",
       });
-      console.log("Search response:", response.data);
-      if (response.data.files.length > 0) {
-        return response.data.files[0].id;
+      console.log("Property search response:", propertyResponse.data);
+      let propertyFolderId;
+      if (propertyResponse.data.files.length > 0) {
+        propertyFolderId = propertyResponse.data.files[0].id;
+      } else {
+        const propertyFolderMetadata = {
+          name: propertyFolderName,
+          mimeType: "application/vnd.google-apps.folder",
+        };
+        const propertyFolder = await drive.files.create({
+          resource: propertyFolderMetadata,
+          fields: "id",
+        });
+        propertyFolderId = propertyFolder.data.id;
       }
-      const folderMetadata = {
-        name: folderName,
-        mimeType: "application/vnd.google-apps.folder",
-      };
-      const folder = await drive.files.create({
-        resource: folderMetadata,
-        fields: "id",
+
+      const monthYearFolderName = monthYear;
+      const monthYearQuery = `'${propertyFolderId}' in parents and name='${monthYearFolderName}' and mimeType='application/vnd.google-apps.folder'`;
+      console.log("Searching Drive with query:", monthYearQuery);
+      const monthYearResponse = await drive.files.list({
+        q: monthYearQuery,
+        fields: "files(id)",
       });
-      return folder.data.id;
+      console.log("Month-Year search response:", monthYearResponse.data);
+      let monthYearFolderId;
+      if (monthYearResponse.data.files.length > 0) {
+        monthYearFolderId = monthYearResponse.data.files[0].id;
+      } else {
+        const monthYearFolderMetadata = {
+          name: monthYearFolderName,
+          mimeType: "application/vnd.google-apps.folder",
+          parents: [propertyFolderId],
+        };
+        const monthYearFolder = await drive.files.create({
+          resource: monthYearFolderMetadata,
+          fields: "id",
+        });
+        monthYearFolderId = monthYearFolder.data.id;
+      }
+
+      return monthYearFolderId;
     } catch (error) {
       console.error(
         "Error finding/creating folder:",
@@ -98,9 +127,14 @@ const googleService = {
         name: fileName,
         parents: [parentFolderId],
       };
+
+      const bufferStream = new Readable();
+      bufferStream.push(buffer);
+      bufferStream.push(null);
+
       const media = {
         mimeType: "application/pdf",
-        body: buffer,
+        body: bufferStream,
       };
 
       const response = await drive.files.create({

@@ -9,6 +9,8 @@ router.post("/maintenance", async (req, res) => {
   try {
     const { propertyName, monthYear, file, fileName } = req.body;
 
+    console.log("Uploading maintenance receipt:", propertyName, monthYear);
+
     if (!propertyName || !monthYear) {
       return res.status(400).json({
         success: false,
@@ -31,7 +33,6 @@ router.post("/maintenance", async (req, res) => {
 
     // Find or create the receipts folder
     const receiptsFolderId = await GoogleService.findReceiptsFolder(
-      console.log(monthYear),
       propertyName,
       monthYear
     );

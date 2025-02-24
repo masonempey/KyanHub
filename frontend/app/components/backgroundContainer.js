@@ -1,4 +1,4 @@
-const backgroundContainer = ({ width, height }) => {
+const backgroundContainer = ({ width, height, color }) => {
   return (
     <div
       style={{
@@ -8,6 +8,7 @@ const backgroundContainer = ({ width, height }) => {
         width: width || "100%",
         height: height || "100%",
         zIndex: 1,
+        backgroundColor: color || "rgba(255, 255, 255, 0.8)",
         borderColor: "rgba(110, 127, 128, 0.3)",
         borderStyle: "solid",
         borderWidth: "1px",

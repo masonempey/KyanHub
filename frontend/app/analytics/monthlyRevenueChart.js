@@ -12,7 +12,8 @@ import {
 } from "recharts";
 import styles from "../styles/monthlyRevenueChart.module.css";
 import { useUser } from "../../contexts/UserContext";
-import fetchWithAuth from "../../utils/fetchWithAuth";
+import fetchWithAuth from "../utils/fetchWithAuth";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const MonthlyRevenueChart = ({ propertyId, month }) => {
   const { user, loading: userLoading } = useUser();
@@ -63,7 +64,13 @@ const MonthlyRevenueChart = ({ propertyId, month }) => {
 
   const COLORS = ["#ECCB34", "#FF8042", "#00C49F", "#00C49F"];
 
-  if (userLoading || isLoading) return <div>Loading...</div>;
+  if (userLoading || isLoading) {
+    return (
+      <div className={styles.loadingContainer}>
+        <CircularProgress sx={{ color: "#eccb34" }} />
+      </div>
+    );
+  }
   if (!user) return <div>Please log in to view revenue.</div>;
   if (!data.length) return <div>No data available</div>;
 

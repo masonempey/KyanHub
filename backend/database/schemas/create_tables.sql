@@ -40,19 +40,20 @@ CREATE TABLE IF NOT EXISTS guests (
 );
 
 CREATE TABLE IF NOT EXISTS bookings (
-    booking_code VARCHAR(255) PRIMARY KEY,
-    guest_uid VARCHAR(255) NOT NULL,
-    property_uid VARCHAR(255) NOT NULL,
-    platform VARCHAR(50) NOT NULL,
-    check_in DATE NOT NULL,
-    check_out DATE NOT NULL,
-    total_nights INT NOT NULL,
-    nightly_rate DECIMAL(10, 2) NOT NULL,
-    total DECIMAL(10, 2) NOT NULL,
-    base_total DECIMAL(10, 2) NOT NULL,
-    cleaning_fee DECIMAL(10, 2) NOT NULL,
-    cleaning_fee_month DECIMAL(10, 2) NOT NULL,
-    FOREIGN KEY (guest_uid) REFERENCES guests(guest_uid) ON DELETE CASCADE
+  booking_code VARCHAR(255) PRIMARY KEY,
+  guest_uid VARCHAR(255) NOT NULL,
+  property_uid VARCHAR(255) NOT NULL,
+  platform VARCHAR(50) NOT NULL,
+  check_in DATE NOT NULL,
+  check_out DATE NOT NULL,
+  total_nights INT NOT NULL,
+  nightly_rate DECIMAL(10, 2) NOT NULL,
+  total DECIMAL(10, 2) NOT NULL,
+  base_total DECIMAL(10, 2) NOT NULL,
+  cleaning_fee DECIMAL(10, 2) NOT NULL,
+  cleaning_fee_month DECIMAL(10, 2) NOT NULL,
+  guest_name VARCHAR(255),
+  FOREIGN KEY (guest_uid) REFERENCES guests(guest_uid) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS nights_by_month (
