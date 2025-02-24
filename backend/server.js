@@ -34,24 +34,35 @@ const corsOptions = {
     "Content-Type",
     "Date",
     "X-Api-Version",
-    "Authorization", // Added this
+    "Authorization",
   ],
   optionsSuccessStatus: 204,
 };
 
-app.use(cors(corsOptions));
-app.use(express.json());
+// Catch errors in CORS middleware
+try {
+  app.use(cors(corsOptions));
+} catch (error) {
+  console.error("CORS middleware setup failed:", error);
+}
 
-// Log request origin for debugging
+// Log all requests
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.path}`);
   next();
 });
 
-// Handle OPTIONS requests
-app.options("*", cors(corsOptions), (req, res) => {
-  console.log(`Global OPTIONS request received for ${req.path}`);
-  res.status(204).end();
+// Handle OPTIONS globally with error catching
+app.options("*", (req, res, next) => {
+  try {
+    console.log(`Global OPTIONS request received for ${req.path}`);
+    cors(corsOptions)(req, res, () => res.status(204).end());
+  } catch (error) {
+    console.error("Error in global OPTIONS handler:", error);
+    res
+      .status(500)
+      .json({ error: "OPTIONS handling failed", details: error.message });
+  }
 });
 
 // Initialize database at startup
@@ -68,7 +79,8 @@ async function initializeDatabase() {
       })
       .catch((error) => {
         console.error("Database initialization failed at startup:", error);
-        dbInitialized = false; // Allow retries
+        dbInitialized = false;
+        dbPromise = null; // Reset for retry
       });
   }
   return dbPromise;
@@ -76,16 +88,20 @@ async function initializeDatabase() {
 
 initializeDatabase();
 
-// Middleware to ensure DB is ready
+// DB middleware with error logging
 app.use(async (req, res, next) => {
   if (!dbInitialized) {
+    console.log(
+      `DB not initialized for ${req.method} ${req.path}, retrying...`
+    );
     try {
       await initializeDatabase();
       if (!dbInitialized) {
         throw new Error("Database failed to initialize after retry");
       }
+      console.log("DB retry succeeded");
     } catch (error) {
-      console.error("DB check failed:", error.message);
+      console.error("DB check failed:", error.stack);
       return res.status(503).json({
         error: "Service unavailable due to database issue",
         details: error.message,
@@ -118,9 +134,9 @@ app.use("/api/google", googleRoutes);
 
 app.use("/api/admin", adminMiddleware);
 
-// Error handling middleware
+// Global error handler
 app.use((err, req, res, next) => {
-  console.error("Server error:", err.stack);
+  console.error("Global error caught:", err.stack);
   res.status(500).json({ error: "Something went wrong", details: err.message });
 });
 
