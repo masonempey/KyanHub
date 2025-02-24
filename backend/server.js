@@ -34,6 +34,7 @@ const corsOptions = {
     "Content-Type",
     "Date",
     "X-Api-Version",
+    "Authorization", // Added this
   ],
   optionsSuccessStatus: 204,
 };
@@ -67,14 +68,13 @@ async function initializeDatabase() {
       })
       .catch((error) => {
         console.error("Database initialization failed at startup:", error);
-        dbInitialized = false; // Allow retries on subsequent requests
+        dbInitialized = false; // Allow retries
       });
   }
   return dbPromise;
 }
 
-// Run at startup but don’t crash
-initializeDatabase(); // Removed .catch(process.exit)
+initializeDatabase();
 
 // Middleware to ensure DB is ready
 app.use(async (req, res, next) => {
