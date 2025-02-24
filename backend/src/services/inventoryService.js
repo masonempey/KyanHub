@@ -16,6 +16,24 @@ class InventoryService {
     }
   }
 
+  static async deleteProduct(productId) {
+    try {
+      const result = await pool.query(
+        "DELETE FROM products WHERE id = $1 RETURNING *",
+        [productId]
+      );
+
+      if (result.rowCount === 0) {
+        throw new Error("Product not found or already deleted");
+      }
+
+      console.log(`Product with ID ${productId} deleted successfully`);
+      return result.rows[0];
+    } catch (error) {
+      console.error("Error deleting product:", error.message);
+      throw error;
+    }
+  }
   static async getAllProducts() {
     try {
       const result = await pool.query("SELECT * FROM products");

@@ -11,20 +11,24 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import styles from "../styles/monthlyRevenueChart.module.css";
+import { useUser } from "../../contexts/UserContext";
+import fetchWithAuth from "../utils/fetchWithAuth";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const MonthlyRevenueChart = ({ propertyId, month }) => {
+  const { user, loading: userLoading } = useUser();
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!propertyId || !month) {
+    if (!propertyId || !month || !user) {
       return;
     }
 
     const fetchAnalytics = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(
+        const response = await fetchWithAuth(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/analytics/${propertyId}/2025/${month}`
         );
         if (!response.ok) {
@@ -49,20 +53,27 @@ const MonthlyRevenueChart = ({ propertyId, month }) => {
         }
       } catch (error) {
         console.error("Error fetching analytics:", error);
+        alert("Failed to load revenue data");
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchAnalytics();
-  }, [propertyId, month]);
+  }, [propertyId, month, user]);
 
   const COLORS = ["#ECCB34", "#FF8042", "#00C49F", "#00C49F"];
 
-  if (isLoading) return <div>Loading...</div>;
+  if (userLoading || isLoading) {
+    return (
+      <div className={styles.loadingContainer}>
+        <CircularProgress sx={{ color: "#eccb34" }} />
+      </div>
+    );
+  }
+  if (!user) return <div>Please log in to view revenue.</div>;
   if (!data.length) return <div>No data available</div>;
 
-  // Calculate total revenue
   const totalRevenue = data.reduce((sum, entry) => sum + entry.value, 0);
 
   const renderLegend = (value) => {

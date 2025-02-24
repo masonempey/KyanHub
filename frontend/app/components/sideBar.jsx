@@ -49,7 +49,7 @@ const SideBar = () => {
   };
 
   const handleAddClick = () => {
-    router.push("/add");
+    router.push("/property-management");
   };
 
   const handleReportClick = () => {

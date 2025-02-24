@@ -1,17 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "../firebase/config";
 import { TextField, Button, Typography, Paper, Alert } from "@mui/material";
 import { styled } from "@mui/system";
 import styles from "../styles/login.module.css";
 import axios from "axios";
+import { useRouter } from "next/navigation";
+import { useUser } from "../../contexts/UserContext";
 
 const FormContainer = styled(Paper)({
   padding: "2rem",
-  maxWidth: "400px",
-  width: "100%",
+  maxWidth: "20vw",
+  width: "100vw",
   backgroundColor: "#fafafa",
 });
 
@@ -20,6 +22,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLogin, setIsLogin] = useState(true);
+  const router = useRouter();
 
   const handleSignUp = async () => {
     try {
@@ -31,9 +34,7 @@ const Login = () => {
         }
       );
       console.log("User created:", res.data);
-      if (res) {
-        window.location.href = "/";
-      }
+      router.push("/analytics");
     } catch (error) {
       setError(error.message);
     }
@@ -47,7 +48,7 @@ const Login = () => {
       setPassword("");
       setError("");
       if (res) {
-        window.location.href = "/";
+        router.push("/analytics");
       }
     } catch (error) {
       setError(error.message);
@@ -69,20 +70,50 @@ const Login = () => {
       );
 
       if (!checkUserResponse.data.exists) {
-        await axios.post(`/api/users/googleregister`, {
-          email: user.email,
-          uid: user.uid,
-          name: user.displayName || user.email,
-        });
+        // Create the user in the backend first
+        const backendResponse = await axios.post(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/users/googleregister`,
+          {
+            email: user.email,
+            uid: user.uid,
+          }
+        );
+
+        if (backendResponse.status !== 201) {
+          throw new Error("Failed to create user in backend");
+        }
       }
 
-      // Redirect to home or another page
-      window.location.href = "/";
+      // Lookup user in Firebase
+      await lookupUser();
+      if (checkUserResponse.data.exists) {
+        router.push("/add");
+      } else {
+        throw new Error("Failed to find user in database");
+      }
     } catch (error) {
       console.error("Error during Google sign-in:", error);
       setError(
         error.response?.data?.message ||
           "Failed to sign in with Google. Please try again."
+      );
+    }
+  };
+
+  const lookupUser = async () => {
+    try {
+      const idToken = await auth.currentUser.getIdToken(true);
+      const response = await axios.post(
+        `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${process.env.NEXT_PUBLIC_FIREBASE_API_KEY}`,
+        {
+          idToken,
+        }
+      );
+      console.log("User lookup response:", response.data);
+    } catch (error) {
+      console.error(
+        "Error looking up user:",
+        error.response?.data || error.message
       );
     }
   };
@@ -97,8 +128,8 @@ const Login = () => {
           sx={{
             fontFamily: "Lato",
             fontWeight: 800,
-            fontStyle: "normal",
-            color: "#35281f",
+            fontStyle: "Bold",
+            color: "#eccb34",
           }}
         >
           {isLogin ? "Login" : "Sign Up"}
@@ -117,20 +148,20 @@ const Login = () => {
             fontStyle: "normal",
             "& .MuiOutlinedInput-root": {
               "& fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
               "&:hover fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
               "&.Mui-focused fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
             },
             "& .MuiInputLabel-root": {
-              color: "#35281f",
+              color: "#eccb34",
             },
             "& .MuiInputLabel-root.Mui-focused": {
-              color: "#35281f",
+              color: "#eccb34",
             },
           }}
         />
@@ -148,20 +179,20 @@ const Login = () => {
             fontStyle: "normal",
             "& .MuiOutlinedInput-root": {
               "& fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
               "&:hover fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
               "&.Mui-focused fieldset": {
-                borderColor: "#35281f",
+                borderColor: "#eccb34",
               },
             },
             "& .MuiInputLabel-root": {
-              color: "#35281f",
+              color: "#eccb34",
             },
             "& .MuiInputLabel-root.Mui-focused": {
-              color: "#35281f",
+              color: "#eccb34",
             },
           }}
         />
@@ -172,44 +203,52 @@ const Login = () => {
           onClick={isLogin ? handleLogin : handleSignUp}
           sx={{
             mt: 2,
-            backgroundColor: "#35281f",
+            backgroundColor: "#eccb34",
             color: "#fafafa",
             fontFamily: "Lato",
             fontWeight: 800,
             fontStyle: "normal",
+            "&:hover": {
+              backgroundColor: "#2b2b2b",
+            },
           }}
         >
           {isLogin ? "Login" : "Sign Up"}
         </Button>
         <Button
-          variant="outlined"
-          color="secondary"
+          variant="contained"
+          color="primary"
           fullWidth
           onClick={() => setIsLogin(!isLogin)}
           sx={{
             mt: 2,
-            borderColor: "#35281f",
-            color: "#35281f",
+            backgroundColor: "#eccb34",
+            color: "#fafafa",
             fontFamily: "Lato",
             fontWeight: 800,
             fontStyle: "normal",
+            "&:hover": {
+              backgroundColor: "#2b2b2b",
+            },
           }}
         >
           {isLogin ? "Sign Up" : "Login"}
         </Button>
         <Button
           variant="contained"
-          color="secondary"
+          color="primary"
           fullWidth
           onClick={handleGoogleSignIn}
           sx={{
             mt: 2,
-            backgroundColor: "#fafafa",
-            color: "#35281f",
-            border: "1px solid #35281f",
+            backgroundColor: "#eccb34",
+            color: "#fafafa",
             fontFamily: "Lato",
             fontWeight: 800,
             fontStyle: "normal",
+            "&:hover": {
+              backgroundColor: "#2b2b2b",
+            },
           }}
         >
           Sign in with Google

@@ -32,9 +32,21 @@ router.post("/products", async (req, res) => {
 });
 
 // Delete a product from the product list
-router.delete("/products/:productName", async (req, res) => {
+router.delete("/products/:productId", async (req, res) => {
   try {
-  } catch (error) {}
+    const { productId } = req.params;
+
+    const deletedProduct = await InventoryService.deleteProduct(productId);
+
+    if (!deletedProduct) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.status(200).json(deletedProduct);
+  } catch (error) {
+    console.error("Error deleting product:", error);
+    res.status(500).json({ error: "Failed to delete product" });
+  }
 });
 
 // Get inventory for a specific property and month

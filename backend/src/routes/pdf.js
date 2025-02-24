@@ -20,7 +20,11 @@ const getEndOfNextMonth = () => {
 router.post("/generate", async (req, res) => {
   try {
     await googleService.init();
-    const { propertyName, monthYear, products, amounts, rates } = req.body;
+    const { propertyName, monthYear, products, amounts } = req.body;
+
+    console.log("Generating PDF for:", propertyName, monthYear);
+
+    const rates = products.map((product) => parseFloat(product.price));
 
     const doc = new PDFDocument();
     const chunks = [];
@@ -31,6 +35,8 @@ router.post("/generate", async (req, res) => {
     doc.on("end", async () => {
       try {
         const pdfBuffer = Buffer.concat(chunks);
+
+        console.log("Uploading PDF for:", propertyName, monthYear);
 
         const receiptsFolderId = await googleService.findReceiptsFolder(
           propertyName,
@@ -82,7 +88,7 @@ router.post("/generate", async (req, res) => {
       doc
         .moveDown(2)
         .fontSize(24)
-        .fillColor("#89CFF0") // Baby blue
+        .fillColor("#89CFF0")
         .text("INVOICE", 50)
         .moveDown(1)
         .fillColor("black")
@@ -92,7 +98,6 @@ router.post("/generate", async (req, res) => {
         .moveDown(0.5)
         .font("Helvetica")
         .fontSize(14)
-        .text(ownersName, 50)
         .text(propertyName, 50)
         .moveDown(2);
 
@@ -157,18 +162,16 @@ router.post("/generate", async (req, res) => {
             const rowTotal = amount * rate;
             totalBalance += rowTotal;
 
-            // Add light grey background
             doc
               .fillColor("#f5f5f5")
               .rect(50, yPosition - 5, 500, rowHeight)
               .fill();
 
-            // Add text content
             doc
               .fillColor("black")
               .font("Helvetica")
               .fontSize(10)
-              .text(product || "", 60, yPosition)
+              .text(product.name || "", 60, yPosition)
               .text(amount.toString(), 210, yPosition)
               .text(`$${rate.toFixed(2)}`, 360, yPosition)
               .text(`$${rowTotal.toFixed(2)}`, 460, yPosition);

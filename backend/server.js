@@ -4,47 +4,38 @@ const dotenv = require("dotenv");
 const { initDatabase } = require("./database/initDatabase");
 const igmsRoutes = require("./src/routes/igms");
 const pdfRoutes = require("./src/routes/pdf");
-const authMiddleware = require("./src/middleware/authMiddleware");
+const {
+  authMiddleware,
+  adminMiddleware,
+} = require("./src/middleware/authMiddleware");
 const sheetsRoutes = require("./src/routes/sheets");
 const inventoryRoutes = require("./src/routes/inventory");
 const uploadRoutes = require("./src/routes/upload");
 const maintenanceRoutes = require("./src/routes/maintenance");
 const analyticsRoutes = require("./src/routes/analytics");
 const userRoutes = require("./src/routes/users");
+const googleRoutes = require("./src/routes/google");
 
 dotenv.config();
 
 const app = express();
 
-// Configure CORS to allow requests from your frontend's origin
-// const corsOptions = {
-//   origin: `${process.env.NEXT_PUBLIC_FRONTEND_UR}` || "http://localhost:3000",
-//   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-//   credentials: true,
-// };
-
 app.use(cors());
 app.use(express.json());
 
-// Test route before anything else
-app.get("/api", (req, res) => {
-  console.log("Accessed /api route");
-  res.status(200).json({ message: "Server is running!" });
-});
-
-// Unauthenticated routes
-app.use("/api/inventory/products", inventoryRoutes);
-app.use("/api/inventory", inventoryRoutes);
-app.use("/api/igms", igmsRoutes);
-app.use("/api/analytics", analyticsRoutes);
+// Define routes with authentication middleware
+app.use("/api/igms", authMiddleware, igmsRoutes);
+app.use("/api/pdf", authMiddleware, pdfRoutes);
+app.use("/api/sheets", authMiddleware, sheetsRoutes);
+app.use("/api/inventory", authMiddleware, inventoryRoutes);
+app.use("/api/upload", authMiddleware, uploadRoutes);
+app.use("/api/maintenance", authMiddleware, maintenanceRoutes);
+app.use("/api/analytics", authMiddleware, analyticsRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/google", googleRoutes);
 
-// Authenticated routes with middleware
-app.use("/api", authMiddleware);
-app.use("/api/sheets", sheetsRoutes);
-app.use("/api/pdf", pdfRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/maintenance", maintenanceRoutes);
+// Apply admin middleware to specific routes
+app.use("/api/admin", adminMiddleware);
 
 const PORT = process.env.PORT || 5000;
 
@@ -59,31 +50,10 @@ const startServer = async () => {
     });
   } catch (error) {
     console.error("Database initialization failed:", error);
-    process.exit(1); // Exit the process with failure
+    process.exit(1);
   }
 };
 
 startServer();
 
-// Initialize database on first invocation
-// let isInitialized = false;
-// app.use(async (req, res, next) => {
-//   if (!isInitialized) {
-//     try {
-//       console.log("Initializing database...");
-//       await initDatabase();
-//       console.log("Database initialized successfully");
-//       isInitialized = true;
-//     } catch (error) {
-//       console.error("Database initialization failed:", error);
-//       return res.status(500).json({
-//         error: "Server initialization failed",
-//         details: error.message,
-//       });
-//     }
-//   }
-//   next();
-// });
-
-// Export the serverless function (use default export for clarity)
 module.exports = app;

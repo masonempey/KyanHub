@@ -1,298 +1,135 @@
 const { google } = require("googleapis");
-const { OAuth2Client } = require("google-auth-library");
-const fs = require("fs").promises;
-const path = require("path");
 const { Readable } = require("stream");
 
-const SCOPES = [
-  "https://www.googleapis.com/auth/spreadsheets",
-  "https://www.googleapis.com/auth/drive.file",
-  "https://www.googleapis.com/auth/drive",
-];
+const oauth2Client = new google.auth.OAuth2(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_REDIRECT_URI
+);
 
-class GoogleService {
-  constructor() {
-    this.oAuth2Client = null;
-    this.sheets = null;
-    this.drive = null;
-  }
+console.log("Client ID:", process.env.GOOGLE_CLIENT_ID);
+console.log("Client Secret:", process.env.GOOGLE_CLIENT_SECRET);
+console.log("Redirect URI:", process.env.GOOGLE_REDIRECT_URI);
 
-  async init() {
-    this.drive = google.drive({ version: "v3", auth: this.oAuth2Client });
-    const credentials = JSON.parse(
-      await fs.readFile(path.join(__dirname, "../../credentials.json"))
-    );
+const drive = google.drive({ version: "v3", auth: oauth2Client });
 
-    // Use web credentials format
-    this.oAuth2Client = new OAuth2Client(
-      credentials.web.client_id,
-      credentials.web.client_secret,
-      credentials.web.redirect_uris[0]
-    );
-
-    try {
-      const tokenPath = path.join(__dirname, "../../token.json");
-
-      // Check if token exists
-      try {
-        await fs.access(tokenPath);
-      } catch (err) {
-        throw new Error("No token found - please authenticate first");
-      }
-
-      const token = JSON.parse(await fs.readFile(tokenPath));
-
-      if (!token.access_token) {
-        throw new Error("Invalid token - please reauthenticate");
-      }
-
-      this.oAuth2Client.setCredentials(token);
-      this.sheets = google.sheets({ version: "v4", auth: this.oAuth2Client });
-    } catch (error) {
-      console.error("Auth error:", error.message);
-      throw new Error("Please visit /api/google to authenticate");
-    }
-  }
-
-  async generateAuthUrl() {
-    const credentials = JSON.parse(
-      await fs.readFile(path.join(__dirname, "../../credentials.json"))
-    );
-
-    // Use web credentials format here too
-    this.oAuth2Client = new OAuth2Client(
-      credentials.web.client_id,
-      credentials.web.client_secret,
-      credentials.web.redirect_uris[0]
-    );
-
-    return this.oAuth2Client.generateAuthUrl({
+const googleService = {
+  getAuthUrl: () => {
+    const scopes = [
+      "https://www.googleapis.com/auth/drive",
+      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/spreadsheets",
+    ];
+    return oauth2Client.generateAuthUrl({
       access_type: "offline",
-      scope: SCOPES,
-      prompt: "consent",
-      redirect_uri: "http://localhost:5000/api/google/callback",
+      scope: scopes,
     });
-  }
+  },
 
-  async handleCallback(code) {
-    const { tokens } = await this.oAuth2Client.getToken(code);
-    await fs.writeFile(
-      path.join(__dirname, "../../token.json"),
-      JSON.stringify(tokens)
-    );
+  getTokens: async (code) => {
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
     return tokens;
-  }
+  },
 
-  async getSheetData(spreadsheetId, range) {
-    if (!this.sheets) await this.init();
+  setCredentials: (tokens) => {
+    oauth2Client.setCredentials(tokens);
+    console.log("Credentials set:", tokens);
+  },
 
-    try {
-      console.log("Fetching sheet data:", { spreadsheetId, range });
-      const response = await this.sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range,
-        valueRenderOption: "UNFORMATTED_VALUE",
-      });
+  getOAuth2Client: () => oauth2Client,
 
-      return response.data.values;
-    } catch (error) {
-      console.error("Sheet error:", error.response?.data || error);
-      throw new Error(`Failed to fetch sheet data: ${error.message}`);
+  // Initialize the service with stored credentials (if any)
+  init: async () => {
+    const tokens = {
+      access_token: process.env.GOOGLE_ACCESS_TOKEN,
+      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+      scope:
+        "https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets",
+      token_type: "Bearer",
+      expiry_date: process.env.GOOGLE_TOKEN_EXPIRY,
+    };
+    if (!tokens.access_token || !tokens.refresh_token) {
+      throw new Error(
+        "No Google Drive credentials available. Please authenticate first."
+      );
     }
-  }
+    oauth2Client.setCredentials(tokens);
+    const refreshed = await oauth2Client.getAccessToken();
+    console.log("Refreshed token:", refreshed);
+    console.log("Google Drive initialized with credentials");
+  },
 
-  async getColumnValues(
-    spreadsheetId,
-    sheetName,
-    columnIndex,
-    startRow,
-    endRow
-  ) {
-    const columnLetter = String.fromCharCode(65 + columnIndex);
-    const range = `${sheetName}!${columnLetter}${startRow}:${columnLetter}${endRow}`;
-
-    const values = await this.getSheetData(spreadsheetId, range);
-    return values?.map((row) => row[0] || "") || [];
-  }
-
-  async updateColumnValues(
-    spreadsheetId,
-    sheetName,
-    columnIndex,
-    startRow,
-    values
-  ) {
-    if (!this.sheets) await this.init();
-
-    const columnLetter = String.fromCharCode(65 + columnIndex);
-    const range = `${sheetName}!${columnLetter}${startRow}:${columnLetter}${
-      startRow + values.length - 1
-    }`;
-
+  // Find or create a receipts folder for the property and month
+  findReceiptsFolder: async (propertyName, monthYear) => {
+    const propertyFolderName = `${propertyName} - Receipts`;
+    const propertyQuery = `name='${propertyFolderName}' and mimeType='application/vnd.google-apps.folder'`;
+    console.log("Searching Drive with query:", propertyQuery);
     try {
-      await this.sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range,
-        valueInputOption: "RAW",
-        resource: {
-          values: values.map((value) => [value]),
-        },
+      const propertyResponse = await drive.files.list({
+        q: propertyQuery,
+        fields: "files(id)",
       });
-    } catch (error) {
-      console.error("Update error:", error);
-      throw new Error(`Failed to update sheet: ${error.message}`);
-    }
-  }
-
-  async updateNonZeroValues(
-    spreadsheetId,
-    sheetName,
-    columnIndex,
-    startRow,
-    nonZeroUpdates
-  ) {
-    const columnLetter = String.fromCharCode(65 + columnIndex);
-
-    // Process each non-zero update individually
-    for (const update of nonZeroUpdates) {
-      const row = startRow + update.index;
-      const range = `${sheetName}!${columnLetter}${row}`;
-
-      console.log(`Updating range: ${range} with value: ${update.value}`);
-
-      await this.sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range,
-        valueInputOption: "RAW",
-        resource: {
-          values: [[update.value]],
-        },
-      });
-    }
-  }
-
-  async updateSheetValues(spreadsheetId, sheetName, updates) {
-    if (!this.sheets) await this.init();
-
-    try {
-      // Process each update
-      for (const update of updates) {
-        await this.sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range: `${sheetName}!${update.range}`,
-          valueInputOption: "USER_ENTERED",
-          resource: {
-            values: [[update.value]],
-          },
+      console.log("Property search response:", propertyResponse.data);
+      let propertyFolderId;
+      if (propertyResponse.data.files.length > 0) {
+        propertyFolderId = propertyResponse.data.files[0].id;
+      } else {
+        const propertyFolderMetadata = {
+          name: propertyFolderName,
+          mimeType: "application/vnd.google-apps.folder",
+        };
+        const propertyFolder = await drive.files.create({
+          resource: propertyFolderMetadata,
+          fields: "id",
         });
-      }
-    } catch (error) {
-      console.error("Update error:", error);
-      throw new Error(`Failed to update sheet: ${error.message}`);
-    }
-  }
-
-  async updateRangeValues(spreadsheetId, sheetName, range, values) {
-    if (!this.sheets) await this.init();
-
-    try {
-      await this.sheets.spreadsheets.values.update({
-        spreadsheetId,
-        range: `${sheetName}!${range}`,
-        valueInputOption: "USER_ENTERED",
-        resource: { values },
-      });
-    } catch (error) {
-      console.error("Range update error:", error);
-      throw new Error(`Failed to update range: ${error.message}`);
-    }
-  }
-
-  async findReceiptsFolder(propertyName, monthYear) {
-    try {
-      console.log(
-        `Searching for a folder containing '${propertyName}' and 'Receipts'`
-      );
-
-      const query = [
-        `mimeType='application/vnd.google-apps.folder'`,
-        `name contains '${propertyName}'`,
-        `name contains 'Receipts'`,
-      ].join(" and ");
-
-      console.log("Search query:", query);
-
-      const response = await this.drive.files.list({
-        q: query,
-        fields: "files(id, name)",
-        spaces: "drive",
-      });
-
-      if (response.data.files.length === 0) {
-        throw new Error(
-          `No folder found containing '${propertyName}' and 'Receipts'`
-        );
+        propertyFolderId = propertyFolder.data.id;
       }
 
-      const receiptsFolder = response.data.files[0];
-      console.log(
-        `Found Receipts folder: ${receiptsFolder.name} (ID: ${receiptsFolder.id})`
-      );
-
-      // Now, search for the monthYear folder inside the Receipts folder
-      console.log(
-        `Searching for subfolder '${monthYear}' inside '${receiptsFolder.name}'`
-      );
-
-      const subfolderQuery = [
-        `mimeType='application/vnd.google-apps.folder'`,
-        `'${receiptsFolder.id}' in parents`,
-        `name = '${monthYear}'`,
-      ].join(" and ");
-
-      const subfolderResponse = await this.drive.files.list({
-        q: subfolderQuery,
-        fields: "files(id, name)",
-        spaces: "drive",
+      const monthYearFolderName = monthYear;
+      const monthYearQuery = `'${propertyFolderId}' in parents and name='${monthYearFolderName}' and mimeType='application/vnd.google-apps.folder'`;
+      console.log("Searching Drive with query:", monthYearQuery);
+      const monthYearResponse = await drive.files.list({
+        q: monthYearQuery,
+        fields: "files(id)",
       });
-
-      if (subfolderResponse.data.files.length === 0) {
-        throw new Error(
-          `No subfolder found named '${monthYear}' inside '${receiptsFolder.name}'`
-        );
+      console.log("Month-Year search response:", monthYearResponse.data);
+      let monthYearFolderId;
+      if (monthYearResponse.data.files.length > 0) {
+        monthYearFolderId = monthYearResponse.data.files[0].id;
+      } else {
+        const monthYearFolderMetadata = {
+          name: monthYearFolderName,
+          mimeType: "application/vnd.google-apps.folder",
+          parents: [propertyFolderId],
+        };
+        const monthYearFolder = await drive.files.create({
+          resource: monthYearFolderMetadata,
+          fields: "id",
+        });
+        monthYearFolderId = monthYearFolder.data.id;
       }
 
-      const monthYearFolder = subfolderResponse.data.files[0];
-      console.log(
-        `Found Month-Year folder: ${monthYearFolder.name} (ID: ${monthYearFolder.id})`
-      );
-
-      return monthYearFolder.id;
+      return monthYearFolderId;
     } catch (error) {
-      console.error("Error finding receipts subfolder:", error);
+      console.error(
+        "Error finding/creating folder:",
+        error.response?.data || error
+      );
       throw error;
     }
-  }
+  },
 
-  async uploadPDF(pdfBuffer, fileName, folderId) {
+  // Upload a PDF file to the specified folder
+  uploadPDF: async (buffer, fileName, parentFolderId) => {
     try {
-      if (!this.drive) await this.init();
-      console.log(`Starting PDF upload to folder: ${folderId}`);
-
       const fileMetadata = {
         name: fileName,
-        parents: [folderId],
-        mimeType: "application/pdf",
+        parents: [parentFolderId],
       };
 
-      // Verify folder exists before upload
-      await this.drive.files.get({
-        fileId: folderId,
-        fields: "name",
-      });
-
       const bufferStream = new Readable();
-      bufferStream.push(pdfBuffer);
+      bufferStream.push(buffer);
       bufferStream.push(null);
 
       const media = {
@@ -300,30 +137,21 @@ class GoogleService {
         body: bufferStream,
       };
 
-      console.log("Creating file in Drive...");
-      const file = await this.drive.files.create({
+      const response = await drive.files.create({
         resource: fileMetadata,
         media: media,
-        fields: "id, webViewLink, name",
-        supportsAllDrives: true,
+        fields: "id, webViewLink",
       });
 
-      console.log(`PDF uploaded successfully: ${file.data.name}`);
       return {
-        fileId: file.data.id,
-        webViewLink: file.data.webViewLink,
+        fileId: response.data.id,
+        webViewLink: response.data.webViewLink,
       };
     } catch (error) {
-      console.error("PDF upload error details:", {
-        error: error.message,
-        code: error.code,
-        folder: folderId,
-        fileName,
-      });
-      throw new Error(`Failed to upload PDF: ${error.message}`);
+      console.error("Error uploading PDF:", error);
+      throw error;
     }
-  }
-}
+  },
+};
 
-const googleService = new GoogleService();
 module.exports = googleService;

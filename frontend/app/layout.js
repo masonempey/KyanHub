@@ -1,21 +1,44 @@
+// layout.js
+"use client";
+
 import "./styles/globals.css";
-import SideBar from "./components/sideBar";
-import React from "react";
-import { UserProvider } from "../contexts/UserContext";
-import { PropertyProvider } from "../contexts/PropertyContext";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { UserProvider, useUser } from "../contexts/UserContext";
+import { PropertyProvider, useProperties } from "../contexts/PropertyContext";
+import RootLayoutClient from "./components/RootLayoutClient";
+
+const AuthWrapper = ({ children }) => {
+  const { user, loading: userLoading } = useUser();
+  const { properties, loading: propertiesLoading } = useProperties();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!userLoading && !propertiesLoading) {
+      if (!user && router.pathname !== "/login") {
+        router.push("/login");
+      }
+    }
+  }, [user, userLoading, propertiesLoading, router]);
+
+  if (userLoading || propertiesLoading) {
+    return <div>Loading...</div>;
+  }
+
+  return children;
+};
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <div className="layout">
-          <UserProvider>
-            <PropertyProvider>
-              <SideBar />
-              <main className="main-content">{children}</main>
-            </PropertyProvider>
-          </UserProvider>
-        </div>
+        <UserProvider>
+          <PropertyProvider>
+            <RootLayoutClient>
+              <AuthWrapper>{children}</AuthWrapper>
+            </RootLayoutClient>
+          </PropertyProvider>
+        </UserProvider>
       </body>
     </html>
   );

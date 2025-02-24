@@ -37,13 +37,12 @@ class UserService {
     }
   }
 
-  static async createUser(uid, email, roleId = 1) {
+  static async createUser(uid, email, roleId) {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        `INSERT INTO users (user_id, email, last_login, role_id)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
-        [uid, email, new Date(), roleId]
+        "INSERT INTO users (user_id, email, role_id) VALUES ($1, $2, $3) RETURNING *",
+        [uid, email, roleId]
       );
       return result.rows[0];
     } finally {
@@ -82,9 +81,22 @@ class UserService {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        "SELECT id FROM roles WHERE role = 'admin'"
+        "SELECT id FROM roles WHERE role = 'user'"
       );
       return result.rows.length > 0 ? result.rows[0].id : null;
+    } finally {
+      client.release();
+    }
+  }
+
+  static async getRoleById(roleId) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        "SELECT role FROM roles WHERE id = $1",
+        [roleId]
+      );
+      return result.rows[0];
     } finally {
       client.release();
     }
