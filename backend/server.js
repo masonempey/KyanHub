@@ -67,25 +67,27 @@ async function initializeDatabase() {
       })
       .catch((error) => {
         console.error("Database initialization failed at startup:", error);
-        throw error;
+        dbInitialized = false; // Allow retries on subsequent requests
       });
   }
   return dbPromise;
 }
 
-initializeDatabase().catch((error) => {
-  console.error("Failed to start server due to DB error:", error);
-  process.exit(1);
-});
+// Run at startup but don’t crash
+initializeDatabase(); // Removed .catch(process.exit)
 
 // Middleware to ensure DB is ready
 app.use(async (req, res, next) => {
   if (!dbInitialized) {
     try {
       await initializeDatabase();
+      if (!dbInitialized) {
+        throw new Error("Database failed to initialize after retry");
+      }
     } catch (error) {
-      return res.status(500).json({
-        error: "Database not ready",
+      console.error("DB check failed:", error.message);
+      return res.status(503).json({
+        error: "Service unavailable due to database issue",
         details: error.message,
       });
     }
@@ -122,5 +124,4 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Something went wrong", details: err.message });
 });
 
-// Export directly for Vercel
 module.exports = app;
