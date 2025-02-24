@@ -44,13 +44,13 @@ app.use(express.json());
 
 // Log request origin for debugging
 app.use((req, res, next) => {
-  console.log("Request Origin:", req.headers.origin);
+  console.log(`Incoming request: ${req.method} ${req.path}`);
   next();
 });
 
 // Handle OPTIONS requests
 app.options("*", cors(corsOptions), (req, res) => {
-  console.log("OPTIONS request received");
+  console.log(`Global OPTIONS request received for ${req.path}`);
   res.status(204).end();
 });
 

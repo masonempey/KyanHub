@@ -14,6 +14,11 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.options("/validate", (req, res) => {
+  console.log("OPTIONS request for /validate received");
+  res.status(204).end();
+});
+
 // Check if user that login with google exist?
 router.post("/validate", async (req, res) => {
   try {
