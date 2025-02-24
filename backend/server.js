@@ -54,6 +54,10 @@ app.options("*", cors(corsOptions), (req, res) => {
   res.status(204).end();
 });
 
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "Welcome to kyanhubbackend API!" });
+});
+
 app.get("/api", (req, res) => {
   console.log("Accessed /api route");
   res.status(200).json({ message: "Server is running!" });
