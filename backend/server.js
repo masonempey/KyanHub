@@ -7,6 +7,8 @@ const {
   authMiddleware,
   adminMiddleware,
 } = require("./src/middleware/authMiddleware");
+const igmsRoutes = require("./src/routes/igms");
+const pdfRoutes = require("./src/routes/pdf");
 const sheetsRoutes = require("./src/routes/sheets");
 const inventoryRoutes = require("./src/routes/inventory");
 const uploadRoutes = require("./src/routes/upload");
@@ -39,6 +41,18 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Debug origin
+app.use((req, res, next) => {
+  console.log("Request Origin:", req.headers.origin);
+  next();
+});
+
+// Handle OPTIONS explicitly
+app.options("*", cors(corsOptions), (req, res) => {
+  console.log("OPTIONS request received");
+  res.status(204).end();
+});
 
 app.get("/api", (req, res) => {
   console.log("Accessed /api route");
