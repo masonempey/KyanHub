@@ -1,127 +1,132 @@
 const express = require("express");
-const router = express.Router();
-const MaintenanceService = require("../services/maintenanceService");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const { initDatabase } = require("./database/initDatabase");
+const {
+  authMiddleware,
+  adminMiddleware,
+} = require("./src/middleware/authMiddleware");
+const igmsRoutes = require("./src/routes/igms");
+const pdfRoutes = require("./src/routes/pdf");
+const sheetsRoutes = require("./src/routes/sheets");
+const inventoryRoutes = require("./src/routes/inventory");
+const uploadRoutes = require("./src/routes/upload");
+const maintenanceRoutes = require("./src/routes/maintenance");
+const analyticsRoutes = require("./src/routes/analytics");
+const userRoutes = require("./src/routes/users");
+const googleRoutes = require("./src/routes/google");
 
-router.post("/", async (req, res) => {
-  try {
-    const maintenanceData = req.body;
-    await MaintenanceService.insertMaintenance(maintenanceData);
+dotenv.config();
 
-    res.status(200).json({
-      success: true,
-      message: "Maintenance data inserted successfully",
-    });
-  } catch (error) {
-    console.error("Error inserting maintenance data:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
+const app = express();
+
+const corsOptions = {
+  origin: "https://kyanhubfrontend.vercel.app",
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+  credentials: true,
+  allowedHeaders: [
+    "X-CSRF-Token",
+    "X-Requested-With",
+    "Accept",
+    "Accept-Version",
+    "Content-Length",
+    "Content-MD5",
+    "Content-Type",
+    "Date",
+    "X-Api-Version",
+    "Authorization",
+  ],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.use(express.json());
+
+// Log request origin for debugging
+app.use((req, res, next) => {
+  console.log("Request Origin:", req.headers.origin);
+  next();
 });
 
-router.get("/companies", async (req, res) => {
-  try {
-    const companies = await MaintenanceService.getCompanies();
-    res.status(200).json({ success: true, companies });
-  } catch (error) {
-    console.error("Error fetching companies:", error);
-    res.status(500).json({ success: false, error: error.message });
-  }
+// Handle OPTIONS requests
+app.options("*", cors(corsOptions), (req, res) => {
+  console.log("OPTIONS request received");
+  res.status(204).end();
 });
 
-router.get("/categories", async (req, res) => {
-  try {
-    console.log("Fetching categories");
-    const categories = await MaintenanceService.getCategories();
+// Initialize database at startup
+let dbInitialized = false;
+let dbPromise = null;
 
-    res.status(200).json({
-      success: true,
-      categories,
-    });
-  } catch (error) {
-    console.error("Error fetching categories:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
+async function initializeDatabase() {
+  if (!dbInitialized && !dbPromise) {
+    console.log("Initializing database...");
+    dbPromise = initDatabase()
+      .then(() => {
+        console.log("Database initialized successfully");
+        dbInitialized = true;
+      })
+      .catch((error) => {
+        console.error("Database initialization failed at startup:", error);
+        dbInitialized = false;
+        dbPromise = null; // Reset to allow retries
+      });
   }
+  return dbPromise;
+}
+
+initializeDatabase();
+
+// Middleware to ensure DB is ready
+app.use(async (req, res, next) => {
+  if (!dbInitialized) {
+    console.log(
+      `DB not initialized for ${req.method} ${req.path}, retrying...`
+    );
+    try {
+      await initializeDatabase();
+      if (!dbInitialized) {
+        throw new Error("Database failed to initialize after retry");
+      }
+      console.log("DB retry succeeded");
+    } catch (error) {
+      console.error("DB check failed:", error.message);
+      return res.status(503).json({
+        error: "Service unavailable due to database issue",
+        details: error.message,
+      });
+    }
+  }
+  next();
 });
 
-router.post("/add-company/:companyName", async (req, res) => {
-  try {
-    const { companyName } = req.params;
-
-    await MaintenanceService.insertCompany(companyName);
-
-    res.status(200).json({
-      success: true,
-      message: "Company data inserted successfully",
-    });
-  } catch (error) {
-    console.error("Error inserting company data:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
+// Routes
+app.get("/", (req, res) => {
+  console.log("Root route accessed");
+  res.status(200).json({ message: "Welcome to kyanhubbackend API!" });
 });
 
-router.post("/add-category/:category", async (req, res) => {
-  try {
-    const { category } = req.params;
-
-    await MaintenanceService.insertCategory(category);
-
-    res.status(200).json({
-      success: true,
-      message: "Category data inserted successfully",
-    });
-  } catch (error) {
-    console.error("Error inserting company data:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
+app.get("/api", (req, res) => {
+  console.log("Accessed /api route");
+  res.status(200).json({ message: "Server is running!" });
 });
 
-router.delete("/delete-company/:companyName", async (req, res) => {
-  try {
-    const { companyName } = req.params;
+app.use("/api/igms", authMiddleware, igmsRoutes);
+app.use("/api/pdf", authMiddleware, pdfRoutes);
+app.use("/api/sheets", authMiddleware, sheetsRoutes);
+app.use("/api/inventory", authMiddleware, inventoryRoutes);
+app.use("/api/upload", authMiddleware, uploadRoutes);
+app.use("/api/maintenance", authMiddleware, maintenanceRoutes);
+app.use("/api/analytics", authMiddleware, analyticsRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/google", googleRoutes);
 
-    await MaintenanceService.deleteCompany(companyName);
+app.use("/api/admin", adminMiddleware);
 
-    res.status(200).json({
-      success: true,
-      message: "Company data deleted successfully",
-    });
-  } catch (error) {
-    console.error("Error deleting company data:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error("Server error:", err.stack);
+  res.status(500).json({ error: "Something went wrong", details: err.message });
 });
 
-router.delete("/delete-category/:category", async (req, res) => {
-  try {
-    const { category } = req.params;
-
-    await MaintenanceService.deleteCategory(category);
-
-    res.status(200).json({
-      success: true,
-      message: "Category data deleted successfully",
-    });
-  } catch (error) {
-    console.error("Error deleting category data:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-module.exports = router;
+module.exports = app;
