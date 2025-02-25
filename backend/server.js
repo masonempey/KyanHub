@@ -46,6 +46,8 @@ try {
   console.error("CORS middleware setup failed:", error);
 }
 
+app.use(express.json());
+
 // Log all requests
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.path}`);
