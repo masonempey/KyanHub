@@ -86,7 +86,7 @@ const Login = () => {
       // Lookup user in Firebase
       await lookupUser();
       if (checkUserResponse.data.exists) {
-        router.push("/add");
+        router.push("/property-management");
       } else {
         throw new Error("Failed to find user in database");
       }
