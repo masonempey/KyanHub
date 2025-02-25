@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const UserService = require("../services/userService");
+const cors = require("cors");
 
 const corsOptions = {
   origin: "https://kyanhubfrontend.vercel.app",
