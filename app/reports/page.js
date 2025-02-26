@@ -1,6 +1,6 @@
 "use client";
 
-import { useProperties } from "@/contexts/PropertyContext"; // Adjusted path to match earlier setup
+import { useProperties } from "@/contexts/PropertyContext";
 import styles from "./Reports.module.css";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -22,8 +22,24 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useUser } from "@/contexts/UserContext";
 
+// Define monthNames array
+const monthNames = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
 const ReportsPage = () => {
-  const { user, loading: userLoading } = useUser(); // Added user check
+  const { user, loading: userLoading } = useUser();
   const {
     properties: allProperties,
     loading: propertiesLoading,
@@ -120,7 +136,7 @@ const ReportsPage = () => {
     setConfirmDialogOpen(false);
     try {
       const monthIndex = startDate.month();
-      const monthName = monthNames[monthIndex];
+      const monthName = monthNames[monthIndex]; // Now defined
       const year = startDate.format("YYYY");
 
       const propertyName = selectedPropertyName;
