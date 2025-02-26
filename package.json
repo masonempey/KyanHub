@@ -1,26 +1,50 @@
 {
   "name": "kyanhub",
   "version": "1.0.0",
-  "description": "Running both frontend and backend",
-  "main": "index.js",
+  "description": "KyanHub - Property Management Dashboard",
+  "private": true,
   "scripts": {
-    "frontend": "cd frontend && npm run dev",
-    "backend": "cd backend && npm run dev",
-    "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
-    "install-deps": "npm install && cd frontend && npm install && cd ../backend && npm install"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "concurrently": "^8.2.2"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
+    "@emotion/cache": "^11.14.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^5.8.6",
+    "@mui/material": "^5.8.6",
+    "@mui/material-nextjs": "^5.8.6",
+    "@mui/styled-engine-sc": "^5.8.6",
+    "@mui/system": "^5.8.6",
     "@mui/x-date-pickers": "^7.27.0",
-    "@mui/x-date-pickers-pro": "^7.24.1",
-    "dayjs": "^1.11.13",
-    "moment": "^2.30.1"
+    "axios": "^1.8.0",
+    "dayjs": "^1.11.7",
+    "dotenv": "^16.4.7",
+    "firebase": "^11.3.1",
+    "firebase-admin": "^13.1.0",
+    "google-auth-library": "^9.15.0",
+    "googleapis": "^144.0.0",
+    "mini-css-extract-plugin": "^2.9.2",
+    "multer": "^1.4.5-lts.1",
+    "next": "^15.1.5",
+    "next-transpile-modules": "^10.0.1",
+    "nodemon": "^3.1.9",
+    "open": "^10.1.0",
+    "pdfkit": "^0.16.0",
+    "pg": "^8.13.1",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "recharts": "^2.15.1",
+    "styled-components": "^5.3.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "eslint": "^9",
+    "eslint-config-next": "15.1.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
