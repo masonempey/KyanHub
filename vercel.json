@@ -12,7 +12,7 @@
       "dest": "/api/$1",
       "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
       "headers": {
-        "Access-Control-Allow-Origin": "https://kyanhubfrontend.vercel.app",
+        "Access-Control-Allow-Origin": "https://kyanhub.vercel.app",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "Authorization, Content-Type",
         "Access-Control-Allow-Credentials": "true"
@@ -23,12 +23,6 @@
       "dest": "/app/$1"
     }
   ],
-  "functions": {
-    "api/**/*": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  },
   "env": {
     "NODE_ENV": "production"
   }
