@@ -1,4 +1,5 @@
-// app/api/sheets/[sheetId]/[sheetName]/[year]/[month]/route.js
+// app/api/sheets/revenue/route.js
+import { NextResponse } from "next/server";
 import googleService from "@/lib/services/googleService";
 
 const SHEET_LAYOUTS = {
@@ -44,10 +45,29 @@ const monthNames = [
   "December",
 ];
 
-export async function PUT(request, { params }) {
+export async function PUT(request) {
   try {
-    const { sheetId, sheetName, year, month } = params;
-    const { bookings, propertyName } = await request.json();
+    await googleService.init();
+    const { propertyName, bookings, year, monthName } = await request.json();
+
+    // Search Drive for a spreadsheet whose name contains propertyName
+    const sheetQuery = `${propertyName} mimeType='application/vnd.google-apps.spreadsheet'`;
+    console.log("Searching Drive with query:", sheetQuery);
+    const sheetResponse = await googleService.drive.files.list({
+      q: sheetQuery,
+      fields: "files(id, name)",
+    });
+
+    if (!sheetResponse.data.files.length) {
+      throw new Error(`No spreadsheet found containing '${propertyName}'`);
+    }
+
+    // Use the first matching sheet (adjust logic if multiple matches expected)
+    const sheetId = sheetResponse.data.files[0].id;
+    const sheetNameResult = sheetResponse.data.files[0].name;
+    const sheetName = "revenue"; // Fixed sheet name; adjust if needed
+
+    console.log(`Found sheet: ${sheetNameResult} (ID: ${sheetId})`);
 
     const layout = getSheetLayout(propertyName);
     const columnData = await googleService.getSheetData(
@@ -64,15 +84,15 @@ export async function PUT(request, { params }) {
       .slice(yearRowIndex)
       .findIndex(
         (row) =>
-          row[0] && row[0].toString().toLowerCase() === month.toLowerCase()
+          row[0] && row[0].toString().toLowerCase() === monthName.toLowerCase()
       );
     if (monthRowIndex === -1)
-      throw new Error(`Month ${month} not found after year ${year}`);
+      throw new Error(`Month ${monthName} not found after year ${year}`);
 
     const actualRowIndex = yearRowIndex + monthRowIndex + 1;
     console.log("Updating row:", actualRowIndex);
 
-    const monthNum = (monthNames.indexOf(month) + 1).toString();
+    const monthNum = (monthNames.indexOf(monthName) + 1).toString();
     const monthYearKey = `${year}-${monthNum}`;
 
     const monthTotal = bookings.reduce((sum, booking) => {
@@ -108,7 +128,7 @@ export async function PUT(request, { params }) {
         const rowMonth = String(row[0]);
         const rowName = String(row[1] || "");
         return (
-          rowMonth.toLowerCase() === month.toLowerCase() &&
+          rowMonth.toLowerCase() === monthName.toLowerCase() &&
           rowName.toLowerCase() === booking.guestName.toLowerCase()
         );
       });
@@ -118,7 +138,7 @@ export async function PUT(request, { params }) {
       const firstEmptyRow = rightSideData.length + 1;
       const bookingRows = newBookings.map((booking, index) => ({
         values: [
-          month,
+          monthName,
           booking.guestName,
           `$${(booking.revenueByMonth[monthYearKey] || 0).toFixed(2)}`,
           booking.cleaningFeeMonth === monthYearKey
@@ -139,18 +159,15 @@ export async function PUT(request, { params }) {
       }
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: `Updated ${sheetName} for ${month} ${year}`,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+    return NextResponse.json({
+      success: true,
+      message: `Updated revenue sheet for ${propertyName} - ${monthName} ${year}`,
+    });
   } catch (error) {
     console.error("Sheet update error:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
     );
   }
 }

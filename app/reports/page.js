@@ -109,21 +109,6 @@ const ReportsPage = () => {
   };
 
   const handleConfirmUpdate = async () => {
-    const monthNames = [
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December",
-    ];
-
     if (!propertyId || !selectedPropertyName || !bookings.length) {
       setErrorMessage("No property or bookings selected.");
       setErrorDialogOpen(true);
@@ -138,25 +123,17 @@ const ReportsPage = () => {
       const monthName = monthNames[monthIndex];
       const year = startDate.format("YYYY");
 
-      const spreadsheetId = findSpreadsheetId(selectedPropertyName);
-      if (!spreadsheetId) {
-        throw new Error(
-          `No spreadsheet found for property: ${selectedPropertyName}`
-        );
-      }
+      const propertyName = selectedPropertyName;
 
-      const sheetName = property_to_sheet[selectedPropertyName] || "Revenue";
-
-      const response = await fetchWithAuth(
-        `/api/sheets/${spreadsheetId}/${sheetName}/revenue/${year}/${monthName}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            bookings,
-            propertyName: selectedPropertyName,
-          }),
-        }
-      );
+      const response = await fetchWithAuth(`/api/sheets/revenue`, {
+        method: "PUT",
+        body: JSON.stringify({
+          propertyName,
+          bookings,
+          year,
+          monthName,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to update revenue: ${await response.text()}`);

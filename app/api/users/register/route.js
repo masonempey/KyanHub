@@ -1,6 +1,6 @@
 // app/api/users/register/route.js
 import UserService from "@/lib/services/userService";
-import admin from "@/lib/firebase/admin"; // Adjust path to your Firebase Admin setup
+import { admin } from "@/lib/firebase/admin";
 
 export async function POST(request) {
   try {
