@@ -1,4 +1,4 @@
-import { NextResponse } from "next/response";
+import { NextResponse } from "next/server";
 import UserService from "@/lib/services/userService";
 
 export async function POST(request) {
