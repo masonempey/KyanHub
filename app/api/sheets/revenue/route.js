@@ -45,6 +45,7 @@ const monthNames = [
   "December",
 ];
 
+// app/api/sheets/revenue/route.js
 export async function PUT(request) {
   try {
     await googleService.init();
@@ -57,12 +58,9 @@ export async function PUT(request) {
       fields: "files(id, name)",
     });
 
-    console.log("Drive API response:", sheetResponse.data);
-
-    if (!sheetResponse || !sheetResponse.data || !sheetResponse.data.files) {
+    if (!sheetResponse?.data?.files) {
       throw new Error("Invalid Drive API response: No files data returned");
     }
-
     if (!sheetResponse.data.files.length) {
       throw new Error(`No spreadsheet found containing '${propertyName}'`);
     }
@@ -70,7 +68,6 @@ export async function PUT(request) {
     const sheetId = sheetResponse.data.files[0].id;
     const sheetNameResult = sheetResponse.data.files[0].name;
     const sheetName = "revenue";
-
     console.log(`Found sheet: ${sheetNameResult} (ID: ${sheetId})`);
 
     const layout = getSheetLayout(propertyName);
@@ -110,14 +107,12 @@ export async function PUT(request) {
       return sum + cleaning;
     }, 0);
 
+    console.log("Updating values:", { monthTotal, cleaningTotal });
     await googleService.updateSheetValues(sheetId, sheetName, [
-      {
-        range: `${layout.revenueColumn}${actualRowIndex}`,
-        value: `$${monthTotal.toFixed(2)}`,
-      },
+      { range: `${layout.revenueColumn}${actualRowIndex}`, value: monthTotal },
       {
         range: `${layout.cleaningColumn}${actualRowIndex}`,
-        value: `$${cleaningTotal}`,
+        value: cleaningTotal,
       },
     ]);
 
@@ -144,16 +139,19 @@ export async function PUT(request) {
         values: [
           monthName,
           booking.guestName,
-          `$${(booking.revenueByMonth[monthYearKey] || 0).toFixed(2)}`,
-          booking.cleaningFeeMonth === monthYearKey
-            ? `$${booking.cleaningFee}`
-            : "",
+          booking.revenueByMonth[monthYearKey] || 0,
+          booking.cleaningFeeMonth === monthYearKey ? booking.cleaningFee : "",
           booking.platform,
         ],
         row: firstEmptyRow + index,
       }));
 
       for (const row of bookingRows) {
+        console.log(
+          "Updating range:",
+          `${layout.rightSideStart}${row.row}:${layout.rightSideEnd}${row.row}`,
+          row.values
+        );
         await googleService.updateRangeValues(
           sheetId,
           sheetName,
@@ -168,7 +166,11 @@ export async function PUT(request) {
       message: `Updated revenue sheet for ${propertyName} - ${monthName} ${year}`,
     });
   } catch (error) {
-    console.error("Sheet update error:", error);
+    console.error(
+      "Sheet update error:",
+      error,
+      error.errors ? error.errors : "No detailed errors"
+    );
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
