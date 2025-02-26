@@ -4,6 +4,12 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install",
   "regions": ["sfo1"],
+  "builds": [
+    {
+      "src": "next.config.js",
+      "use": "@vercel/next"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
@@ -17,22 +23,12 @@
         {
           "key": "Access-Control-Allow-Headers",
           "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
         }
       ]
-    }
-  ],
-  "builds": [
-    {
-      "src": "next.config.js",
-      "use": "@vercel/next"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/.*",
-      "headers": {
-        "Cache-Control": "no-cache, no-store, must-revalidate"
-      }
     }
   ]
 }
