@@ -1,24 +1,61 @@
-# Dependencies
-node_modules/
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# environment variables
+.env*.local
 .env
+.env.development
+.env.production
 
-# Credentials and tokens
-backend/token.json
-backend/credentials.json
-*.pem
-*.key
+# vercel
+.vercel
 
-# Runtime files
-.DS_Store
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# typescript
+*.tsbuildinfo
+next-env.d.ts
 
-# IDE specific files
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Next.js build output
-.next/
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# credentials and tokens
+/lib/firebase/serviceAccount.json
+*.pem
+*.key
+*.crt
+token.json
+credentials.json
+
+# misc
+*.log
+.cache/
+dist/
