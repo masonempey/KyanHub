@@ -48,18 +48,27 @@ const monthNames = [
 // app/api/sheets/revenue/route.js
 export async function PUT(request) {
   try {
+    console.log("Starting revenue update...");
     await googleService.init();
     const { propertyName, bookings, year, monthName } = await request.json();
+    console.log("Request body:", { propertyName, bookings, year, monthName });
 
-    const sheetQuery = `${propertyName} mimeType='application/vnd.google-apps.spreadsheet'`;
+    // Quote the propertyName to ensure proper query syntax
+    const sheetQuery = `'${propertyName}' mimeType='application/vnd.google-apps.spreadsheet'`;
     console.log("Searching Drive with query:", sheetQuery);
+
     const sheetResponse = await googleService.drive.files.list({
       q: sheetQuery,
       fields: "files(id, name)",
     });
 
-    if (!sheetResponse?.data?.files) {
-      throw new Error("Invalid Drive API response: No files data returned");
+    console.log("Raw Drive API response:", sheetResponse);
+
+    if (!sheetResponse?.data) {
+      throw new Error("Drive API returned no data");
+    }
+    if (!sheetResponse.data.files) {
+      throw new Error("Drive API response missing 'files' property");
     }
     if (!sheetResponse.data.files.length) {
       throw new Error(`No spreadsheet found containing '${propertyName}'`);
@@ -75,6 +84,7 @@ export async function PUT(request) {
       sheetId,
       `${sheetName}!A:A`
     );
+    console.log("Column A data:", columnData);
 
     const yearRowIndex = columnData.findIndex(
       (row) => row[0] && row[0].toString() === year
@@ -120,6 +130,7 @@ export async function PUT(request) {
       sheetId,
       `${sheetName}!${layout.rightSideStart}:${layout.rightSideEnd}`
     );
+    console.log("Right side data:", rightSideData);
 
     const newBookings = bookings.filter((booking) => {
       return !rightSideData.some((row) => {
@@ -147,17 +158,11 @@ export async function PUT(request) {
       }));
 
       for (const row of bookingRows) {
-        console.log(
-          "Updating range:",
-          `${layout.rightSideStart}${row.row}:${layout.rightSideEnd}${row.row}`,
-          row.values
-        );
-        await googleService.updateRangeValues(
-          sheetId,
-          sheetName,
-          `${layout.rightSideStart}${row.row}:${layout.rightSideEnd}${row.row}`,
-          [row.values]
-        );
+        const range = `${layout.rightSideStart}${row.row}:${layout.rightSideEnd}${row.row}`;
+        console.log("Updating range:", range, "with values:", row.values);
+        await googleService.updateRangeValues(sheetId, sheetName, range, [
+          row.values,
+        ]);
       }
     }
 
@@ -166,11 +171,11 @@ export async function PUT(request) {
       message: `Updated revenue sheet for ${propertyName} - ${monthName} ${year}`,
     });
   } catch (error) {
-    console.error(
-      "Sheet update error:",
-      error,
-      error.errors ? error.errors : "No detailed errors"
-    );
+    console.error("Sheet update error:", error.message, {
+      stack: error.stack,
+      apiErrors: error.errors || "No API errors provided",
+      response: error.response ? error.response.data : "No response data",
+    });
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
