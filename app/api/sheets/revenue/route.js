@@ -50,7 +50,6 @@ export async function PUT(request) {
     await googleService.init();
     const { propertyName, bookings, year, monthName } = await request.json();
 
-    // Search Drive for a spreadsheet whose name contains propertyName
     const sheetQuery = `${propertyName} mimeType='application/vnd.google-apps.spreadsheet'`;
     console.log("Searching Drive with query:", sheetQuery);
     const sheetResponse = await googleService.drive.files.list({
@@ -58,14 +57,19 @@ export async function PUT(request) {
       fields: "files(id, name)",
     });
 
+    console.log("Drive API response:", sheetResponse.data);
+
+    if (!sheetResponse || !sheetResponse.data || !sheetResponse.data.files) {
+      throw new Error("Invalid Drive API response: No files data returned");
+    }
+
     if (!sheetResponse.data.files.length) {
       throw new Error(`No spreadsheet found containing '${propertyName}'`);
     }
 
-    // Use the first matching sheet (adjust logic if multiple matches expected)
     const sheetId = sheetResponse.data.files[0].id;
     const sheetNameResult = sheetResponse.data.files[0].name;
-    const sheetName = "revenue"; // Fixed sheet name; adjust if needed
+    const sheetName = "revenue";
 
     console.log(`Found sheet: ${sheetNameResult} (ID: ${sheetId})`);
 
