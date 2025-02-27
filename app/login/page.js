@@ -7,6 +7,7 @@ import { TextField, Button, Typography, Paper, Alert } from "@mui/material";
 import { styled } from "@mui/system";
 import styles from "../styles/login.module.css";
 import { useRouter } from "next/navigation";
+import fetchWithAuth from "@/lib/fetchWithAuth";
 
 const FormContainer = styled(Paper)({
   padding: "2rem",
@@ -31,7 +32,7 @@ const Login = () => {
 
     setIsLoading(true);
     try {
-      const res = await fetch("/api/users/register", {
+      const res = await fetchWithAuth("/api/users/register", {
         // Updated to match existing route
         method: "POST",
         headers: {
@@ -46,7 +47,6 @@ const Login = () => {
       }
 
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/property-management"); // Redirect to property-management
     } catch (error) {
       console.error("Signup error:", error);
       setError(error.message);
@@ -70,7 +70,7 @@ const Login = () => {
       );
       const idToken = await userCredential.user.getIdToken();
 
-      const validateRes = await fetch("/api/users/validate", {
+      const validateRes = await fetchWithAuth("/api/users/validate", {
         // Updated to match existing route
         method: "POST",
         headers: {
@@ -85,7 +85,7 @@ const Login = () => {
         throw new Error(data.message || "User validation failed");
       }
 
-      router.push("/property-management"); // Redirect to property-management
+      router.push("/property-management");
     } catch (error) {
       console.error("Login error:", error);
       setError(
@@ -103,8 +103,9 @@ const Login = () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
+      console.log("Google sign-in successful, token:", idToken);
 
-      const res = await fetch("/api/users/googleregister", {
+      const res = await fetchWithAuth("/api/users/googleregister", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -116,19 +117,20 @@ const Login = () => {
         }),
       });
 
-      const data = await res.json(); // Parse response first
+      const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || "Google sign-in failed");
       }
+      console.log("Google register response:", data);
 
-      // Only redirect if the API call succeeds
+      console.log("Redirecting to /property-management...");
       router.push("/property-management");
     } catch (error) {
       console.error("Google sign-in error:", error);
       setError(
         error.message.includes("auth/")
           ? "Authentication failed. Please try again."
-          : error.message || "Failed to sign in with Google. Please try again."
+          : error.message || "Failed to sign in with Google."
       );
     } finally {
       setIsLoading(false);

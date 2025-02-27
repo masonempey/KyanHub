@@ -21,6 +21,7 @@ import BackgroundContainer from "../components/backgroundContainer";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useUser } from "@/contexts/UserContext";
+import AdminProtected from "@/app/components/AdminProtected";
 
 // Define monthNames array
 const monthNames = [
@@ -59,6 +60,40 @@ const ReportsPage = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    const fetchBookings = async (propertyId) => {
+      setLoading(true);
+      setIsLoading(true);
+      try {
+        if (!startDate || !endDate || endDate.isBefore(startDate)) {
+          throw new Error("Invalid date range.");
+        }
+        if (!propertyId) {
+          throw new Error("No property selected.");
+        }
+        const response = await fetchWithAuth(
+          `/api/igms/bookings-with-guests/${propertyId}/${startDate.format(
+            "YYYY-MM-DD"
+          )}/${endDate.format("YYYY-MM-DD")}`
+        );
+        if (!response.ok) {
+          throw new Error(`Failed to fetch bookings: ${await response.text()}`);
+        }
+        const data = await response.json();
+        if (data.success && data.bookings) {
+          setBookings(data.bookings);
+        } else {
+          setBookings([]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch bookings:", error);
+        setErrorMessage(error.message || "Failed to fetch bookings.");
+        setErrorDialogOpen(true);
+      } finally {
+        setLoading(false);
+        setIsLoading(false);
+      }
+    };
+
     if (user && propertyId) {
       fetchBookings(propertyId);
     }
@@ -183,246 +218,248 @@ const ReportsPage = () => {
   }
 
   return (
-    <div className={styles.DashboardContainer}>
-      <BackgroundContainer width="100%" height="100%" zIndex={0} />
-      <div className={styles.topNav}>
-        <Typography variant="h4" sx={{ color: "#eccb34", mb: 2, zIndex: 10 }}>
-          Search for Bookings
-        </Typography>
-        <div className={styles.filterBarContainer}>
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <div style={{ display: "flex", gap: "16px", zIndex: 10 }}>
-              <DatePicker
-                label="Start Date"
-                value={startDate}
-                onChange={handleStartDateChange}
-                sx={{
-                  "& .MuiInputBase-root": {
-                    color: "#eccb34",
-                    backgroundColor: "#fafafa",
-                  },
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "#eccb34",
-                  },
-                  "&:hover .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "#eccb34",
-                  },
-                  "& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline":
-                    {
-                      borderColor: "#eccb34",
-                    },
-                  "& .MuiInputLabel-root": { color: "#eccb34" },
-                  "& .MuiInputLabel-root.Mui-focused": { color: "#eccb34" },
-                  "& .MuiSvgIcon-root": {
-                    color: "#eccb34",
-                  },
-                  "& .MuiPickersPopper-root": {
-                    "& .MuiPaper-root": {
-                      backgroundColor: "#eccb34",
-                      "& .MuiPickersCalendar-root": {
-                        "& .MuiTypography-root": { color: "#fafafa" },
-                        "& .Mui-selected": {
-                          color: "#eccb34",
-                          backgroundColor: "#fafafa",
-                        },
-                        "& .MuiPickersDay-root": {
-                          color: "#fafafa",
-                          "&:hover": {
-                            backgroundColor: "rgba(250, 250, 250, 0.2)",
-                          },
-                        },
-                      },
-                    },
-                  },
-                  zIndex: 10,
-                }}
-              />
-              <DatePicker
-                label="End Date"
-                value={endDate}
-                onChange={handleEndDateChange}
-                sx={{
-                  "& .MuiInputBase-root": {
-                    color: "#eccb34",
-                    backgroundColor: "#fafafa",
-                  },
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "#eccb34",
-                  },
-                  "&:hover .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "#eccb34",
-                  },
-                  "& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline":
-                    {
-                      borderColor: "#eccb34",
-                    },
-                  "& .MuiInputLabel-root": { color: "#eccb34" },
-                  "& .MuiInputLabel-root.Mui-focused": { color: "#eccb34" },
-                  "& .MuiSvgIcon-root": {
-                    color: "#eccb34",
-                  },
-                  "& .MuiPickersPopper-root": {
-                    "& .MuiPaper-root": {
-                      backgroundColor: "#eccb34",
-                      "& .MuiPickersCalendar-root": {
-                        "& .MuiTypography-root": { color: "#fafafa" },
-                        "& .Mui-selected": {
-                          color: "#eccb34",
-                          backgroundColor: "#fafafa",
-                        },
-                        "& .MuiPickersDay-root": {
-                          color: "#fafafa",
-                          "&:hover": {
-                            backgroundColor: "rgba(250, 250, 250, 0.2)",
-                          },
-                        },
-                      },
-                    },
-                  },
-                  zIndex: 10,
-                }}
-                renderInput={(params) => <TextField {...params} />}
-              />
-            </div>
-          </LocalizationProvider>
-          {errors.dateRange && (
-            <Typography sx={{ color: "#eccb34", mt: 1, zIndex: 10 }}>
-              {errors.dateRange}
-            </Typography>
-          )}
-        </div>
-      </div>
-      <div className={styles.viewContainer}>
-        <div className={styles.smallRevenueContainer}>
-          {loading ? (
-            <CircularProgress sx={{ color: "#eccb34", zIndex: 10 }} />
-          ) : bookings.length > 0 ? (
-            <>
-              <Button
-                variant="contained"
-                onClick={handleUpdateRevenue}
-                disabled={updating}
-                sx={{
-                  backgroundColor: "#eccb34",
-                  color: "#fafafa",
-                  "&:hover": { backgroundColor: "#fafafa", color: "#eccb34" },
-                  mt: 2,
-                  mb: 2,
-                  width: "200px",
-                  zIndex: 10,
-                }}
-              >
-                {updating ? (
-                  <CircularProgress size={24} sx={{ color: "#eccb34" }} />
-                ) : (
-                  "Update Revenue Sheet"
-                )}
-              </Button>
-              {updateStatus && (
-                <Alert
-                  severity={
-                    updateStatus.includes("Error") ? "error" : "success"
-                  }
+    <AdminProtected>
+      <div className={styles.DashboardContainer}>
+        <BackgroundContainer width="100%" height="100%" zIndex={0} />
+        <div className={styles.topNav}>
+          <Typography variant="h4" sx={{ color: "#eccb34", mb: 2, zIndex: 10 }}>
+            Search for Bookings
+          </Typography>
+          <div className={styles.filterBarContainer}>
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <div style={{ display: "flex", gap: "16px", zIndex: 10 }}>
+                <DatePicker
+                  label="Start Date"
+                  value={startDate}
+                  onChange={handleStartDateChange}
                   sx={{
-                    backgroundColor: updateStatus.includes("Error")
-                      ? "#ffebee"
-                      : "#fff8e1",
-                    color: updateStatus.includes("Error")
-                      ? "#d32f2f"
-                      : "#eccb34",
+                    "& .MuiInputBase-root": {
+                      color: "#eccb34",
+                      backgroundColor: "#fafafa",
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "#eccb34",
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "#eccb34",
+                    },
+                    "& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline":
+                      {
+                        borderColor: "#eccb34",
+                      },
+                    "& .MuiInputLabel-root": { color: "#eccb34" },
+                    "& .MuiInputLabel-root.Mui-focused": { color: "#eccb34" },
+                    "& .MuiSvgIcon-root": {
+                      color: "#eccb34",
+                    },
+                    "& .MuiPickersPopper-root": {
+                      "& .MuiPaper-root": {
+                        backgroundColor: "#eccb34",
+                        "& .MuiPickersCalendar-root": {
+                          "& .MuiTypography-root": { color: "#fafafa" },
+                          "& .Mui-selected": {
+                            color: "#eccb34",
+                            backgroundColor: "#fafafa",
+                          },
+                          "& .MuiPickersDay-root": {
+                            color: "#fafafa",
+                            "&:hover": {
+                              backgroundColor: "rgba(250, 250, 250, 0.2)",
+                            },
+                          },
+                        },
+                      },
+                    },
+                    zIndex: 10,
+                  }}
+                />
+                <DatePicker
+                  label="End Date"
+                  value={endDate}
+                  onChange={handleEndDateChange}
+                  sx={{
+                    "& .MuiInputBase-root": {
+                      color: "#eccb34",
+                      backgroundColor: "#fafafa",
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "#eccb34",
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "#eccb34",
+                    },
+                    "& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline":
+                      {
+                        borderColor: "#eccb34",
+                      },
+                    "& .MuiInputLabel-root": { color: "#eccb34" },
+                    "& .MuiInputLabel-root.Mui-focused": { color: "#eccb34" },
+                    "& .MuiSvgIcon-root": {
+                      color: "#eccb34",
+                    },
+                    "& .MuiPickersPopper-root": {
+                      "& .MuiPaper-root": {
+                        backgroundColor: "#eccb34",
+                        "& .MuiPickersCalendar-root": {
+                          "& .MuiTypography-root": { color: "#fafafa" },
+                          "& .Mui-selected": {
+                            color: "#eccb34",
+                            backgroundColor: "#fafafa",
+                          },
+                          "& .MuiPickersDay-root": {
+                            color: "#fafafa",
+                            "&:hover": {
+                              backgroundColor: "rgba(250, 250, 250, 0.2)",
+                            },
+                          },
+                        },
+                      },
+                    },
+                    zIndex: 10,
+                  }}
+                  renderInput={(params) => <TextField {...params} />}
+                />
+              </div>
+            </LocalizationProvider>
+            {errors.dateRange && (
+              <Typography sx={{ color: "#eccb34", mt: 1, zIndex: 10 }}>
+                {errors.dateRange}
+              </Typography>
+            )}
+          </div>
+        </div>
+        <div className={styles.viewContainer}>
+          <div className={styles.smallRevenueContainer}>
+            {loading ? (
+              <CircularProgress sx={{ color: "#eccb34", zIndex: 10 }} />
+            ) : bookings.length > 0 ? (
+              <>
+                <Button
+                  variant="contained"
+                  onClick={handleUpdateRevenue}
+                  disabled={updating}
+                  sx={{
+                    backgroundColor: "#eccb34",
+                    color: "#fafafa",
+                    "&:hover": { backgroundColor: "#fafafa", color: "#eccb34" },
+                    mt: 2,
                     mb: 2,
+                    width: "200px",
                     zIndex: 10,
                   }}
                 >
-                  {updateStatus}
-                </Alert>
-              )}
-              <div className={styles.bookingsGrid}>
-                {bookings.map((booking) => (
-                  <BookingCard
-                    key={`${booking.bookingCode}-${booking.guestUid}`}
-                    booking={booking}
-                  />
-                ))}
-              </div>
-            </>
-          ) : (
-            <Typography sx={{ color: "#eccb34", zIndex: 10 }}>
-              No bookings found
-            </Typography>
-          )}
+                  {updating ? (
+                    <CircularProgress size={24} sx={{ color: "#eccb34" }} />
+                  ) : (
+                    "Update Revenue Sheet"
+                  )}
+                </Button>
+                {updateStatus && (
+                  <Alert
+                    severity={
+                      updateStatus.includes("Error") ? "error" : "success"
+                    }
+                    sx={{
+                      backgroundColor: updateStatus.includes("Error")
+                        ? "#ffebee"
+                        : "#fff8e1",
+                      color: updateStatus.includes("Error")
+                        ? "#d32f2f"
+                        : "#eccb34",
+                      mb: 2,
+                      zIndex: 10,
+                    }}
+                  >
+                    {updateStatus}
+                  </Alert>
+                )}
+                <div className={styles.bookingsGrid}>
+                  {bookings.map((booking) => (
+                    <BookingCard
+                      key={`${booking.bookingCode}-${booking.guestUid}`}
+                      booking={booking}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <Typography sx={{ color: "#eccb34", zIndex: 10 }}>
+                No bookings found
+              </Typography>
+            )}
+          </div>
         </div>
+        <Dialog
+          open={confirmDialogOpen}
+          onClose={() => setConfirmDialogOpen(false)}
+          PaperProps={{
+            sx: {
+              backgroundColor: "#eccb34",
+              color: "#fafafa",
+              borderRadius: "8px",
+              zIndex: 20,
+            },
+          }}
+        >
+          <DialogTitle sx={{ color: "#fafafa" }}>Confirm Update</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ color: "#fafafa" }}>
+              Are you sure you want to update the revenue sheet?
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setConfirmDialogOpen(false)}
+              sx={{
+                color: "#fafafa",
+                "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmUpdate}
+              sx={{
+                color: "#fafafa",
+                "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogActions>
+        </Dialog>
+        <Dialog
+          open={errorDialogOpen}
+          onClose={() => setErrorDialogOpen(false)}
+          PaperProps={{
+            sx: {
+              backgroundColor: "#eccb34",
+              color: "#fafafa",
+              borderRadius: "8px",
+              zIndex: 20,
+            },
+          }}
+        >
+          <DialogTitle sx={{ color: "#fafafa" }}>Error</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ color: "#fafafa" }}>
+              {errorMessage}
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setErrorDialogOpen(false)}
+              sx={{
+                color: "#fafafa",
+                "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
+              }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
       </div>
-      <Dialog
-        open={confirmDialogOpen}
-        onClose={() => setConfirmDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            borderRadius: "8px",
-            zIndex: 20,
-          },
-        }}
-      >
-        <DialogTitle sx={{ color: "#fafafa" }}>Confirm Update</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ color: "#fafafa" }}>
-            Are you sure you want to update the revenue sheet?
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setConfirmDialogOpen(false)}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirmUpdate}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
-            }}
-          >
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog
-        open={errorDialogOpen}
-        onClose={() => setErrorDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            borderRadius: "8px",
-            zIndex: 20,
-          },
-        }}
-      >
-        <DialogTitle sx={{ color: "#fafafa" }}>Error</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ color: "#fafafa" }}>
-            {errorMessage}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setErrorDialogOpen(false)}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-            }}
-          >
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </div>
+    </AdminProtected>
   );
 };
 

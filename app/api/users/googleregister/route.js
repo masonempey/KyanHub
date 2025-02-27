@@ -1,60 +1,62 @@
-// app/api/users/googleregister/route.js
+import { NextResponse } from "next/server";
 import UserService from "@/lib/services/userService";
-import { adminAuth } from "@/lib/firebase/admin";
+import { auth } from "@/lib/firebase/admin";
 
 export async function POST(request) {
   try {
     const { email, uid } = await request.json();
 
     // Verify the token
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ message: "No token provided" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
+    const token = request.headers.get("Authorization")?.split("Bearer ")[1];
+    if (!token) {
+      return NextResponse.json({ error: "No token provided" }, { status: 401 });
     }
 
     try {
-      await adminAuth.verifyIdToken(authHeader.split("Bearer ")[1]);
+      // Verify token using the auth instance
+      await auth.verifyIdToken(token);
     } catch (authError) {
       console.error("Token verification failed:", authError);
-      return new Response(
-        JSON.stringify({ message: "Invalid or expired token" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+      return NextResponse.json(
+        { error: "Invalid or expired token" },
+        { status: 401 }
       );
     }
 
     if (!email || !uid) {
-      return new Response(
-        JSON.stringify({ message: "Email and UID are required" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+      return NextResponse.json(
+        { error: "Email and UID are required" },
+        { status: 400 }
       );
     }
 
+    // Check if user already exists
     const existingUser = await UserService.getUserByEmail(email);
     if (existingUser) {
-      return new Response(
-        JSON.stringify({ message: "User already exists", user: existingUser }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      return NextResponse.json({
+        message: "User already exists",
+        user: existingUser,
+      });
     }
 
+    // Create new user with default role
     const roleId = await UserService.getDefaultRoleId();
     const newUser = await UserService.createUser(uid, email, roleId);
 
-    return new Response(
-      JSON.stringify({ message: "User created successfully", user: newUser }),
-      { status: 201, headers: { "Content-Type": "application/json" } }
+    return NextResponse.json(
+      {
+        message: "User created successfully",
+        user: newUser,
+      },
+      { status: 201 }
     );
   } catch (error) {
     console.error("Error in /api/users/googleregister:", error);
-    return new Response(
-      JSON.stringify({
-        message: "Internal server error",
-        error: error.message || "Unknown error",
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+    return NextResponse.json(
+      {
+        error: error.message || "Internal server error",
+      },
+      { status: 500 }
     );
   }
 }

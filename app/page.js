@@ -13,7 +13,7 @@ const HomePage = () => {
   useEffect(() => {
     if (!userLoading && !propertiesLoading) {
       if (user) {
-        router.push("/property-management"); // Authenticated -> property-management
+        router.push("/property-management");
       } else {
         router.push("/login"); // Unauthenticated -> login
       }

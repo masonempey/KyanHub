@@ -21,7 +21,6 @@ export default function RootLayoutClient({ children }) {
   } = useProperties();
 
   const handlePropertyChange = (uid, name) => {
-    console.log("PROPERTYNAME: ", name);
     setPropertyId(uid);
     setSelectedPropertyName(name);
   };

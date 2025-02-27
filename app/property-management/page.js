@@ -2,6 +2,7 @@
 
 import styles from "./addPage.module.css";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import BackgroundContainer from "../components/backgroundContainer";
 import Button from "@mui/material/Button";
 import { useProperties } from "../../contexts/PropertyContext";
@@ -18,8 +19,10 @@ import MaintenanceSection from "./MaintenanceSection";
 import { useUser } from "../../contexts/UserContext";
 import fetchWithAuth from "@/lib/fetchWithAuth"; // Corrected import path
 import CircularProgress from "@mui/material/CircularProgress";
+import AdminProtected from "@/app/components/AdminProtected";
 
 const AddPage = () => {
+  const router = useRouter();
   const { user, loading: userLoading } = useUser();
   const {
     properties: allProperties,
@@ -42,13 +45,13 @@ const AddPage = () => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
-  const excludedProperties = [
-    "London - 4",
-    "Windsor 95/96 Combo",
-    "Windsor 97/98 Combo",
-  ];
-
   useEffect(() => {
+    const excludedProperties = [
+      "London - 4",
+      "Windsor 95/96 Combo",
+      "Windsor 97/98 Combo",
+    ];
+
     const filtered = Object.entries(allProperties)
       .filter(([_, name]) => !excludedProperties.includes(name))
       .reduce((acc, [uid, name]) => {
@@ -219,7 +222,7 @@ const AddPage = () => {
   }, [user]);
 
   useEffect(() => {
-    if (!propertyId || !currentMonth || !user) return;
+    if (!user || !propertyId || !currentMonth) return;
 
     const fetchAmounts = async () => {
       setIsLoading(true);
@@ -257,200 +260,201 @@ const AddPage = () => {
     );
   }
 
-  if (!user) return <div>Please log in to access this page.</div>;
-
   // Rest of the JSX remains unchanged
   return (
-    <div className={styles.addPageContainer}>
-      <div className={styles.mainContainer}>
-        <div className={styles.contentContainer}>
-          <div className={styles.leftContainer}>
-            <BackgroundContainer width="100%" height="100%" />
-            <div className={styles.productListContainer}>
-              <div className={styles.leftHeader}>Inventory Management</div>
-              {errors.propertyId && (
-                <div style={{ color: "#eccb34", marginBottom: "10px" }}>
-                  {errors.propertyId}
+    <AdminProtected>
+      <div className={styles.addPageContainer}>
+        <div className={styles.mainContainer}>
+          <div className={styles.contentContainer}>
+            <div className={styles.leftContainer}>
+              <BackgroundContainer width="100%" height="100%" />
+              <div className={styles.productListContainer}>
+                <div className={styles.leftHeader}>Inventory Management</div>
+                {errors.propertyId && (
+                  <div style={{ color: "#eccb34", marginBottom: "10px" }}>
+                    {errors.propertyId}
+                  </div>
+                )}
+                {errors.currentMonth && (
+                  <div style={{ color: "#eccb34", marginBottom: "10px" }}>
+                    {errors.currentMonth}
+                  </div>
+                )}
+                <div className={styles.header}>
+                  <span>Product</span>
+                  <span>Amount</span>
                 </div>
-              )}
-              {errors.currentMonth && (
-                <div style={{ color: "#eccb34", marginBottom: "10px" }}>
-                  {errors.currentMonth}
-                </div>
-              )}
-              <div className={styles.header}>
-                <span>Product</span>
-                <span>Amount</span>
-              </div>
-              <div className={styles.listContainer}>
-                {products.map((product, index) => (
-                  <div key={index} className={styles.productRow}>
-                    <span className={styles.productName}>
-                      {product.name}
-                      <IconButton
-                        aria-label={`delete ${product.name}`}
-                        onClick={() => handleDeleteClick(product)}
-                        sx={{
-                          color: "#fafafa",
-                          "&:hover": { color: "#eccb34" },
-                          ml: 1,
-                        }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </span>
-                    <div>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={amounts[index] || ""}
-                        onChange={(e) =>
-                          handleAmountChange(index, e.target.value)
-                        }
-                        className={styles.amountInput}
-                      />
-                      {errors[`amount_${index}`] && (
-                        <div
-                          style={{
-                            color: "#eccb34",
-                            fontSize: "12px",
-                            marginTop: "4px",
+                <div className={styles.listContainer}>
+                  {products.map((product, index) => (
+                    <div key={index} className={styles.productRow}>
+                      <span className={styles.productName}>
+                        {product.name}
+                        <IconButton
+                          aria-label={`delete ${product.name}`}
+                          onClick={() => handleDeleteClick(product)}
+                          sx={{
+                            color: "#fafafa",
+                            "&:hover": { color: "#eccb34" },
+                            ml: 1,
                           }}
                         >
-                          {errors[`amount_${index}`]}
-                        </div>
-                      )}
+                          <DeleteIcon />
+                        </IconButton>
+                      </span>
+                      <div>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={amounts[index] || ""}
+                          onChange={(e) =>
+                            handleAmountChange(index, e.target.value)
+                          }
+                          className={styles.amountInput}
+                        />
+                        {errors[`amount_${index}`] && (
+                          <div
+                            style={{
+                              color: "#eccb34",
+                              fontSize: "12px",
+                              marginTop: "4px",
+                            }}
+                          >
+                            {errors[`amount_${index}`]}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              </div>
+              <div className={styles.buttonContainer}>
+                <PdfSection
+                  products={products}
+                  amounts={amounts}
+                  rates={rates}
+                  selectedPropertyName={selectedPropertyName}
+                  monthYear={setCurrentMonthYear(currentMonth)}
+                />
+                <Button
+                  variant="outlined"
+                  sx={{
+                    color: "#eccb34",
+                    borderColor: "#eccb34",
+                    "&:hover": { borderColor: "#eccb34" },
+                  }}
+                  onClick={handleButtonSubmit}
+                >
+                  Update Inventory
+                </Button>
+                <AddProduct onAddProduct={handleAddProductConfirm} />
               </div>
             </div>
-            <div className={styles.buttonContainer}>
-              <PdfSection
-                products={products}
-                amounts={amounts}
-                rates={rates}
-                selectedPropertyName={selectedPropertyName}
-                monthYear={setCurrentMonthYear(currentMonth)}
-              />
-              <Button
-                variant="outlined"
-                sx={{
-                  color: "#eccb34",
-                  borderColor: "#eccb34",
-                  "&:hover": { borderColor: "#eccb34" },
-                }}
-                onClick={handleButtonSubmit}
-              >
-                Update Inventory
-              </Button>
-              <AddProduct onAddProduct={handleAddProductConfirm} />
-            </div>
+            <MaintenanceSection
+              propertyId={propertyId}
+              selectedPropertyName={selectedPropertyName}
+            />
           </div>
-          <MaintenanceSection
-            propertyId={propertyId}
-            selectedPropertyName={selectedPropertyName}
-          />
         </div>
+        <Dialog
+          open={deleteDialogOpen}
+          onClose={handleDeleteCancel}
+          PaperProps={{
+            sx: {
+              backgroundColor: "#eccb34",
+              color: "#fafafa",
+              borderRadius: "8px",
+            },
+          }}
+        >
+          <DialogTitle sx={{ color: "#fafafa" }}>Confirm Deletion</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ color: "#fafafa" }}>
+              Are you sure you want to delete the product &quot;
+              {productToDelete?.name}&quot; &quot;? This action cannot be
+              undone.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={handleDeleteCancel}
+              sx={{
+                color: "#fafafa",
+                "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteConfirm}
+              sx={{
+                color: "#fafafa",
+                "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
+              }}
+            >
+              Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
+        <Dialog
+          open={successDialogOpen}
+          onClose={() => setSuccessDialogOpen(false)}
+          PaperProps={{
+            sx: {
+              backgroundColor: "#eccb34",
+              color: "#fafafa",
+              borderRadius: "8px",
+            },
+          }}
+        >
+          <DialogTitle sx={{ color: "#fafafa" }}>Success</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ color: "#fafafa" }}>
+              Inventory updated successfully!
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setSuccessDialogOpen(false)}
+              sx={{
+                color: "#fafafa",
+                "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
+              }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+        <Dialog
+          open={errorDialogOpen}
+          onClose={() => setErrorDialogOpen(false)}
+          PaperProps={{
+            sx: {
+              backgroundColor: "#eccb34",
+              color: "#fafafa",
+              borderRadius: "8px",
+            },
+          }}
+        >
+          <DialogTitle sx={{ color: "#fafafa" }}>Error</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ color: "#fafafa" }}>
+              {errorMessage}
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => setErrorDialogOpen(false)}
+              sx={{
+                color: "#fafafa",
+                "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
+              }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
       </div>
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={handleDeleteCancel}
-        PaperProps={{
-          sx: {
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            borderRadius: "8px",
-          },
-        }}
-      >
-        <DialogTitle sx={{ color: "#fafafa" }}>Confirm Deletion</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ color: "#fafafa" }}>
-            Are you sure you want to delete the product "{productToDelete?.name}
-            "? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={handleDeleteCancel}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteConfirm}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
-            }}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog
-        open={successDialogOpen}
-        onClose={() => setSuccessDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            borderRadius: "8px",
-          },
-        }}
-      >
-        <DialogTitle sx={{ color: "#fafafa" }}>Success</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ color: "#fafafa" }}>
-            Inventory updated successfully!
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setSuccessDialogOpen(false)}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-            }}
-          >
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-      <Dialog
-        open={errorDialogOpen}
-        onClose={() => setErrorDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            borderRadius: "8px",
-          },
-        }}
-      >
-        <DialogTitle sx={{ color: "#fafafa" }}>Error</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ color: "#fafafa" }}>
-            {errorMessage}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setErrorDialogOpen(false)}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-            }}
-          >
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </div>
+    </AdminProtected>
   );
 };
 
