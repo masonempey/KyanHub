@@ -1,5 +1,5 @@
 import React from "react";
-import styles from "../styles/topNav.module.css";
+import styles from "./topNav.module.css";
 import FilterBar from "./propertyFilterBar";
 import MonthSelection from "./monthSelection";
 import { Button } from "@mui/material";

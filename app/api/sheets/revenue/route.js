@@ -45,7 +45,6 @@ const monthNames = [
   "December",
 ];
 
-// app/api/sheets/revenue/route.js
 export async function PUT(request) {
   try {
     console.log("Starting revenue update...");
@@ -53,31 +52,51 @@ export async function PUT(request) {
     const { propertyName, bookings, year, monthName } = await request.json();
     console.log("Request body:", { propertyName, bookings, year, monthName });
 
-    // Quote the propertyName to ensure proper query syntax
-    const sheetQuery = `'${propertyName}' mimeType='application/vnd.google-apps.spreadsheet'`;
-    console.log("Searching Drive with query:", sheetQuery);
-
+    console.log("Fetching all Drive files to find spreadsheet...");
     const sheetResponse = await googleService.drive.files.list({
-      q: sheetQuery,
-      fields: "files(id, name)",
+      fields: "files(id, name, mimeType)",
     });
 
-    console.log("Raw Drive API response:", sheetResponse);
-
     if (!sheetResponse?.data) {
+      console.log("No data returned from Drive API");
       throw new Error("Drive API returned no data");
     }
+
     if (!sheetResponse.data.files) {
+      console.log("No 'files' property in response");
       throw new Error("Drive API response missing 'files' property");
     }
-    if (!sheetResponse.data.files.length) {
+
+    // Log all spreadsheets for debugging
+    const allSpreadsheets = sheetResponse.data.files.filter(
+      (file) => file.mimeType === "application/vnd.google-apps.spreadsheet"
+    );
+    console.log(
+      "All spreadsheets found:",
+      allSpreadsheets.map((file) => ({
+        name: file.name,
+        id: file.id,
+      }))
+    );
+
+    // Filter for sheets containing the full propertyName
+    const spreadsheets = allSpreadsheets.filter((file) =>
+      file.name.toLowerCase().includes(propertyName.toLowerCase())
+    );
+
+    if (spreadsheets.length === 0) {
+      console.log(`No spreadsheets found containing '${propertyName}'`);
       throw new Error(`No spreadsheet found containing '${propertyName}'`);
+    } else {
+      console.log(
+        `Spreadsheet found: ${spreadsheets[0].name} (ID: ${spreadsheets[0].id})`
+      );
     }
 
-    const sheetId = sheetResponse.data.files[0].id;
-    const sheetNameResult = sheetResponse.data.files[0].name;
+    const sheetId = spreadsheets[0].id;
+    const sheetNameResult = spreadsheets[0].name;
     const sheetName = "revenue";
-    console.log(`Found sheet: ${sheetNameResult} (ID: ${sheetId})`);
+    console.log(`Processing sheet: ${sheetNameResult} (ID: ${sheetId})`);
 
     const layout = getSheetLayout(propertyName);
     const columnData = await googleService.getSheetData(

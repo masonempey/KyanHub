@@ -5,7 +5,7 @@ import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase/client";
 import { TextField, Button, Typography, Paper, Alert } from "@mui/material";
 import { styled } from "@mui/system";
-import styles from "../styles/login.module.css";
+import styles from "./Login.module.css";
 import { useRouter } from "next/navigation";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 
