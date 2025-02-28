@@ -130,6 +130,8 @@ export async function GET(request, { params }) {
           revenueByMonth,
         };
 
+        console.log("Inserting booking:", newBooking);
+
         await bookingService.insertBooking(newBooking);
         console.log("BOOKING SENT", newBooking);
         return newBooking;
