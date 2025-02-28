@@ -8,7 +8,7 @@ export async function POST(request) {
   try {
     const { propertyName, monthYear, file, fileName } = await request.json();
 
-    console.log("Uploading maintenance receipt:", propertyName, monthYear);
+    console.log("Uploading maintenance Invoice:", propertyName, monthYear);
 
     if (!propertyName || !monthYear) {
       return new Response(
