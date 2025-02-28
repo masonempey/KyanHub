@@ -7,7 +7,7 @@ import AddCircleSharpIcon from "@mui/icons-material/AddCircleSharp";
 import SummarizeSharpIcon from "@mui/icons-material/SummarizeSharp";
 import NotificationsNoneSharpIcon from "@mui/icons-material/NotificationsNoneSharp";
 import PersonOutlineSharpIcon from "@mui/icons-material/PersonOutlineSharp";
-import styles from "../styles/sidebar.module.css";
+import styles from "./SideBar.module.css";
 import { useRouter } from "next/navigation";
 
 const SideBar = () => {

@@ -121,40 +121,6 @@ const ReportsPage = () => {
     setErrors(newErrors);
   };
 
-  const fetchBookings = async (propertyId) => {
-    setLoading(true);
-    setIsLoading(true);
-    try {
-      if (!startDate || !endDate || endDate.isBefore(startDate)) {
-        throw new Error("Invalid date range.");
-      }
-      if (!propertyId) {
-        throw new Error("No property selected.");
-      }
-      const response = await fetchWithAuth(
-        `/api/igms/bookings-with-guests/${propertyId}/${startDate.format(
-          "YYYY-MM-DD"
-        )}/${endDate.format("YYYY-MM-DD")}`
-      );
-      if (!response.ok) {
-        throw new Error(`Failed to fetch bookings: ${await response.text()}`);
-      }
-      const data = await response.json();
-      if (data.success && data.bookings) {
-        setBookings(data.bookings);
-      } else {
-        setBookings([]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch bookings:", error);
-      setErrorMessage(error.message || "Failed to fetch bookings.");
-      setErrorDialogOpen(true);
-    } finally {
-      setLoading(false);
-      setIsLoading(false);
-    }
-  };
-
   const handleUpdateRevenue = () => {
     setConfirmDialogOpen(true);
   };

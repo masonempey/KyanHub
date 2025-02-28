@@ -1,6 +1,5 @@
 // app/api/igms/bookings-with-guests/[propertyId]/[fromDate]/[toDate]/route.js
 import axios from "axios";
-import PropertyService from "@/lib/services/propertyService";
 import bookingService from "@/lib/services/bookingService";
 import dotenv from "dotenv";
 dotenv.config();
@@ -33,6 +32,8 @@ export async function GET(request, { params }) {
         `${IGMS_CONFIG.baseUrl}/bookings?${queryParams}`
       );
 
+      console.log("IGMS API Response:", response.data);
+
       if (response.data.data?.length > 0) {
         const filteredBookings = response.data.data.filter((booking) => {
           const checkOutDate = new Date(booking.local_checkout_dttm)
@@ -41,7 +42,8 @@ export async function GET(request, { params }) {
           return (
             checkOutDate !== fromDate &&
             booking.booking_status === "accepted" &&
-            booking.property_uid === propertyId
+            booking.property_uid === propertyId &&
+            booking.platform_type !== "airgms"
           );
         });
 
@@ -88,7 +90,9 @@ export async function GET(request, { params }) {
 
         const nightsByMonth = {};
         let currentDate = new Date(checkIn);
-        while (currentDate < checkOut) {
+        const lastNight = new Date(checkOut);
+        lastNight.setDate(lastNight.getDate() - 1);
+        for (let i = 0; i < totalNights; i++) {
           const monthKey = `${currentDate.getFullYear()}-${
             currentDate.getMonth() + 1
           }`;
@@ -96,13 +100,13 @@ export async function GET(request, { params }) {
           currentDate.setDate(currentDate.getDate() + 1);
         }
 
-        const checkoutMonthKey = `${checkOut.getFullYear()}-${
-          checkOut.getMonth() + 1
+        const cleaningFeeMonth = `${lastNight.getFullYear()}-${
+          lastNight.getMonth() + 1
         }`;
         const revenueByMonth = Object.entries(nightsByMonth).reduce(
           (acc, [month, nights]) => {
             acc[month] = nights * nightlyRate;
-            if (month === checkoutMonthKey) acc[month] += cleaningFee;
+            if (month === cleaningFeeMonth) acc[month] += cleaningFee;
             return acc;
           },
           {}
@@ -115,10 +119,8 @@ export async function GET(request, { params }) {
           guestName: booking.guest_name,
           checkIn: booking.local_checkin_dttm,
           checkOut: booking.local_checkout_dttm,
-          total: booking.price.price_total,
           cleaningFee,
-          cleaningFeeMonth: checkoutMonthKey,
-          baseTotal,
+          cleaningFeeMonth,
           platform: booking.platform_type,
           rawPriceData: booking.price,
           guestName: guestMap[booking.guest_uid]?.name || "Unknown",
@@ -133,6 +135,8 @@ export async function GET(request, { params }) {
         return newBooking;
       })
     );
+
+    enrichedBookings.sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
 
     return new Response(
       JSON.stringify({

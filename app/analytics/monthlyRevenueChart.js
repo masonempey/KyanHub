@@ -10,7 +10,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import styles from "../styles/monthlyRevenueChart.module.css";
+import styles from "./monthlyRevenueChart.module.css";
 import { useUser } from "@/contexts/UserContext";
 import CircularProgress from "@mui/material/CircularProgress";
 import fetchWithAuth from "@/lib/fetchWithAuth"; // Import fetchWithAuth
