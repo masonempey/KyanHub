@@ -1,5 +1,5 @@
 // In app/layout.js
-// import "./styles/globals.css";
+import "./styles/globals.css";
 import { UserProvider } from "@/contexts/UserContext";
 import { PropertyProvider } from "@/contexts/PropertyContext";
 import RootLayoutClient from "./components/RootLayoutClient";
