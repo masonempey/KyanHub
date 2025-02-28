@@ -62,7 +62,7 @@ const BookingCard = ({ booking }) => {
         >
           Base Price:{" "}
           <span style={{ color: "#fafafa" }}>
-            ${booking.rawPriceData?.price_base || "0.00"}
+            ${booking.rawPriceData?.price_total || "0.00"}
           </span>
         </Typography>
         <Accordion sx={{ mt: 1, backgroundColor: "#fafafa" }}>

@@ -1,4 +1,4 @@
-// app/api/sheets/revenue/route.js
+// app/api/sheets/revenue/route.js (unchanged from last numeric version)
 import { NextResponse } from "next/server";
 import googleService from "@/lib/services/googleService";
 
@@ -15,6 +15,18 @@ const SHEET_LAYOUTS = {
     rightSideStart: "K",
     rightSideEnd: "O",
   },
+  "Windsor Town Homes": {
+    revenueColumn: "I",
+    cleaningColumn: "F",
+    rightSideStart: "M",
+    rightSideEnd: "Q",
+  },
+  "Windsor 5119": {
+    revenueColumn: "H",
+    cleaningColumn: "E",
+    rightSideStart: "L",
+    rightSideEnd: "P",
+  },
   default: {
     revenueColumn: "B",
     cleaningColumn: "C",
@@ -24,10 +36,24 @@ const SHEET_LAYOUTS = {
 };
 
 const getSheetLayout = (propertyName) => {
-  if (["Era 1102", "Colours 1904", "Colours 1709"].includes(propertyName))
+  if (["Era 1102", "Colours - 1904", "Colours 1709"].includes(propertyName))
     return SHEET_LAYOUTS["Kyan Owned Properties"];
   if (propertyName === "Colours 1306") return SHEET_LAYOUTS.colours_1306;
+  if (
+    (propertyName === "Windsor 95 - 703",
+    "Windsor 96 - 5503",
+    "Windsor 97 - 5505",
+    "Windsor 98 - 5507")
+  )
+    return SHEET_LAYOUTS["Windsor Town Homes"];
   return SHEET_LAYOUTS.default;
+};
+
+const getSheetName = (propertyName, layout) => {
+  if (layout === SHEET_LAYOUTS["Windsor Town Homes"]) {
+    return propertyName;
+  }
+  return "revenue";
 };
 
 const monthNames = [
@@ -67,7 +93,6 @@ export async function PUT(request) {
       throw new Error("Drive API response missing 'files' property");
     }
 
-    // Log all spreadsheets for debugging
     const allSpreadsheets = sheetResponse.data.files.filter(
       (file) => file.mimeType === "application/vnd.google-apps.spreadsheet"
     );
@@ -79,7 +104,6 @@ export async function PUT(request) {
       }))
     );
 
-    // Filter for sheets containing the full propertyName
     const spreadsheets = allSpreadsheets.filter((file) =>
       file.name.toLowerCase().includes(propertyName.toLowerCase())
     );
@@ -95,10 +119,12 @@ export async function PUT(request) {
 
     const sheetId = spreadsheets[0].id;
     const sheetNameResult = spreadsheets[0].name;
-    const sheetName = "revenue";
     console.log(`Processing sheet: ${sheetNameResult} (ID: ${sheetId})`);
 
     const layout = getSheetLayout(propertyName);
+    const sheetName = getSheetName(propertyName, layout);
+    console.log("Using layout:", layout);
+    console.log("Using sheet name:", sheetName);
     const columnData = await googleService.getSheetData(
       sheetId,
       `${sheetName}!A:A`
@@ -125,23 +151,40 @@ export async function PUT(request) {
     const monthNum = (monthNames.indexOf(monthName) + 1).toString();
     const monthYearKey = `${year}-${monthNum}`;
 
-    const monthTotal = bookings.reduce((sum, booking) => {
-      const revenue = booking.revenueByMonth[monthYearKey] || 0;
-      return sum + revenue;
-    }, 0);
+    const monthTotal = Number(
+      bookings
+        .reduce((sum, booking) => {
+          const revenue = booking.revenueByMonth[monthYearKey] || 0;
+          return sum + revenue;
+        }, 0)
+        .toFixed(2)
+    );
+    const monthTotalFormatted = monthTotal === 0 ? "" : `$${monthTotal}`;
 
-    const cleaningTotal = bookings.reduce((sum, booking) => {
-      const cleaning =
-        booking.cleaningFeeMonth === monthYearKey ? booking.cleaningFee : 0;
-      return sum + cleaning;
-    }, 0);
+    const cleaningTotal = Number(
+      bookings
+        .reduce((sum, booking) => {
+          const cleaning =
+            booking.cleaningFeeMonth === monthYearKey ? booking.cleaningFee : 0;
+          return sum + cleaning;
+        }, 0)
+        .toFixed(2)
+    );
+    const cleaningTotalFormatted =
+      cleaningTotal === 0 ? "" : `$${cleaningTotal}`;
 
-    console.log("Updating values:", { monthTotal, cleaningTotal });
+    console.log("Updating values:", {
+      monthTotal: monthTotalFormatted,
+      cleaningTotal: cleaningTotalFormatted,
+    });
     await googleService.updateSheetValues(sheetId, sheetName, [
-      { range: `${layout.revenueColumn}${actualRowIndex}`, value: monthTotal },
+      {
+        range: `${layout.revenueColumn}${actualRowIndex}`,
+        value: monthTotalFormatted,
+      },
       {
         range: `${layout.cleaningColumn}${actualRowIndex}`,
-        value: cleaningTotal,
+        value: cleaningTotalFormatted,
       },
     ]);
 
@@ -165,16 +208,25 @@ export async function PUT(request) {
 
     if (newBookings.length > 0) {
       const firstEmptyRow = rightSideData.length + 1;
-      const bookingRows = newBookings.map((booking, index) => ({
-        values: [
-          monthName,
-          booking.guestName,
-          booking.revenueByMonth[monthYearKey] || 0,
-          booking.cleaningFeeMonth === monthYearKey ? booking.cleaningFee : "",
-          booking.platform,
-        ],
-        row: firstEmptyRow + index,
-      }));
+      const bookingRows = newBookings.map((booking, index) => {
+        const revenue = Number(
+          booking.revenueByMonth[monthYearKey] || 0
+        ).toFixed(2);
+        const cleaning =
+          booking.cleaningFeeMonth === monthYearKey
+            ? Number(booking.cleaningFee).toFixed(2)
+            : "";
+        return {
+          values: [
+            monthName,
+            booking.guestName,
+            revenue === "0.00" ? "" : `$${revenue}`,
+            cleaning === "0.00" ? "" : cleaning ? `$${cleaning}` : "",
+            booking.platform,
+          ],
+          row: firstEmptyRow + index,
+        };
+      });
 
       for (const row of bookingRows) {
         const range = `${layout.rightSideStart}${row.row}:${layout.rightSideEnd}${row.row}`;
