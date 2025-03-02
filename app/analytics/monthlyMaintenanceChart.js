@@ -13,7 +13,7 @@ import {
 import styles from "./monthlyRevenueChart.module.css";
 import { useUser } from "@/contexts/UserContext";
 import CircularProgress from "@mui/material/CircularProgress";
-import fetchWithAuth from "@/lib/fetchWithAuth"; // Import fetchWithAuth
+import fetchWithAuth from "@/lib/fetchWithAuth";
 
 const MonthlyMaintenance = ({ propertyId, month }) => {
   const { user, loading: userLoading } = useUser();

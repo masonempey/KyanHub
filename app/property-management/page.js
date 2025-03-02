@@ -90,7 +90,7 @@ const AddPage = () => {
     return newErrors;
   };
 
-  const handleButtonSubmit = async () => {
+  const handleUpdateInventory = async () => {
     console.log("THE MONTH: ", currentMonth);
     const newErrors = validateInputs();
     if (Object.keys(newErrors).length > 0) {
@@ -107,16 +107,25 @@ const AddPage = () => {
         }))
         .filter((update) => update.quantity > 0);
 
-      const response = await fetchWithAuth(
-        `/api/inventory/${propertyId}/${currentMonth}`,
-        {
+      console.log("UPDATES: ", updates);
+
+      const updatePromises = updates.map((update) =>
+        fetchWithAuth(`/api/inventory/update`, {
           method: "PUT",
-          body: JSON.stringify({ updates }),
-        }
+          body: JSON.stringify({
+            propertyId,
+            productId: update.productId,
+            month: currentMonth,
+            quantity: update.quantity,
+          }),
+        })
       );
 
-      if (!response.ok) {
-        throw new Error(`Failed to update inventory: ${await response.text()}`);
+      const results = await Promise.all(updatePromises);
+      const failedUpdates = results.filter((res) => !res.ok);
+
+      if (failedUpdates.length > 0) {
+        throw new Error(`Failed to update some inventory items`);
       }
 
       setSuccessDialogOpen(true);
@@ -342,7 +351,7 @@ const AddPage = () => {
                     borderColor: "#eccb34",
                     "&:hover": { borderColor: "#eccb34" },
                   }}
-                  onClick={handleButtonSubmit}
+                  onClick={handleUpdateInventory}
                 >
                   Update Inventory
                 </Button>
