@@ -105,7 +105,7 @@ const AddPage = () => {
           productId: product.id,
           quantity: Number(amounts[i] || 0),
         }))
-        .filter((update) => update.quantity > 0);
+        .filter((update) => update.quantity >= 0);
 
       console.log("UPDATES: ", updates);
 
