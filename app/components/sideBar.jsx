@@ -7,7 +7,6 @@ import AddCircleSharpIcon from "@mui/icons-material/AddCircleSharp";
 import SummarizeSharpIcon from "@mui/icons-material/SummarizeSharp";
 import NotificationsNoneSharpIcon from "@mui/icons-material/NotificationsNoneSharp";
 import PersonOutlineSharpIcon from "@mui/icons-material/PersonOutlineSharp";
-import styles from "./SideBar.module.css";
 import { useRouter } from "next/navigation";
 
 const SideBar = () => {
@@ -18,165 +17,96 @@ const SideBar = () => {
   const handleMouseOver = (iconName) => setHoveredIcon(iconName);
   const handleMouseOut = () => setHoveredIcon(null);
 
-  const getIconColor = (iconName) => {
-    if (!isOpen) {
-      return "#eccb34"; // Secondary color when sidebar is closed
+  const getIconClasses = (iconName) => {
+    let classes = "text-primary cursor-pointer text-5xl";
+    if (isOpen && hoveredIcon !== iconName) {
+      classes = "text-secondary cursor-pointer text-5xl";
     }
-    if (hoveredIcon === iconName) {
-      return "#eccb34"; // Secondary color
-    } else {
-      return "#FAFAFA"; // Primary color
+    return classes;
+  };
+
+  const getContainerClasses = (iconName) => {
+    let classes =
+      "p-3 rounded-full transition-all duration-300 flex items-center justify-center";
+    if (isOpen && hoveredIcon === iconName) {
+      classes += " bg-secondary";
     }
-  };
-
-  const getBackgroundColor = (iconName) => {
-    if (!isOpen) {
-      return "transparent"; // No background color when sidebar is closed
-    }
-    if (hoveredIcon === iconName) {
-      return "#FAFAFA"; // Primary color
-    } else {
-      return "transparent";
-    }
-  };
-
-  const handleArrowBackClick = () => {
-    setIsOpen(!isOpen);
-  };
-
-  const handleDashboardClick = () => {
-    router.push("/analytics");
-  };
-
-  const handleAddClick = () => {
-    router.push("/property-management");
-  };
-
-  const handleReportClick = () => {
-    router.push("/reports");
-  };
-
-  const handleNotificationClick = () => {
-    console.log("Notification clicked");
-  };
-
-  const handleProfileClick = () => {
-    router.push("/profile");
+    return classes;
   };
 
   return (
-    <div className={`${styles.sidebar} ${!isOpen ? styles.sidebarClosed : ""}`}>
+    <div
+      className={`w-20 bg-transparent flex flex-col items-center py-4 ${
+        !isOpen ? "w-16" : ""
+      }`}
+    >
       <div
-        className={`${styles.iconContainer} ${styles.arrowIconContainer} ${
-          !isOpen ? styles.arrowIconFlipped : ""
-        }`}
-        style={{ backgroundColor: getBackgroundColor("ArrowBackIcon") }}
+        className={`${getContainerClasses("ArrowBackIcon")} mb-8`}
         onMouseOver={() => handleMouseOver("ArrowBackIcon")}
         onMouseOut={handleMouseOut}
       >
         <ArrowBackIcon
-          sx={{
-            color: getIconColor("ArrowBackIcon"),
-            fontSize: "3.5rem !important",
-            cursor: "pointer",
-          }}
-          onClick={handleArrowBackClick}
-          titleAccess={isOpen ? "Close Sidebar" : "Open Sidebar"}
+          className={`${getIconClasses("ArrowBackIcon")} ${
+            !isOpen ? "transform rotate-180" : ""
+          }`}
+          onClick={() => setIsOpen(!isOpen)}
         />
       </div>
+
       {isOpen && (
         <>
-          <div className={styles.pageIcons}>
+          <div className="flex flex-col items-center gap-6 mb-auto">
             <div
-              className={styles.iconContainer}
-              style={{ backgroundColor: getBackgroundColor("DashboardIcon") }}
+              className={getContainerClasses("DashboardIcon")}
               onMouseOver={() => handleMouseOver("DashboardIcon")}
               onMouseOut={handleMouseOut}
+              onClick={() => router.push("/analytics")}
             >
-              <DashboardIcon
-                sx={{
-                  color: getIconColor("DashboardIcon"),
-                  fontSize: "3.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={handleDashboardClick}
-                titleAccess="Dashboard"
-              />
+              <DashboardIcon className={getIconClasses("DashboardIcon")} />
             </div>
+
             <div
-              className={styles.iconContainer}
-              style={{
-                backgroundColor: getBackgroundColor("AddCircleSharpIcon"),
-              }}
+              className={getContainerClasses("AddCircleSharpIcon")}
               onMouseOver={() => handleMouseOver("AddCircleSharpIcon")}
               onMouseOut={handleMouseOut}
+              onClick={() => router.push("/property-management")}
             >
               <AddCircleSharpIcon
-                sx={{
-                  color: getIconColor("AddCircleSharpIcon"),
-                  fontSize: "3.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={handleAddClick}
-                titleAccess="Add"
+                className={getIconClasses("AddCircleSharpIcon")}
               />
             </div>
+
             <div
-              className={styles.iconContainer}
-              style={{
-                backgroundColor: getBackgroundColor("SummarizeSharpIcon"),
-              }}
+              className={getContainerClasses("SummarizeSharpIcon")}
               onMouseOver={() => handleMouseOver("SummarizeSharpIcon")}
               onMouseOut={handleMouseOut}
+              onClick={() => router.push("/reports")}
             >
               <SummarizeSharpIcon
-                sx={{
-                  color: getIconColor("SummarizeSharpIcon"),
-                  fontSize: "3.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={handleReportClick}
-                titleAccess="Report"
+                className={getIconClasses("SummarizeSharpIcon")}
               />
             </div>
           </div>
-          <div className={styles.notificationAndProfileIcons}>
+
+          <div className="flex flex-col items-center gap-6">
             <div
-              className={styles.iconContainer}
-              style={{
-                backgroundColor: getBackgroundColor(
-                  "NotificationsNoneSharpIcon"
-                ),
-              }}
+              className={getContainerClasses("NotificationsNoneSharpIcon")}
               onMouseOver={() => handleMouseOver("NotificationsNoneSharpIcon")}
               onMouseOut={handleMouseOut}
             >
               <NotificationsNoneSharpIcon
-                sx={{
-                  color: getIconColor("NotificationsNoneSharpIcon"),
-                  fontSize: "3.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={handleNotificationClick}
-                titleAccess="Notifications"
+                className={getIconClasses("NotificationsNoneSharpIcon")}
               />
             </div>
+
             <div
-              className={styles.iconContainer}
-              style={{
-                backgroundColor: getBackgroundColor("PersonOutlineSharpIcon"),
-              }}
+              className={getContainerClasses("PersonOutlineSharpIcon")}
               onMouseOver={() => handleMouseOver("PersonOutlineSharpIcon")}
               onMouseOut={handleMouseOut}
+              onClick={() => router.push("/profile")}
             >
               <PersonOutlineSharpIcon
-                sx={{
-                  color: getIconColor("PersonOutlineSharpIcon"),
-                  fontSize: "3.5rem",
-                  cursor: "pointer",
-                }}
-                onClick={handleProfileClick}
-                titleAccess="Profile"
+                className={getIconClasses("PersonOutlineSharpIcon")}
               />
             </div>
           </div>

@@ -2,8 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import SideBar from "./sideBar";
-import TopNav from "./topNav";
+import SideBar from "./SideBar";
+import TopNav from "./TopNav";
 import { useProperties } from "../../contexts/PropertyContext";
 
 export default function RootLayoutClient({ children }) {
@@ -51,19 +51,21 @@ export default function RootLayoutClient({ children }) {
   return (
     <div className={`layout ${isLoginPage ? "no-sidebar" : ""}`}>
       {!isLoginPage && <SideBar />}
-      {!isLoginPage && (
-        <TopNav
-          filteredProperties={allProperties}
-          loading={loading}
-          handlePropertyChange={handlePropertyChange}
-          selectedMonth={currentMonth}
-          currentPage={setPageName(pathname)}
-          onMonthChange={handleMonthChange}
-        />
-      )}
-      <main className={`main-content ${isLoginPage ? "no-sidebar" : ""}`}>
-        {children}
-      </main>
+      <div className="content-container">
+        {!isLoginPage && (
+          <TopNav
+            filteredProperties={allProperties}
+            loading={loading}
+            handlePropertyChange={handlePropertyChange}
+            selectedMonth={currentMonth}
+            currentPage={setPageName(pathname)}
+            onMonthChange={handleMonthChange}
+          />
+        )}
+        <main className={`main-content ${isLoginPage ? "no-sidebar" : ""}`}>
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
