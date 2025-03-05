@@ -64,15 +64,19 @@ const PdfSection = ({
   return (
     <div>
       <Button
-        variant="outlined"
+        variant="contained"
+        className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
         sx={{
-          color: "#eccb34",
-          borderColor: "#eccb34",
-          "&:hover": { borderColor: "#eccb34" },
+          textTransform: "none",
+          fontSize: "1rem",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          "&:hover": {
+            boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+          },
         }}
         onClick={handleGeneratePDF}
       >
-        Send PDF's to Drive
+        Send PDF&apos;s to Drive
       </Button>
       <Dialog
         open={successDialogOpen}

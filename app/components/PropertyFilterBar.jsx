@@ -38,15 +38,17 @@ const PropertyFilterBar = ({
 
   return (
     <Box>
-      <FormControl
-        fullWidth
-        size="large"
-        className="border border-primary rounded-lg"
-      >
-        <InputLabel id="property-select-label" className="text-dark">
+      <FormControl fullWidth size="large">
+        <InputLabel
+          id="property-select-label"
+          sx={{
+            color: "#333333", // 'dark'
+            "&.Mui-focused": { color: "#333333" }, // Keep 'dark' when focused
+            "&:hover": { color: "#333333" }, // Keep 'dark' on hover
+          }}
+        >
           {label}
         </InputLabel>
-
         <Select
           labelId="property-select-label"
           id="property-select"
@@ -54,10 +56,27 @@ const PropertyFilterBar = ({
           label="Property"
           onChange={handleChange}
           disabled={loading}
-          className="rounded-lg text-dark bg-white border-primary"
+          sx={{
+            "& .MuiOutlinedInput-notchedOutline": {
+              borderColor: "#333333", // 'dark'
+            },
+            "&:hover .MuiOutlinedInput-notchedOutline": {
+              borderColor: "#333333", // 'dark' on hover
+            },
+            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+              borderColor: "#333333", // 'dark' when focused
+            },
+            color: "#333333", // 'dark'
+            backgroundColor: "white",
+            borderRadius: "8px",
+          }}
         >
           {Object.entries(properties).map(([uid, name]) => (
-            <MenuItem key={uid} value={uid} className="text-dark">
+            <MenuItem
+              key={uid}
+              value={uid}
+              sx={{ color: "#333333" }} // 'dark'
+            >
               {name}
             </MenuItem>
           ))}

@@ -263,80 +263,89 @@ const AddPage = () => {
 
   if (userLoading || propertiesLoading || isLoading) {
     return (
-      <div className={styles.loadingContainer}>
+      <div className="flex h-screen w-full items-center justify-center">
         <CircularProgress sx={{ color: "#eccb34" }} />
       </div>
     );
   }
 
   // Rest of the JSX remains unchanged
+  if (userLoading || propertiesLoading || isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <CircularProgress sx={{ color: "#eccb34" }} />
+      </div>
+    );
+  }
+
   return (
     <AdminProtected>
-      <div className={styles.addPageContainer}>
-        <div className={styles.mainContainer}>
-          <div className={styles.contentContainer}>
-            <div className={styles.leftContainer}>
-              <BackgroundContainer width="100%" height="100%" />
-              <div className={styles.productListContainer}>
-                <div className={styles.leftHeader}>Inventory Management</div>
-                {errors.propertyId && (
-                  <div style={{ color: "#eccb34", marginBottom: "10px" }}>
-                    {errors.propertyId}
-                  </div>
-                )}
-                {errors.currentMonth && (
-                  <div style={{ color: "#eccb34", marginBottom: "10px" }}>
-                    {errors.currentMonth}
-                  </div>
-                )}
-                <div className={styles.header}>
-                  <span>Product</span>
-                  <span>Amount</span>
-                </div>
-                <div className={styles.listContainer}>
-                  {products.map((product, index) => (
-                    <div key={index} className={styles.productRow}>
-                      <span className={styles.productName}>
-                        {product.name}
-                        <IconButton
-                          aria-label={`delete ${product.name}`}
-                          onClick={() => handleDeleteClick(product)}
-                          sx={{
-                            color: "#fafafa",
-                            "&:hover": { color: "#eccb34" },
-                            ml: 1,
-                          }}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </span>
-                      <div>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={amounts[index] || ""}
-                          onChange={(e) =>
-                            handleAmountChange(index, e.target.value)
-                          }
-                          className={styles.amountInput}
-                        />
-                        {errors[`amount_${index}`] && (
-                          <div
-                            style={{
-                              color: "#eccb34",
-                              fontSize: "12px",
-                              marginTop: "4px",
-                            }}
-                          >
-                            {errors[`amount_${index}`]}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+      <div className="flex flex-col h-full w-full p-6 bg-transparent">
+        <div className="flex flex-col lg:flex-row w-full h-full gap-6">
+          {/* Left Column - Inventory Management */}
+          <div className="flex-1 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm overflow-hidden border border-primary/10">
+            <div className="p-6 flex flex-col h-full">
+              {/* Header */}
+              <h2 className="text-2xl font-bold text-dark mb-6">
+                Inventory Management
+              </h2>
+
+              {/* Error Messages */}
+              {errors.propertyId && (
+                <p className="text-primary mb-2 text-sm">{errors.propertyId}</p>
+              )}
+              {errors.currentMonth && (
+                <p className="text-primary mb-4 text-sm">
+                  {errors.currentMonth}
+                </p>
+              )}
+
+              {/* Product List Header */}
+              <div className="grid grid-cols-2 py-3 px-4 bg-primary/10 rounded-t-lg text-dark font-semibold">
+                <span>Product</span>
+                <span className="text-right">Amount</span>
               </div>
-              <div className={styles.buttonContainer}>
+
+              {/* Product List */}
+              <div className="flex-1 overflow-y-auto bg-secondary/80 rounded-b-lg mb-6 border border-primary/10">
+                {products.map((product, index) => (
+                  <div
+                    key={index}
+                    className="grid grid-cols-2 py-3 px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors"
+                  >
+                    <div className="flex items-center">
+                      <span className="text-dark">{product.name}</span>
+                      <IconButton
+                        aria-label={`delete ${product.name}`}
+                        onClick={() => handleDeleteClick(product)}
+                        className="ml-2 text-dark hover:text-primary transition-colors"
+                        size="small"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={amounts[index] || ""}
+                        onChange={(e) =>
+                          handleAmountChange(index, e.target.value)
+                        }
+                        className="bg-white text-dark border border-primary/30 rounded-lg px-3 py-2 w-24 text-right focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm"
+                      />
+                      {errors[`amount_${index}`] && (
+                        <p className="text-primary text-xs mt-1">
+                          {errors[`amount_${index}`]}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-4 justify-between items-center">
                 <PdfSection
                   products={products}
                   amounts={amounts}
@@ -344,119 +353,130 @@ const AddPage = () => {
                   selectedPropertyName={selectedPropertyName}
                   monthYear={setCurrentMonthYear(currentMonth)}
                 />
-                <Button
-                  variant="outlined"
-                  sx={{
-                    color: "#eccb34",
-                    borderColor: "#eccb34",
-                    "&:hover": { borderColor: "#eccb34" },
-                  }}
-                  onClick={handleUpdateInventory}
-                >
-                  Update Inventory
-                </Button>
-                <AddProduct onAddProduct={handleAddProductConfirm} />
+
+                <div className="flex gap-4">
+                  <Button
+                    variant="contained"
+                    onClick={handleUpdateInventory}
+                    className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
+                    sx={{
+                      textTransform: "none",
+                      fontSize: "1rem",
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                      "&:hover": {
+                        boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                      },
+                    }}
+                  >
+                    Update Inventory
+                  </Button>
+                  <AddProduct onAddProduct={handleAddProductConfirm} />
+                </div>
               </div>
             </div>
+          </div>
+
+          {/* Right Column - Maintenance Section */}
+          <div className="flex-1 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm border border-primary/10">
             <MaintenanceSection
               propertyId={propertyId}
               selectedPropertyName={selectedPropertyName}
             />
           </div>
         </div>
+
+        {/* Dialogs - updated styling for lighter feel */}
         <Dialog
           open={deleteDialogOpen}
           onClose={handleDeleteCancel}
           PaperProps={{
             sx: {
-              backgroundColor: "#eccb34",
-              color: "#fafafa",
-              borderRadius: "8px",
+              backgroundColor: "#fafafa",
+              color: "#333333",
+              borderRadius: "12px",
+              border: "1px solid rgba(236, 203, 52, 0.2)",
             },
           }}
         >
-          <DialogTitle sx={{ color: "#fafafa" }}>Confirm Deletion</DialogTitle>
+          <DialogTitle sx={{ color: "#333333" }}>Confirm Deletion</DialogTitle>
           <DialogContent>
-            <DialogContentText sx={{ color: "#fafafa" }}>
+            <DialogContentText sx={{ color: "#333333" }}>
               Are you sure you want to delete the product &quot;
-              {productToDelete?.name}&quot; &quot;? This action cannot be
-              undone.
+              {productToDelete?.name}&quot;? This action cannot be undone.
             </DialogContentText>
           </DialogContent>
           <DialogActions>
             <Button
               onClick={handleDeleteCancel}
-              sx={{
-                color: "#fafafa",
-                "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-              }}
+              className="text-dark hover:bg-primary/5 transition-colors"
             >
               Cancel
             </Button>
             <Button
               onClick={handleDeleteConfirm}
-              sx={{
-                color: "#fafafa",
-                "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
-              }}
+              className="bg-primary text-dark hover:bg-primary/80 transition-colors"
             >
               Delete
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Success Dialog */}
         <Dialog
           open={successDialogOpen}
           onClose={() => setSuccessDialogOpen(false)}
           PaperProps={{
             sx: {
-              backgroundColor: "#eccb34",
-              color: "#fafafa",
-              borderRadius: "8px",
+              backgroundColor: "#fafafa",
+              color: "#333333",
+              borderRadius: "12px",
+              border: "1px solid rgba(236, 203, 52, 0.2)",
             },
           }}
         >
-          <DialogTitle sx={{ color: "#fafafa" }}>Success</DialogTitle>
+          <DialogTitle sx={{ color: "#333333" }}>
+            <span className="flex items-center">
+              <span className="text-primary mr-2">✓</span> Success
+            </span>
+          </DialogTitle>
           <DialogContent>
-            <DialogContentText sx={{ color: "#fafafa" }}>
+            <DialogContentText sx={{ color: "#333333" }}>
               Inventory updated successfully!
             </DialogContentText>
           </DialogContent>
           <DialogActions>
             <Button
               onClick={() => setSuccessDialogOpen(false)}
-              sx={{
-                color: "#fafafa",
-                "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-              }}
+              className="bg-primary text-dark hover:bg-primary/80 transition-colors"
             >
               Close
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Error Dialog */}
         <Dialog
           open={errorDialogOpen}
           onClose={() => setErrorDialogOpen(false)}
           PaperProps={{
             sx: {
-              backgroundColor: "#eccb34",
-              color: "#fafafa",
-              borderRadius: "8px",
+              backgroundColor: "#fafafa",
+              color: "#333333",
+              borderRadius: "12px",
+              border: "1px solid rgba(236, 203, 52, 0.2)",
             },
           }}
         >
-          <DialogTitle sx={{ color: "#fafafa" }}>Error</DialogTitle>
+          <DialogTitle sx={{ color: "#333333" }}>Error</DialogTitle>
           <DialogContent>
-            <DialogContentText sx={{ color: "#fafafa" }}>
+            <DialogContentText sx={{ color: "#333333" }}>
               {errorMessage}
             </DialogContentText>
           </DialogContent>
           <DialogActions>
             <Button
               onClick={() => setErrorDialogOpen(false)}
-              sx={{
-                color: "#fafafa",
-                "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-              }}
+              className="bg-primary text-dark hover:bg-primary/80 transition-colors"
             >
               Close
             </Button>

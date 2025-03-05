@@ -47,8 +47,20 @@ const MaintenanceSection = ({
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedDate, setSelectedDate] = useState(dayjs());
 
-  if (loading) return <div>Loading...</div>;
-  if (!user) return <div>Please log in to access this section.</div>;
+  const handleDateChange = useCallback(
+    (newDate) => {
+      setSelectedDate(newDate);
+      if (onDateChange) onDateChange(newDate);
+      const newErrors = { ...errors };
+      if (!dayjs(newDate).isValid()) {
+        newErrors.selectedDate = "Please select a valid date.";
+      } else {
+        delete newErrors.selectedDate;
+      }
+      setErrors(newErrors);
+    },
+    [errors, onDateChange]
+  );
 
   useEffect(() => {
     const fetchCompanies = async () => {
@@ -73,6 +85,22 @@ const MaintenanceSection = ({
         setErrorDialogOpen(true);
       }
     };
+
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          Loading...
+        </div>
+      );
+    }
+
+    if (!user) {
+      return (
+        <div className="flex items-center justify-center h-full text-dark">
+          Please log in to access this section.
+        </div>
+      );
+    }
 
     const fetchCategories = async () => {
       try {
@@ -289,313 +317,362 @@ const MaintenanceSection = ({
     setCategoryToDelete(null);
   };
 
-  const handleDateChange = useCallback(
-    (newDate) => {
-      setSelectedDate(newDate);
-      if (onDateChange) onDateChange(newDate);
-      const newErrors = { ...errors };
-      if (!dayjs(newDate).isValid()) {
-        newErrors.selectedDate = "Please select a valid date.";
-      } else {
-        delete newErrors.selectedDate;
-      }
-      setErrors(newErrors);
-    },
-    [errors, onDateChange]
-  );
-
-  // Rest of the JSX remains unchanged
   return (
-    <div className={styles.rightContainer}>
-      <BackgroundContainer width="100%" height="100%" />
-      <div className={styles.maintenanceContainer}>
-        <div className={styles.rightHeader}>
-          {selectedPropertyName || "Select a Property"}
+    <div className="p-6 flex flex-col h-full">
+      <h2 className="text-2xl font-bold text-dark mb-4">
+        Maintenance Management
+      </h2>
+
+      <div className="text-dark font-semibold mb-4 grid grid-cols-2 py-3 px-4 bg-primary/10 rounded-t-lg mt-2">
+        {selectedPropertyName || "Select a Property"}
+      </div>
+
+      {errors.selectedPropertyName && (
+        <p className="text-primary mb-2 text-sm">
+          {errors.selectedPropertyName}
+        </p>
+      )}
+
+      {/* Main content area - arranged in two columns */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Left Column */}
+        <div>
+          {/* Category with Add button closer */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <OptionBar
+                  label="Category"
+                  placeholder="Maintenance Category"
+                  options={categories}
+                  onSelect={(value) => {
+                    setSelectedCategory(value);
+                    const newErrors = { ...errors };
+                    if (!value)
+                      newErrors.selectedCategory = "Category is required.";
+                    else delete newErrors.selectedCategory;
+                    setErrors(newErrors);
+                  }}
+                  onDelete={handleDeleteCategoryClick}
+                />
+              </div>
+              <Button
+                variant="contained"
+                startIcon={<AddCircleOutlineIcon />}
+                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-2 py-1 rounded-lg shadow-md transition-colors duration-300"
+                sx={{
+                  textTransform: "none",
+                  fontSize: "0.8rem",
+                  minWidth: "auto",
+                  marginTop: "1rem",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  "&:hover": {
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                  },
+                }}
+                onClick={() => setCategoryDialogOpen(true)}
+              >
+                Add
+              </Button>
+            </div>
+            {errors.selectedCategory && (
+              <p className="text-primary text-sm mt-1">
+                {errors.selectedCategory}
+              </p>
+            )}
+          </div>
+
+          {/* Company with Add button closer */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <OptionBar
+                  label="Company"
+                  placeholder="Maintenance Company"
+                  options={companies}
+                  onSelect={(value) => {
+                    setSelectedCompany(value);
+                    const newErrors = { ...errors };
+                    if (!value)
+                      newErrors.selectedCompany = "Company is required.";
+                    else delete newErrors.selectedCompany;
+                    setErrors(newErrors);
+                  }}
+                  onDelete={handleDeleteCompanyClick}
+                />
+              </div>
+              <Button
+                variant="contained"
+                startIcon={<AddCircleOutlineIcon />}
+                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-2 py-1 rounded-lg shadow-md transition-colors duration-300"
+                sx={{
+                  textTransform: "none",
+                  fontSize: "0.8rem",
+                  minWidth: "auto",
+                  marginTop: "1rem",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  "&:hover": {
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                  },
+                }}
+                onClick={() => setCompanyDialogOpen(true)}
+              >
+                Add
+              </Button>
+            </div>
+            {errors.selectedCompany && (
+              <p className="text-primary text-sm mt-1">
+                {errors.selectedCompany}
+              </p>
+            )}
+          </div>
+
+          {/* Maintenance Cost */}
+          <div className="mb-4">
+            <TextField
+              type="text"
+              inputMode="numeric"
+              value={maintenanceCost}
+              onChange={handleMaintenanceCostChange}
+              fullWidth
+              placeholder="Maintenance Cost"
+              error={!!errors.maintenanceCost}
+              helperText={errors.maintenanceCost}
+              className="bg-white rounded-lg"
+              size="small"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  "& fieldset": { borderColor: "#eccb34" },
+                  "&:hover fieldset": { borderColor: "#eccb34" },
+                  "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+                },
+                "& .MuiInputBase-input": { color: "#333333" },
+                "& .MuiFormHelperText-root": { color: "#eccb34", marginTop: 0 },
+              }}
+            />
+          </div>
+
+          {/* Maintenance Description */}
+          <div>
+            <TextField
+              type="text"
+              value={maintenanceDescription}
+              onChange={handleMaintenanceDescriptionChange}
+              multiline
+              rows={8}
+              fullWidth
+              placeholder="Maintenance Description"
+              className="bg-white rounded-lg"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  "& fieldset": { borderColor: "#eccb34" },
+                  "&:hover fieldset": { borderColor: "#eccb34" },
+                  "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+                },
+                "& .MuiInputBase-input": { color: "#333333" },
+              }}
+            />
+          </div>
         </div>
-        {errors.selectedPropertyName && (
-          <div style={{ color: "#eccb34", marginBottom: "10px" }}>
-            {errors.selectedPropertyName}
+
+        {/* Right Column */}
+        <div>
+          {/* Date Picker */}
+          <div className="mb-6">
+            <DatePicker value={selectedDate} onDateChange={handleDateChange} />
+            {errors.selectedDate && (
+              <p className="text-primary text-sm mt-1">{errors.selectedDate}</p>
+            )}
           </div>
-        )}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <OptionBar
-            label="Category"
-            placeholder="Maintenance Category"
-            options={categories}
-            onSelect={(value) => {
-              setSelectedCategory(value);
-              const newErrors = { ...errors };
-              if (!value) newErrors.selectedCategory = "Category is required.";
-              else delete newErrors.selectedCategory;
-              setErrors(newErrors);
-            }}
-            onDelete={handleDeleteCategoryClick}
-          />
-          <Button
-            variant="outlined"
-            startIcon={<AddCircleOutlineIcon />}
-            sx={{
-              color: "#eccb34",
-              borderColor: "#eccb34",
-              "&:hover": { borderColor: "#eccb34" },
-            }}
-            onClick={() => setCategoryDialogOpen(true)}
-          >
-            Add Category
-          </Button>
+
+          {/* Upload Files Button - Centered under calendar */}
+          <div className="flex justify-center mb-6">
+            <Button
+              component="label"
+              variant="contained"
+              startIcon={<CloudUploadIcon />}
+              className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium rounded-lg shadow-md transition-colors duration-300"
+              sx={{
+                textTransform: "none",
+                fontSize: "1rem",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                "&:hover": {
+                  boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                },
+                padding: "8px 16px",
+              }}
+            >
+              {isFileAttached ? "File Attached" : "Upload Files"}
+              <input
+                type="file"
+                hidden
+                onChange={(event) => {
+                  setFileAttached(event.target.files[0]);
+                  setIsFileAttached(true);
+                }}
+              />
+            </Button>
+          </div>
         </div>
-        {errors.selectedCategory && (
-          <div style={{ color: "#eccb34", marginBottom: "10px" }}>
-            {errors.selectedCategory}
-          </div>
-        )}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <OptionBar
-            label="Company"
-            placeholder="Maintenance Company"
-            options={companies}
-            onSelect={(value) => {
-              setSelectedCompany(value);
-              const newErrors = { ...errors };
-              if (!value) newErrors.selectedCompany = "Company is required.";
-              else delete newErrors.selectedCompany;
-              setErrors(newErrors);
-            }}
-            onDelete={handleDeleteCompanyClick}
-          />
-          <Button
-            variant="outlined"
-            startIcon={<AddCircleOutlineIcon />}
-            sx={{
-              color: "#eccb34",
-              borderColor: "#eccb34",
-              "&:hover": { borderColor: "#eccb34" },
-            }}
-            onClick={() => setCompanyDialogOpen(true)}
-          >
-            Add Company
-          </Button>
-        </div>
-        {errors.selectedCompany && (
-          <div style={{ color: "#eccb34", marginBottom: "10px" }}>
-            {errors.selectedCompany}
-          </div>
-        )}
-        <TextField
-          type="text"
-          inputMode="numeric"
-          value={maintenanceCost}
-          onChange={handleMaintenanceCostChange}
-          className={styles.maintenanceInput}
-          placeholder="Maintenance Cost"
-          error={!!errors.maintenanceCost}
-          helperText={errors.maintenanceCost}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              "& fieldset": { borderColor: "#eccb34" },
-              "&:hover fieldset": { borderColor: "#eccb34" },
-              "&.Mui-focused fieldset": { borderColor: "#eccb34" },
-            },
-            "& .MuiInputBase-input": { color: "#fafafa" },
-            "& .MuiFormHelperText-root": { color: "#eccb34" },
-          }}
-        />
-        <TextField
-          type="text"
-          value={maintenanceDescription}
-          onChange={handleMaintenanceDescriptionChange}
-          className={styles.maintenanceInput}
-          placeholder="Maintenance Description"
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              "& fieldset": { borderColor: "#eccb34" },
-              "&:hover fieldset": { borderColor: "#eccb34" },
-              "&.Mui-focused fieldset": { borderColor: "#eccb34" },
-            },
-            "& .MuiInputBase-input": { color: "#fafafa" },
-          }}
-        />
-        <DatePicker value={selectedDate} onDateChange={handleDateChange} />
-        {errors.selectedDate && (
-          <div style={{ color: "#eccb34", marginBottom: "10px" }}>
-            {errors.selectedDate}
-          </div>
-        )}
+      </div>
+
+      {/* Submit Maintenance Button - Centered at bottom */}
+      <div className="flex justify-center mt-8">
         <Button
-          component="label"
           variant="contained"
-          startIcon={<CloudUploadIcon />}
+          className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-8 py-3 rounded-lg shadow-md transition-colors duration-300"
           sx={{
-            color: "#fafafa",
-            borderColor: "#fafafa",
-            backgroundColor: "#eccb34",
-            "&:hover": { backgroundColor: "#eccb34", borderColor: "#fafafa" },
-          }}
-        >
-          Upload files
-          <input
-            type="file"
-            hidden
-            onChange={(event) => {
-              setFileAttached(event.target.files[0]);
-              setIsFileAttached(true);
-            }}
-          />
-        </Button>
-        <Button
-          variant="outlined"
-          sx={{
-            color: "#fafafa",
-            borderColor: "#fafafa",
-            backgroundColor: "#eccb34",
-            "&:hover": { backgroundColor: "#eccb34", borderColor: "#fafafa" },
+            textTransform: "none",
+            fontSize: "1.1rem",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            "&:hover": {
+              boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+            },
+            minWidth: "200px",
           }}
           onClick={handleMaintenanceSubmit}
         >
           Submit Maintenance
         </Button>
       </div>
+
+      {/* Dialogs remain the same */}
       <AddCompanyDialog
         open={companyDialogOpen}
         onClose={() => setCompanyDialogOpen(false)}
         onAddCompany={handleAddCompany}
       />
+
       <AddCategoryDialog
         open={categoryDialogOpen}
         onClose={() => setCategoryDialogOpen(false)}
         onAddCategory={handleAddCategory}
       />
+
       <Dialog
         open={deleteCompanyDialogOpen}
         onClose={handleDeleteCompanyCancel}
         PaperProps={{
           sx: {
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            borderRadius: "8px",
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
           },
         }}
       >
-        <DialogTitle sx={{ color: "#fafafa" }}>Confirm Deletion</DialogTitle>
+        <DialogTitle sx={{ color: "#333333" }}>Confirm Deletion</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: "#fafafa" }}>
-            Are you sure you want to delete the company "{companyToDelete}"?
-            This action cannot be undone.
+          <DialogContentText sx={{ color: "#333333" }}>
+            Are you sure you want to delete the company &quot;{companyToDelete}
+            &quot;? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button
             onClick={handleDeleteCompanyCancel}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-            }}
+            className="text-dark hover:bg-primary/5 transition-colors"
           >
             Cancel
           </Button>
           <Button
             onClick={handleDeleteCompanyConfirm}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
-            }}
+            className="bg-primary text-dark hover:bg-primary/80 transition-colors"
           >
             Delete
           </Button>
         </DialogActions>
       </Dialog>
+
       <Dialog
         open={deleteCategoryDialogOpen}
         onClose={handleDeleteCategoryCancel}
         PaperProps={{
           sx: {
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            borderRadius: "8px",
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
           },
         }}
       >
-        <DialogTitle sx={{ color: "#fafafa" }}>Confirm Deletion</DialogTitle>
+        <DialogTitle sx={{ color: "#333333" }}>Confirm Deletion</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: "#fafafa" }}>
-            Are you sure you want to delete the category "{categoryToDelete}"?
-            This action cannot be undone.
+          <DialogContentText sx={{ color: "#333333" }}>
+            Are you sure you want to delete the category &quot;
+            {categoryToDelete}&quot;? This action cannot be undone.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button
             onClick={handleDeleteCategoryCancel}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-            }}
+            className="text-dark hover:bg-primary/5 transition-colors"
           >
             Cancel
           </Button>
           <Button
             onClick={handleDeleteCategoryConfirm}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
-            }}
+            className="bg-primary text-dark hover:bg-primary/80 transition-colors"
           >
             Delete
           </Button>
         </DialogActions>
       </Dialog>
+
       <Dialog
         open={successDialogOpen}
         onClose={() => setSuccessDialogOpen(false)}
         PaperProps={{
           sx: {
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            borderRadius: "8px",
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
           },
         }}
       >
-        <DialogTitle sx={{ color: "#fafafa" }}>Success</DialogTitle>
+        <DialogTitle sx={{ color: "#333333" }}>
+          <span className="flex items-center">
+            <span className="text-primary mr-2">✓</span> Success
+          </span>
+        </DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: "#fafafa" }}>
+          <DialogContentText sx={{ color: "#333333" }}>
             Maintenance request submitted successfully!
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button
             onClick={() => setSuccessDialogOpen(false)}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-            }}
+            className="bg-primary text-dark hover:bg-primary/80 transition-colors"
           >
             Close
           </Button>
         </DialogActions>
       </Dialog>
+
       <Dialog
         open={errorDialogOpen}
         onClose={() => setErrorDialogOpen(false)}
         PaperProps={{
           sx: {
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            borderRadius: "8px",
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
           },
         }}
       >
-        <DialogTitle sx={{ color: "#fafafa" }}>Error</DialogTitle>
+        <DialogTitle sx={{ color: "#333333" }}>Error</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: "#fafafa" }}>
+          <DialogContentText sx={{ color: "#333333" }}>
             {errorMessage}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button
             onClick={() => setErrorDialogOpen(false)}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-            }}
+            className="bg-primary text-dark hover:bg-primary/80 transition-colors"
           >
             Close
           </Button>
