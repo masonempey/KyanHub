@@ -242,8 +242,20 @@ const AddPage = () => {
         if (!response.ok) {
           throw new Error(`Failed to fetch amounts: ${await response.text()}`);
         }
-        const data = await response.json();
-        setAmounts(data.map((item) => item.quantity.toString()));
+        const inventoryData = await response.json();
+
+        // Create a mapping of product_id to quantity
+        const inventoryMap = inventoryData.reduce((map, item) => {
+          map[item.product_id] = item.quantity;
+          return map;
+        }, {});
+
+        // Map quantities to products based on ID
+        const newAmounts = products.map((product) =>
+          (inventoryMap[product.id] || 0).toString()
+        );
+
+        setAmounts(newAmounts);
       } catch (error) {
         console.error("Error fetching amounts:", error);
         setErrorMessage("Failed to fetch amounts");
@@ -254,7 +266,7 @@ const AddPage = () => {
     };
 
     fetchAmounts();
-  }, [propertyId, currentMonth, user]);
+  }, [propertyId, currentMonth, user, products]); // Add products as dependency
 
   const setCurrentMonthYear = (month) => {
     const currentYear = new Date().getFullYear();

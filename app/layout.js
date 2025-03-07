@@ -1,6 +1,6 @@
 // In app/layout.js
 import { Lato } from "next/font/google";
-import "@/app/styles/globals.css";
+import "./globals.css";
 import { UserProvider } from "@/contexts/UserContext";
 import { PropertyProvider } from "@/contexts/PropertyContext";
 import RootLayoutClient from "./components/RootLayoutClient";
