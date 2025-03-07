@@ -7,21 +7,6 @@ import Select from "@mui/material/Select";
 import InputLabel from "@mui/material/InputLabel";
 import Box from "@mui/material/Box";
 
-const menuProps = {
-  PaperProps: {
-    sx: {
-      backgroundColor: "#eccb34",
-      color: "#fafafa",
-      "& .MuiMenuItem-root": {
-        color: "#fafafa",
-      },
-      "& .MuiMenuItem-root:hover": {
-        backgroundColor: "#d9b51f",
-      },
-    },
-  },
-};
-
 const PropertyFilterBar = ({
   properties = {},
   loading = false,
@@ -45,54 +30,21 @@ const PropertyFilterBar = ({
   const handleChange = (event) => {
     const selectedId = event.target.value;
     const propertyName = properties[selectedId];
-    console.log("Selected in PropertyFilterBar:", {
-      id: selectedId,
-      name: propertyName,
-    });
-
     setProperty(selectedId);
     if (typeof onPropertySelect === "function") {
       onPropertySelect(selectedId, propertyName);
     }
   };
 
-  const handleFocus = () => {
-    setLabel("Properties");
-  };
-
-  const handleBlur = () => {
-    if (!property) {
-      setLabel("Search All Properties");
-    }
-  };
-
   return (
     <Box>
-      <FormControl
-        sx={{
-          m: 1,
-          minWidth: 300,
-          backgroundColor: "#eccb34", // Yellow background
-          color: "#fafafa", // White text
-          borderColor: "#fafafa", // White border
-          borderRadius: "8px", // Match OptionBar's border radius
-          opacity: 0.9,
-        }}
-        size="large"
-      >
+      <FormControl fullWidth size="large">
         <InputLabel
           id="property-select-label"
           sx={{
-            color: "#fafafa", // White label
-            opacity: 0.9,
-            "&:hover": {
-              color: "#fafafa", // Keep white on hover
-              backgroundColor: "transparent", // Remove any background hover effect
-            },
-            "&.Mui-focused": {
-              color: "#fafafa", // Keep white when focused
-              backgroundColor: "transparent", // Remove any background focus effect
-            },
+            color: "#333333", // 'dark'
+            "&.Mui-focused": { color: "#333333" }, // Keep 'dark' when focused
+            "&:hover": { color: "#333333" }, // Keep 'dark' on hover
           }}
         >
           {label}
@@ -103,31 +55,28 @@ const PropertyFilterBar = ({
           value={property}
           label="Property"
           onChange={handleChange}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
           disabled={loading}
           sx={{
-            borderRadius: "8px",
-            color: "#fafafa", // White text for selected option
-            backgroundColor: "#eccb34", // Yellow background
-            borderColor: "#fafafa", // White border
             "& .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#fafafa", // White border outline
+              borderColor: "#333333", // 'dark'
             },
             "&:hover .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#fafafa", // White border on hover
+              borderColor: "#333333", // 'dark' on hover
             },
             "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-              borderColor: "#fafafa", // White border when focused
+              borderColor: "#333333", // 'dark' when focused
             },
-            "& .MuiSvgIcon-root": {
-              color: "#fafafa", // White dropdown arrow
-            },
+            color: "#333333", // 'dark'
+            backgroundColor: "white",
+            borderRadius: "8px",
           }}
-          MenuProps={menuProps} // Apply custom styles to the dropdown menu
         >
           {Object.entries(properties).map(([uid, name]) => (
-            <MenuItem key={uid} value={uid}>
+            <MenuItem
+              key={uid}
+              value={uid}
+              sx={{ color: "#333333" }} // 'dark'
+            >
               {name}
             </MenuItem>
           ))}

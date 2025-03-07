@@ -183,242 +183,252 @@ const ReportsPage = () => {
     return <div>Please log in to access this page.</div>;
   }
 
+  if (userLoading || propertiesLoading || isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <CircularProgress sx={{ color: "#eccb34" }} />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <div>Please log in to access this page.</div>;
+  }
+
   return (
     <AdminProtected>
-      <div className={styles.DashboardContainer}>
-        <BackgroundContainer width="100%" height="100%" zIndex={0} />
-        <div className={styles.topNav}>
-          <Typography variant="h4" sx={{ color: "#eccb34", mb: 2, zIndex: 10 }}>
-            Search for Bookings
-          </Typography>
-          <div className={styles.filterBarContainer}>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <div style={{ display: "flex", gap: "16px", zIndex: 10 }}>
-                <DatePicker
-                  label="Start Date"
-                  value={startDate}
-                  onChange={handleStartDateChange}
-                  sx={{
-                    "& .MuiInputBase-root": {
-                      color: "#eccb34",
-                      backgroundColor: "#fafafa",
-                    },
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#eccb34",
-                    },
-                    "&:hover .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#eccb34",
-                    },
-                    "& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline":
-                      {
-                        borderColor: "#eccb34",
-                      },
-                    "& .MuiInputLabel-root": { color: "#eccb34" },
-                    "& .MuiInputLabel-root.Mui-focused": { color: "#eccb34" },
-                    "& .MuiSvgIcon-root": {
-                      color: "#eccb34",
-                    },
-                    "& .MuiPickersPopper-root": {
-                      "& .MuiPaper-root": {
-                        backgroundColor: "#eccb34",
-                        "& .MuiPickersCalendar-root": {
-                          "& .MuiTypography-root": { color: "#fafafa" },
-                          "& .Mui-selected": {
-                            color: "#eccb34",
-                            backgroundColor: "#fafafa",
-                          },
-                          "& .MuiPickersDay-root": {
-                            color: "#fafafa",
-                            "&:hover": {
-                              backgroundColor: "rgba(250, 250, 250, 0.2)",
-                            },
-                          },
-                        },
-                      },
-                    },
-                    zIndex: 10,
-                  }}
-                />
-                <DatePicker
-                  label="End Date"
-                  value={endDate}
-                  onChange={handleEndDateChange}
-                  sx={{
-                    "& .MuiInputBase-root": {
-                      color: "#eccb34",
-                      backgroundColor: "#fafafa",
-                    },
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#eccb34",
-                    },
-                    "&:hover .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#eccb34",
-                    },
-                    "& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline":
-                      {
-                        borderColor: "#eccb34",
-                      },
-                    "& .MuiInputLabel-root": { color: "#eccb34" },
-                    "& .MuiInputLabel-root.Mui-focused": { color: "#eccb34" },
-                    "& .MuiSvgIcon-root": {
-                      color: "#eccb34",
-                    },
-                    "& .MuiPickersPopper-root": {
-                      "& .MuiPaper-root": {
-                        backgroundColor: "#eccb34",
-                        "& .MuiPickersCalendar-root": {
-                          "& .MuiTypography-root": { color: "#fafafa" },
-                          "& .Mui-selected": {
-                            color: "#eccb34",
-                            backgroundColor: "#fafafa",
-                          },
-                          "& .MuiPickersDay-root": {
-                            color: "#fafafa",
-                            "&:hover": {
-                              backgroundColor: "rgba(250, 250, 250, 0.2)",
-                            },
-                          },
-                        },
-                      },
-                    },
-                    zIndex: 10,
-                  }}
-                  renderInput={(params) => <TextField {...params} />}
-                />
-              </div>
-            </LocalizationProvider>
-            {errors.dateRange && (
-              <Typography sx={{ color: "#eccb34", mt: 1, zIndex: 10 }}>
-                {errors.dateRange}
-              </Typography>
-            )}
-          </div>
-        </div>
-        <div className={styles.viewContainer}>
-          <div className={styles.smallRevenueContainer}>
-            {loading ? (
-              <CircularProgress sx={{ color: "#eccb34", zIndex: 10 }} />
-            ) : bookings.length > 0 ? (
-              <>
-                <Button
-                  variant="contained"
-                  onClick={handleUpdateRevenue}
-                  disabled={updating}
-                  sx={{
-                    backgroundColor: "#eccb34",
-                    color: "#fafafa",
-                    "&:hover": { backgroundColor: "#fafafa", color: "#eccb34" },
-                    mt: 2,
-                    mb: 2,
-                    width: "200px",
-                    zIndex: 10,
-                  }}
-                >
-                  {updating ? (
-                    <CircularProgress size={24} sx={{ color: "#eccb34" }} />
-                  ) : (
-                    "Update Revenue Sheet"
-                  )}
-                </Button>
-                {updateStatus && (
-                  <Alert
-                    severity={
-                      updateStatus.includes("Error") ? "error" : "success"
-                    }
-                    sx={{
-                      backgroundColor: updateStatus.includes("Error")
-                        ? "#ffebee"
-                        : "#fff8e1",
-                      color: updateStatus.includes("Error")
-                        ? "#d32f2f"
-                        : "#eccb34",
-                      mb: 2,
-                      zIndex: 10,
-                    }}
-                  >
-                    {updateStatus}
-                  </Alert>
-                )}
-                <div className={styles.bookingsGrid}>
-                  {bookings.map((booking) => (
-                    <BookingCard
-                      key={`${booking.bookingCode}-${booking.guestUid}`}
-                      booking={booking}
-                    />
-                  ))}
+      <div className="flex flex-col h-full w-full p-6 bg-transparent">
+        <div className="flex flex-col lg:flex-row w-full h-full gap-6">
+          {/* Main Content Area */}
+          <div className="flex-1 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm overflow-hidden border border-primary/10">
+            <div className="p-6 flex flex-col h-full">
+              {/* Header */}
+              <h2 className="text-2xl font-bold text-dark mb-6">
+                Booking Reports
+              </h2>
+
+              {/* Date Selection with improved layout */}
+              <div className="mb-6">
+                <div className="grid grid-cols-2 py-3 px-4 bg-primary/10 rounded-t-lg text-dark font-semibold">
+                  <span>Date Range</span>
+                  <span className="text-right">
+                    {selectedPropertyName || "Select a property"}
+                  </span>
                 </div>
-              </>
-            ) : (
-              <Typography sx={{ color: "#eccb34", zIndex: 10 }}>
-                No bookings found
-              </Typography>
-            )}
+
+                <div className="bg-secondary/80 rounded-b-lg p-4 border border-primary/10">
+                  <LocalizationProvider dateAdapter={AdapterDayjs}>
+                    {/* Organized date picker section */}
+                    <div className="flex flex-col space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-dark mb-1 ml-1">
+                            Start Date
+                          </label>
+                          <DatePicker
+                            value={startDate}
+                            onChange={handleStartDateChange}
+                            className="bg-white rounded-lg border border-primary/30 w-full"
+                            slotProps={{
+                              textField: {
+                                size: "small",
+                                fullWidth: true,
+                                sx: {
+                                  "& .MuiOutlinedInput-root": {
+                                    "& fieldset": { borderColor: "#eccb34" },
+                                    "&:hover fieldset": {
+                                      borderColor: "#eccb34",
+                                    },
+                                    "&.Mui-focused fieldset": {
+                                      borderColor: "#eccb34",
+                                    },
+                                  },
+                                },
+                              },
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-dark mb-1 ml-1">
+                            End Date
+                          </label>
+                          <DatePicker
+                            value={endDate}
+                            onChange={handleEndDateChange}
+                            className="bg-white rounded-lg border border-primary/30 w-full"
+                            slotProps={{
+                              textField: {
+                                size: "small",
+                                fullWidth: true,
+                                sx: {
+                                  "& .MuiOutlinedInput-root": {
+                                    "& fieldset": { borderColor: "#eccb34" },
+                                    "&:hover fieldset": {
+                                      borderColor: "#eccb34",
+                                    },
+                                    "&.Mui-focused fieldset": {
+                                      borderColor: "#eccb34",
+                                    },
+                                  },
+                                },
+                              },
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {errors.dateRange && (
+                        <p className="text-primary text-sm mt-1">
+                          {errors.dateRange}
+                        </p>
+                      )}
+
+                      {/* Separate button section with proper alignment */}
+                      <div className="flex justify-end mt-2">
+                        <Button
+                          variant="contained"
+                          onClick={handleUpdateRevenue}
+                          disabled={updating || !bookings.length}
+                          className={`bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-6 py-2 rounded-lg shadow-md transition-colors duration-300 ${
+                            !bookings.length
+                              ? "opacity-50 cursor-not-allowed"
+                              : ""
+                          }`}
+                          sx={{
+                            textTransform: "none",
+                            fontSize: "1rem",
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                            "&:hover": {
+                              boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                            },
+                          }}
+                        >
+                          {updating ? (
+                            <span className="flex items-center">
+                              <CircularProgress
+                                size={20}
+                                sx={{ color: "#333333", mr: 1 }}
+                              />
+                              Updating...
+                            </span>
+                          ) : (
+                            "Update Revenue Sheet"
+                          )}
+                        </Button>
+                      </div>
+
+                      {/* Status message in its own section */}
+                      {updateStatus && (
+                        <div
+                          className={`mt-4 p-2 rounded-lg border ${
+                            updateStatus.includes("Error")
+                              ? "border-red-500 bg-red-100"
+                              : "border-primary bg-primary/10"
+                          }`}
+                        >
+                          <p
+                            className={
+                              updateStatus.includes("Error")
+                                ? "text-red-600"
+                                : "text-dark"
+                            }
+                          >
+                            {updateStatus}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </LocalizationProvider>
+                </div>
+              </div>
+
+              {/* Bookings Section */}
+              <div className="grid grid-cols-2 py-3 px-4 bg-primary/10 rounded-t-lg text-dark font-semibold">
+                <span>Bookings</span>
+                <span className="text-right">Total: {bookings.length}</span>
+              </div>
+
+              <div className="flex-1 overflow-y-auto bg-secondary/80 rounded-b-lg mb-6 border border-primary/10 p-4">
+                {loading ? (
+                  <div className="flex items-center justify-center h-40">
+                    <CircularProgress sx={{ color: "#eccb34" }} />
+                  </div>
+                ) : bookings.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {bookings.map((booking) => (
+                      <BookingCard
+                        key={`${booking.bookingCode}-${booking.guestUid}`}
+                        booking={booking}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-40">
+                    <p className="text-dark text-lg">No bookings found</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Dialogs */}
         <Dialog
           open={confirmDialogOpen}
           onClose={() => setConfirmDialogOpen(false)}
           PaperProps={{
             sx: {
-              backgroundColor: "#eccb34",
-              color: "#fafafa",
-              borderRadius: "8px",
-              zIndex: 20,
+              backgroundColor: "#fafafa",
+              color: "#333333",
+              borderRadius: "12px",
+              border: "1px solid rgba(236, 203, 52, 0.2)",
             },
           }}
         >
-          <DialogTitle sx={{ color: "#fafafa" }}>Confirm Update</DialogTitle>
+          <DialogTitle sx={{ color: "#333333" }}>Confirm Update</DialogTitle>
           <DialogContent>
-            <DialogContentText sx={{ color: "#fafafa" }}>
+            <DialogContentText sx={{ color: "#333333" }}>
               Are you sure you want to update the revenue sheet?
             </DialogContentText>
           </DialogContent>
           <DialogActions>
             <Button
               onClick={() => setConfirmDialogOpen(false)}
-              sx={{
-                color: "#fafafa",
-                "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-              }}
+              className="text-dark hover:bg-primary/5 transition-colors"
             >
               Cancel
             </Button>
             <Button
               onClick={handleConfirmUpdate}
-              sx={{
-                color: "#fafafa",
-                "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
-              }}
+              className="bg-primary text-dark hover:bg-primary/80 transition-colors"
             >
               Confirm
             </Button>
           </DialogActions>
         </Dialog>
+
         <Dialog
           open={errorDialogOpen}
           onClose={() => setErrorDialogOpen(false)}
           PaperProps={{
             sx: {
-              backgroundColor: "#eccb34",
-              color: "#fafafa",
-              borderRadius: "8px",
-              zIndex: 20,
+              backgroundColor: "#fafafa",
+              color: "#333333",
+              borderRadius: "12px",
+              border: "1px solid rgba(236, 203, 52, 0.2)",
             },
           }}
         >
-          <DialogTitle sx={{ color: "#fafafa" }}>Error</DialogTitle>
+          <DialogTitle sx={{ color: "#333333" }}>Error</DialogTitle>
           <DialogContent>
-            <DialogContentText sx={{ color: "#fafafa" }}>
+            <DialogContentText sx={{ color: "#333333" }}>
               {errorMessage}
             </DialogContentText>
           </DialogContent>
           <DialogActions>
             <Button
               onClick={() => setErrorDialogOpen(false)}
-              sx={{
-                color: "#fafafa",
-                "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-              }}
+              className="bg-primary text-dark hover:bg-primary/80 transition-colors"
             >
               Close
             </Button>

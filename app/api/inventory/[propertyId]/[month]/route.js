@@ -5,7 +5,8 @@ const InventoryService = require("@/lib/services/inventoryService");
 // For fetching inventory
 export async function GET(request, { params }) {
   try {
-    const { propertyId, month } = params;
+    const resolvedParams = await params;
+    const { propertyId, month } = resolvedParams;
 
     console.log("Fetching inventory:", { propertyId, month });
 

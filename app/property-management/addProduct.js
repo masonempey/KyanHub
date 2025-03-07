@@ -8,6 +8,7 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Box from "@mui/material/Box";
+import AddIcon from "@mui/icons-material/Add";
 
 const AddProduct = ({ onAddProduct }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -15,6 +16,7 @@ const AddProduct = ({ onAddProduct }) => {
   const [productPrice, setProductPrice] = useState("");
   const [errors, setErrors] = useState({});
 
+  // Handlers remain unchanged
   const handleProductChange = (event) => {
     const value = event.target.value;
     setProductName(value);
@@ -85,34 +87,40 @@ const AddProduct = ({ onAddProduct }) => {
   return (
     <Box>
       <Button
-        variant="outlined"
+        variant="contained"
         onClick={handleAddClick}
+        startIcon={<AddIcon />}
+        className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
         sx={{
-          mt: 2,
-          color: "#eccb34",
-          borderColor: "#eccb34",
-          backgroundColor: "transparent",
-          "&:hover": { borderColor: "#eccb34" },
-          marginBottom: "1rem",
+          textTransform: "none",
+          fontSize: "1rem",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          "&:hover": {
+            boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+          },
         }}
       >
         Add Product
       </Button>
+
       <Dialog
         open={dialogOpen}
         onClose={handleCancel}
-        aria-labelledby="add-dialog-title"
         PaperProps={{
           sx: {
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            borderRadius: "8px",
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
           },
         }}
       >
-        <DialogTitle id="add-dialog-title" sx={{ color: "#fafafa" }}>
-          Add New Product
+        <DialogTitle>
+          <span className="text-dark flex items-center">
+            <span className="text-primary mr-2">+</span> Add New Product
+          </span>
         </DialogTitle>
+
         <DialogContent>
           <TextField
             placeholder="Enter product name"
@@ -124,21 +132,18 @@ const AddProduct = ({ onAddProduct }) => {
             helperText={errors.productName}
             sx={{
               "& .MuiOutlinedInput-root": {
-                backgroundColor: "#eccb34",
-                color: "#fafafa",
-                "& fieldset": { borderColor: "#fafafa" },
-                "&:hover fieldset": { borderColor: "#fafafa" },
-                "&.Mui-focused fieldset": { borderColor: "#fafafa" },
+                backgroundColor: "#ffffff",
+                "& fieldset": { borderColor: "#eccb34" },
+                "&:hover fieldset": { borderColor: "#eccb34" },
+                "&.Mui-focused fieldset": { borderColor: "#eccb34" },
               },
-              "& .MuiInputBase-input": { color: "#fafafa" },
-              "& .MuiInputBase-input::placeholder": {
-                color: "#fafafa",
-                opacity: 1,
-              },
-              "& .MuiFormHelperText-root": { color: "#fafafa" },
+              "& .MuiInputBase-input": { color: "#333333" },
+              "& .MuiFormHelperText-root": { color: "#eccb34" },
               mb: 2,
+              mt: 1,
             }}
           />
+
           <TextField
             placeholder="Enter product price"
             variant="outlined"
@@ -149,36 +154,33 @@ const AddProduct = ({ onAddProduct }) => {
             helperText={errors.productPrice}
             sx={{
               "& .MuiOutlinedInput-root": {
-                backgroundColor: "#eccb34",
-                color: "#fafafa",
-                "& fieldset": { borderColor: "#fafafa" },
-                "&:hover fieldset": { borderColor: "#fafafa" },
-                "&.Mui-focused fieldset": { borderColor: "#fafafa" },
+                backgroundColor: "#ffffff",
+                "& fieldset": { borderColor: "#eccb34" },
+                "&:hover fieldset": { borderColor: "#eccb34" },
+                "&.Mui-focused fieldset": { borderColor: "#eccb34" },
               },
-              "& .MuiInputBase-input": { color: "#fafafa" },
-              "& .MuiInputBase-input::placeholder": {
-                color: "#fafafa",
-                opacity: 1,
-              },
-              "& .MuiFormHelperText-root": { color: "#fafafa" },
+              "& .MuiInputBase-input": { color: "#333333" },
+              "& .MuiFormHelperText-root": { color: "#eccb34" },
             }}
           />
         </DialogContent>
+
         <DialogActions>
           <Button
             onClick={handleCancel}
-            sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(250, 250, 250, 0.1)" },
-            }}
+            className="text-dark hover:bg-primary/5"
           >
             Cancel
           </Button>
           <Button
             onClick={handleConfirmAdd}
+            className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-4 py-1 rounded-lg shadow-md transition-colors duration-300"
             sx={{
-              color: "#fafafa",
-              "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
+              textTransform: "none",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              "&:hover": {
+                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+              },
             }}
           >
             Add
