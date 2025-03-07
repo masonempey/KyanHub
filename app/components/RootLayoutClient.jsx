@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import SideBar from "./SideBar";
+import SideBar from "./sideBar";
 import TopNav from "./TopNav";
 import { useProperties } from "../../contexts/PropertyContext";
 
