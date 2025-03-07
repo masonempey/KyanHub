@@ -1,9 +1,7 @@
 "use client";
 
-import styles from "./addPage.module.css";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import BackgroundContainer from "../components/backgroundContainer";
 import Button from "@mui/material/Button";
 import { useProperties } from "../../contexts/PropertyContext";
 import PdfSection from "./pdfSection";
@@ -15,10 +13,12 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
 import MaintenanceSection from "./MaintenanceSection";
 import { useUser } from "../../contexts/UserContext";
-import fetchWithAuth from "@/lib/fetchWithAuth"; // Corrected import path
+import fetchWithAuth from "@/lib/fetchWithAuth";
 import CircularProgress from "@mui/material/CircularProgress";
+import TextField from "@mui/material/TextField";
 import AdminProtected from "@/app/components/AdminProtected";
 
 const AddPage = () => {
@@ -39,6 +39,10 @@ const AddPage = () => {
   const [amounts, setAmounts] = useState([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [productToEdit, setProductToEdit] = useState(null);
+  const [editedProductName, setEditedProductName] = useState("");
+  const [editedProductPrice, setEditedProductPrice] = useState("");
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -181,6 +185,66 @@ const AddPage = () => {
   const handleDeleteCancel = () => {
     setDeleteDialogOpen(false);
     setProductToDelete(null);
+  };
+
+  const handleEditClick = (product) => {
+    setProductToEdit(product);
+    setEditedProductName(product.name);
+    setEditedProductPrice(product.price);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditConfirm = async () => {
+    if (!productToEdit || !editedProductName.trim()) return;
+
+    setIsLoading(true);
+    try {
+      const response = await fetchWithAuth(`/api/inventory/products`, {
+        method: "PUT",
+        body: JSON.stringify({
+          productId: productToEdit.id,
+          name: editedProductName.trim(),
+          price: editedProductPrice ? parseFloat(editedProductPrice) : null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update product: ${await response.text()}`);
+      }
+
+      // Update the product in the local state
+      setProducts(
+        products.map((p) =>
+          p.id === productToEdit.id
+            ? {
+                ...p,
+                name: editedProductName.trim(),
+                price: editedProductPrice
+                  ? parseFloat(editedProductPrice)
+                  : null,
+              }
+            : p
+        )
+      );
+
+      setEditDialogOpen(false);
+      setProductToEdit(null);
+      setEditedProductName("");
+      setEditedProductPrice("");
+    } catch (error) {
+      console.error("Error updating product:", error);
+      setErrorMessage(error.message || "Failed to update product");
+      setErrorDialogOpen(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditCancel = () => {
+    setEditDialogOpen(false);
+    setProductToEdit(null);
+    setEditedProductName("");
+    setEditedProductPrice("");
   };
 
   const handleAddProductConfirm = async (productData) => {
@@ -326,15 +390,32 @@ const AddPage = () => {
                     className="grid grid-cols-2 py-3 px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors"
                   >
                     <div className="flex items-center">
-                      <span className="text-dark">{product.name}</span>
-                      <IconButton
-                        aria-label={`delete ${product.name}`}
-                        onClick={() => handleDeleteClick(product)}
-                        className="ml-2 text-dark hover:text-primary transition-colors"
-                        size="small"
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
+                      <div className="flex flex-col">
+                        <span className="text-dark">{product.name}</span>
+                        {product.price && (
+                          <span className="text-dark/70 text-xs">
+                            ${parseFloat(product.price).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex ml-2">
+                        <IconButton
+                          aria-label={`edit ${product.name}`}
+                          onClick={() => handleEditClick(product)}
+                          className="text-dark hover:text-primary transition-colors"
+                          size="small"
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          aria-label={`delete ${product.name}`}
+                          onClick={() => handleDeleteClick(product)}
+                          className="text-dark hover:text-primary transition-colors"
+                          size="small"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </div>
                     </div>
                     <div className="flex flex-col items-end">
                       <input
@@ -491,6 +572,82 @@ const AddPage = () => {
               className="bg-primary text-dark hover:bg-primary/80 transition-colors"
             >
               Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+        {/* Edit Product Dialog */}
+        <Dialog
+          open={editDialogOpen}
+          onClose={handleEditCancel}
+          PaperProps={{
+            sx: {
+              backgroundColor: "#fafafa",
+              color: "#333333",
+              borderRadius: "12px",
+              border: "1px solid rgba(236, 203, 52, 0.2)",
+            },
+          }}
+        >
+          <DialogTitle sx={{ color: "#333333" }}>Edit Product</DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ color: "#333333", mb: 2 }}>
+              Update the product information below.
+            </DialogContentText>
+            <div className="flex flex-col gap-4">
+              <TextField
+                autoFocus
+                margin="dense"
+                label="Product Name"
+                type="text"
+                fullWidth
+                value={editedProductName}
+                onChange={(e) => setEditedProductName(e.target.value)}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    "& fieldset": { borderColor: "#eccb34" },
+                    "&:hover fieldset": { borderColor: "#eccb34" },
+                    "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+                  },
+                  "& .MuiInputBase-input": { color: "#333333" },
+                  "& .MuiInputLabel-root": { color: "#333333" },
+                }}
+              />
+              <TextField
+                margin="dense"
+                label="Price (optional)"
+                type="number"
+                inputProps={{
+                  step: "0.01",
+                  min: "0",
+                }}
+                fullWidth
+                value={editedProductPrice}
+                onChange={(e) => setEditedProductPrice(e.target.value)}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    "& fieldset": { borderColor: "#eccb34" },
+                    "&:hover fieldset": { borderColor: "#eccb34" },
+                    "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+                  },
+                  "& .MuiInputBase-input": { color: "#333333" },
+                  "& .MuiInputLabel-root": { color: "#333333" },
+                }}
+              />
+            </div>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={handleEditCancel}
+              className="text-dark hover:bg-primary/5 transition-colors"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditConfirm}
+              disabled={!editedProductName.trim()}
+              className="bg-primary text-dark hover:bg-primary/80 transition-colors"
+            >
+              Save Changes
             </Button>
           </DialogActions>
         </Dialog>

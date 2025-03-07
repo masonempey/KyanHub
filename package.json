@@ -4,7 +4,7 @@
   "description": "KyanHub - Property Management Dashboard",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node --trace-deprecation node_modules/next/dist/bin/next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -20,7 +20,6 @@
     "@mui/styled-engine-sc": "^5.8.6",
     "@mui/system": "^5.8.6",
     "@mui/x-date-pickers": "^7.27.0",
-    "@next/font": "^14.2.15",
     "axios": "^1.8.0",
     "dayjs": "^1.11.7",
     "dotenv": "^16.4.7",
@@ -44,13 +43,13 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "autoprefixer": "^10.4.15",
+    "autoprefixer": "^10.4.20",
     "css-loader": "^7.1.2",
     "eslint": "^9",
     "eslint-config-next": "15.1.5",
-    "postcss": "^8.4.31",
+    "postcss": "^8.5.3",
     "style-loader": "^4.0.0",
-    "tailwindcss": "^3.3.3"
+    "tailwindcss": "^3.4.17"
   },
   "engines": {
     "node": ">=18.0.0"
