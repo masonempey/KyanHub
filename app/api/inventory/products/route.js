@@ -39,6 +39,41 @@ export async function POST(request) {
   }
 }
 
+export async function PUT(request) {
+  try {
+    const { name, price, productId } = await request.json();
+    if (!name || !price || isNaN(price) || !productId) {
+      return new Response("Name, price, and productId are required", {
+        status: 400,
+      });
+    }
+
+    const updatedProduct = await InventoryService.updateProduct(
+      productId,
+      name,
+      price
+    );
+
+    if (!updatedProduct) {
+      return new Response(JSON.stringify({ error: "Product not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify(updatedProduct), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Error updating product:", error);
+    return new Response(JSON.stringify({ error: "Failed to update product" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
 export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
