@@ -1,6 +1,6 @@
 import React from "react";
 import FilterBar from "./PropertyFilterBar";
-import MonthSelection from "./monthSelection";
+import MonthSelection from "./MonthSelection";
 import { Button } from "@mui/material";
 import { useUser } from "../../contexts/UserContext";
 

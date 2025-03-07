@@ -1,6 +1,5 @@
 "use client";
 
-import styles from "./addPage.module.css";
 import { useState, useEffect, useCallback } from "react";
 import Button from "@mui/material/Button";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
@@ -11,11 +10,10 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
-import OptionBar from "../components/optionBar";
-import DatePicker from "../components/datePicker";
+import OptionBar from "../components/OptionBar";
+import DatePicker from "../components/DatePicker";
 import AddCompanyDialog from "../components/AddCompanyDialog";
 import AddCategoryDialog from "../components/AddCategoryDialog";
-import BackgroundContainer from "../components/backgroundContainer";
 import dayjs from "dayjs";
 import { useUser } from "@/contexts/UserContext";
 import fetchWithAuth from "@/lib/fetchWithAuth";
