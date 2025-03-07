@@ -14,12 +14,45 @@ import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
+import DragHandleIcon from "@mui/icons-material/DragHandle"; // New drag handle icon
 import MaintenanceSection from "./MaintenanceSection";
 import { useUser } from "../../contexts/UserContext";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import AdminProtected from "@/app/components/AdminProtected";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+const SortableItem = ({ id, children }) => {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children(listeners)} {/* Pass listeners to children for drag handle */}
+    </div>
+  );
+};
 
 const AddPage = () => {
   const router = useRouter();
@@ -43,11 +76,19 @@ const AddPage = () => {
   const [productToEdit, setProductToEdit] = useState(null);
   const [editedProductName, setEditedProductName] = useState("");
   const [editedProductPrice, setEditedProductPrice] = useState("");
+  const [editedRealPrice, setEditedRealPrice] = useState("");
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   useEffect(() => {
     const excludedProperties = [
@@ -95,7 +136,6 @@ const AddPage = () => {
   };
 
   const handleUpdateInventory = async () => {
-    console.log("THE MONTH: ", currentMonth);
     const newErrors = validateInputs();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -110,8 +150,6 @@ const AddPage = () => {
           quantity: Number(amounts[i] || 0),
         }))
         .filter((update) => update.quantity >= 0);
-
-      console.log("UPDATES: ", updates);
 
       const updatePromises = updates.map((update) =>
         fetchWithAuth(`/api/inventory/update`, {
@@ -153,7 +191,7 @@ const AddPage = () => {
     setIsLoading(true);
     try {
       const response = await fetchWithAuth(
-        `/api/inventory/products?productId=${productToDelete.id}`, // Adjusted to query param as per earlier route
+        `/api/inventory/products?productId=${productToDelete.id}`,
         { method: "DELETE" }
       );
 
@@ -165,12 +203,13 @@ const AddPage = () => {
         );
       }
 
-      setProducts(products.filter((p) => p.id !== productToDelete.id));
-      setAmounts(
-        amounts.filter(
-          (_, i) => i !== products.findIndex((p) => p.id === productToDelete.id)
-        )
+      const productIndex = products.findIndex(
+        (p) => p.id === productToDelete.id
       );
+      const newProducts = products.filter((p) => p.id !== productToDelete.id);
+      const newAmounts = amounts.filter((_, i) => i !== productIndex);
+      setProducts(newProducts);
+      setAmounts(newAmounts);
       setDeleteDialogOpen(false);
       setProductToDelete(null);
     } catch (error) {
@@ -190,7 +229,8 @@ const AddPage = () => {
   const handleEditClick = (product) => {
     setProductToEdit(product);
     setEditedProductName(product.name);
-    setEditedProductPrice(product.price);
+    setEditedProductPrice(product.owner_price || "");
+    setEditedRealPrice(product.real_price || "");
     setEditDialogOpen(true);
   };
 
@@ -204,7 +244,10 @@ const AddPage = () => {
         body: JSON.stringify({
           productId: productToEdit.id,
           name: editedProductName.trim(),
-          price: editedProductPrice ? parseFloat(editedProductPrice) : null,
+          owner_price: editedProductPrice
+            ? parseFloat(editedProductPrice)
+            : null,
+          real_price: editedRealPrice ? parseFloat(editedRealPrice) : null,
         }),
       });
 
@@ -212,15 +255,17 @@ const AddPage = () => {
         throw new Error(`Failed to update product: ${await response.text()}`);
       }
 
-      // Update the product in the local state
       setProducts(
         products.map((p) =>
           p.id === productToEdit.id
             ? {
                 ...p,
                 name: editedProductName.trim(),
-                price: editedProductPrice
+                owner_price: editedProductPrice
                   ? parseFloat(editedProductPrice)
+                  : null,
+                real_price: editedRealPrice
+                  ? parseFloat(editedRealPrice)
                   : null,
               }
             : p
@@ -231,6 +276,7 @@ const AddPage = () => {
       setProductToEdit(null);
       setEditedProductName("");
       setEditedProductPrice("");
+      setEditedRealPrice("");
     } catch (error) {
       console.error("Error updating product:", error);
       setErrorMessage(error.message || "Failed to update product");
@@ -245,6 +291,7 @@ const AddPage = () => {
     setProductToEdit(null);
     setEditedProductName("");
     setEditedProductPrice("");
+    setEditedRealPrice("");
   };
 
   const handleAddProductConfirm = async (productData) => {
@@ -277,8 +324,15 @@ const AddPage = () => {
         throw new Error(`Failed to fetch products: ${await response.text()}`);
       }
       const data = await response.json();
-      setProducts(data);
-      setAmounts(data.map(() => "0"));
+      console.log("Raw fetched products:", data);
+
+      const uniqueProducts = Array.from(
+        new Map(data.map((item) => [item.id, item])).values()
+      );
+      console.log("Unique products after deduplication:", uniqueProducts);
+
+      setProducts(uniqueProducts);
+      setAmounts(uniqueProducts.map(() => "0"));
     } catch (error) {
       console.error("Error fetching products:", error);
       setErrorMessage("Failed to fetch products");
@@ -308,13 +362,11 @@ const AddPage = () => {
         }
         const inventoryData = await response.json();
 
-        // Create a mapping of product_id to quantity
         const inventoryMap = inventoryData.reduce((map, item) => {
           map[item.product_id] = item.quantity;
           return map;
         }, {});
 
-        // Map quantities to products based on ID
         const newAmounts = products.map((product) =>
           (inventoryMap[product.id] || 0).toString()
         );
@@ -330,7 +382,47 @@ const AddPage = () => {
     };
 
     fetchAmounts();
-  }, [propertyId, currentMonth, user, products]); // Add products as dependency
+  }, [propertyId, currentMonth, user, products]);
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = products.findIndex((p) => p.id === active.id);
+    const newIndex = products.findIndex((p) => p.id === over.id);
+
+    const reorderedProducts = arrayMove(products, oldIndex, newIndex);
+    const reorderedAmounts = arrayMove(amounts, oldIndex, newIndex);
+
+    setProducts(reorderedProducts);
+    setAmounts(reorderedAmounts);
+
+    try {
+      const orderData = reorderedProducts.map((product, index) => ({
+        productId: product.id,
+        order: index,
+      }));
+
+      const response = await fetchWithAuth("/api/inventory/products", {
+        method: "PUT",
+        body: JSON.stringify({ products: orderData }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to save product order: ${await response.text()}`
+        );
+      }
+
+      await fetchProducts();
+    } catch (error) {
+      console.error("Error saving product order:", error);
+      setErrorMessage(error.message || "Failed to save product order");
+      setErrorDialogOpen(true);
+      await fetchProducts(); // Revert to server state on error
+    }
+  };
 
   const setCurrentMonthYear = (month) => {
     const currentYear = new Date().getFullYear();
@@ -345,28 +437,16 @@ const AddPage = () => {
     );
   }
 
-  // Rest of the JSX remains unchanged
-  if (userLoading || propertiesLoading || isLoading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <CircularProgress sx={{ color: "#eccb34" }} />
-      </div>
-    );
-  }
-
   return (
     <AdminProtected>
       <div className="flex flex-col h-full w-full p-6 bg-transparent">
         <div className="flex flex-col lg:flex-row w-full h-full gap-6">
-          {/* Left Column - Inventory Management */}
           <div className="flex-1 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm overflow-hidden border border-primary/10">
             <div className="p-6 flex flex-col h-full">
-              {/* Header */}
               <h2 className="text-2xl font-bold text-dark mb-6">
                 Inventory Management
               </h2>
 
-              {/* Error Messages */}
               {errors.propertyId && (
                 <p className="text-primary mb-2 text-sm">{errors.propertyId}</p>
               )}
@@ -376,68 +456,101 @@ const AddPage = () => {
                 </p>
               )}
 
-              {/* Product List Header */}
-              <div className="grid grid-cols-2 py-3 px-4 bg-primary/10 rounded-t-lg text-dark font-semibold">
+              <div className="grid grid-cols-[auto_1fr_auto] py-3 px-4 bg-primary/10 rounded-t-lg text-dark font-semibold">
+                <span className="w-8"></span> {/* Space for drag handle */}
                 <span>Product</span>
                 <span className="text-right">Amount</span>
               </div>
 
-              {/* Product List */}
-              <div className="flex-1 overflow-y-auto bg-secondary/80 rounded-b-lg mb-6 border border-primary/10">
-                {products.map((product, index) => (
-                  <div
-                    key={index}
-                    className="grid grid-cols-2 py-3 px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors"
-                  >
-                    <div className="flex items-center">
-                      <div className="flex flex-col">
-                        <span className="text-dark">{product.name}</span>
-                        {product.price && (
-                          <span className="text-dark/70 text-xs">
-                            ${parseFloat(product.price).toFixed(2)}
-                          </span>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={products.map((p) => p.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="flex-1 overflow-y-auto bg-secondary/80 rounded-b-lg mb-6 border border-primary/10">
+                    {products.map((product, index) => (
+                      <SortableItem key={product.id} id={product.id}>
+                        {(dragListeners) => (
+                          <div className="grid grid-cols-[auto_1fr_auto] py-3 px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors">
+                            <IconButton
+                              aria-label={`drag ${product.name}`}
+                              className="text-dark/70 hover:text-primary cursor-grab"
+                              size="small"
+                              {...dragListeners} // Apply drag listeners here
+                            >
+                              <DragHandleIcon fontSize="small" />
+                            </IconButton>
+                            <div className="flex items-center">
+                              <div className="flex flex-col">
+                                <span className="text-dark">
+                                  {product.name}
+                                </span>
+                                <div className="flex gap-2 text-dark/70 text-xs">
+                                  {product.owner_price && (
+                                    <span>
+                                      Owner: $
+                                      {parseFloat(product.owner_price).toFixed(
+                                        2
+                                      )}
+                                    </span>
+                                  )}
+                                  {product.real_price && (
+                                    <span>
+                                      Cost: $
+                                      {parseFloat(product.real_price).toFixed(
+                                        2
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex ml-2">
+                                <IconButton
+                                  aria-label={`edit ${product.name}`}
+                                  onClick={() => handleEditClick(product)}
+                                  className="text-dark hover:text-primary transition-colors"
+                                  size="small"
+                                >
+                                  <EditIcon fontSize="small" />
+                                </IconButton>
+                                <IconButton
+                                  aria-label={`delete ${product.name}`}
+                                  onClick={() => handleDeleteClick(product)}
+                                  className="text-dark hover:text-primary transition-colors"
+                                  size="small"
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={amounts[index] || ""}
+                                onChange={(e) =>
+                                  handleAmountChange(index, e.target.value)
+                                }
+                                className="bg-white text-dark border border-primary/30 rounded-lg px-3 py-2 w-24 text-right focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm"
+                              />
+                              {errors[`amount_${index}`] && (
+                                <p className="text-primary text-xs mt-1">
+                                  {errors[`amount_${index}`]}
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         )}
-                      </div>
-                      <div className="flex ml-2">
-                        <IconButton
-                          aria-label={`edit ${product.name}`}
-                          onClick={() => handleEditClick(product)}
-                          className="text-dark hover:text-primary transition-colors"
-                          size="small"
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          aria-label={`delete ${product.name}`}
-                          onClick={() => handleDeleteClick(product)}
-                          className="text-dark hover:text-primary transition-colors"
-                          size="small"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={amounts[index] || ""}
-                        onChange={(e) =>
-                          handleAmountChange(index, e.target.value)
-                        }
-                        className="bg-white text-dark border border-primary/30 rounded-lg px-3 py-2 w-24 text-right focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm"
-                      />
-                      {errors[`amount_${index}`] && (
-                        <p className="text-primary text-xs mt-1">
-                          {errors[`amount_${index}`]}
-                        </p>
-                      )}
-                    </div>
+                      </SortableItem>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
 
-              {/* Action Buttons */}
               <div className="flex flex-wrap gap-4 justify-between items-center">
                 <PdfSection
                   products={products}
@@ -469,7 +582,6 @@ const AddPage = () => {
             </div>
           </div>
 
-          {/* Right Column - Maintenance Section */}
           <div className="flex-1 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm border border-primary/10">
             <MaintenanceSection
               propertyId={propertyId}
@@ -478,7 +590,6 @@ const AddPage = () => {
           </div>
         </div>
 
-        {/* Dialogs - updated styling for lighter feel */}
         <Dialog
           open={deleteDialogOpen}
           onClose={handleDeleteCancel}
@@ -514,7 +625,6 @@ const AddPage = () => {
           </DialogActions>
         </Dialog>
 
-        {/* Success Dialog */}
         <Dialog
           open={successDialogOpen}
           onClose={() => setSuccessDialogOpen(false)}
@@ -547,7 +657,6 @@ const AddPage = () => {
           </DialogActions>
         </Dialog>
 
-        {/* Error Dialog */}
         <Dialog
           open={errorDialogOpen}
           onClose={() => setErrorDialogOpen(false)}
@@ -575,7 +684,7 @@ const AddPage = () => {
             </Button>
           </DialogActions>
         </Dialog>
-        {/* Edit Product Dialog */}
+
         <Dialog
           open={editDialogOpen}
           onClose={handleEditCancel}
@@ -614,7 +723,7 @@ const AddPage = () => {
               />
               <TextField
                 margin="dense"
-                label="Price (optional)"
+                label="Owner Price (what you charge)"
                 type="number"
                 inputProps={{
                   step: "0.01",
@@ -623,6 +732,27 @@ const AddPage = () => {
                 fullWidth
                 value={editedProductPrice}
                 onChange={(e) => setEditedProductPrice(e.target.value)}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    "& fieldset": { borderColor: "#eccb34" },
+                    "&:hover fieldset": { borderColor: "#eccb34" },
+                    "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+                  },
+                  "& .MuiInputBase-input": { color: "#333333" },
+                  "& .MuiInputLabel-root": { color: "#333333" },
+                }}
+              />
+              <TextField
+                margin="dense"
+                label="Real Price (what you pay)"
+                type="number"
+                inputProps={{
+                  step: "0.01",
+                  min: "0",
+                }}
+                fullWidth
+                value={editedRealPrice}
+                onChange={(e) => setEditedRealPrice(e.target.value)}
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     "& fieldset": { borderColor: "#eccb34" },
