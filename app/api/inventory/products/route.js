@@ -1,4 +1,3 @@
-// app/api/inventory/products/route.js
 import InventoryService from "@/lib/services/inventoryService";
 
 export async function GET() {
@@ -20,12 +19,26 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const { name, price } = await request.json();
-    if (!name || !price || isNaN(price)) {
-      return new Response("Name and price are required", { status: 400 });
+    const { name, owner_price, real_price } = await request.json();
+    if (!name) {
+      return new Response("Product name is required", { status: 400 });
     }
 
-    const newProduct = await InventoryService.addProduct(name, price);
+    const ownerPrice = owner_price ? parseFloat(owner_price) : null;
+    const realPrice = real_price ? parseFloat(real_price) : null;
+
+    if (
+      (owner_price && isNaN(ownerPrice)) ||
+      (real_price && isNaN(realPrice))
+    ) {
+      return new Response("Prices must be valid numbers", { status: 400 });
+    }
+
+    const newProduct = await InventoryService.addProduct(
+      name,
+      ownerPrice,
+      realPrice
+    );
     return new Response(JSON.stringify(newProduct), {
       status: 201,
       headers: { "Content-Type": "application/json" },
@@ -41,17 +54,57 @@ export async function POST(request) {
 
 export async function PUT(request) {
   try {
-    const { name, price, productId } = await request.json();
-    if (!name || !price || isNaN(price) || !productId) {
-      return new Response("Name, price, and productId are required", {
+    const body = await request.json();
+
+    // Check if this is an order update request
+    if (Array.isArray(body.products)) {
+      const productsOrder = body.products.map(({ productId, order }) => ({
+        productId,
+        order: parseInt(order, 10),
+      }));
+
+      if (
+        productsOrder.some(({ productId, order }) => !productId || isNaN(order))
+      ) {
+        return new Response(
+          "Invalid product order data: productId and order are required",
+          { status: 400 }
+        );
+      }
+
+      await InventoryService.updateProductOrder(productsOrder);
+      return new Response(
+        JSON.stringify({ message: "Product order updated successfully" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Existing product update logic
+    const { productId, name, owner_price, real_price } = body;
+    if (!productId || !name) {
+      return new Response("Product ID and name are required", {
         status: 400,
       });
+    }
+
+    const ownerPrice = owner_price ? parseFloat(owner_price) : null;
+    const realPrice = real_price ? parseFloat(real_price) : null;
+
+    if (
+      (owner_price && isNaN(ownerPrice)) ||
+      (real_price && isNaN(realPrice))
+    ) {
+      return new Response("Prices must be valid numbers", { status: 400 });
     }
 
     const updatedProduct = await InventoryService.updateProduct(
       productId,
       name,
-      price
+      ownerPrice,
+      realPrice
     );
 
     if (!updatedProduct) {
