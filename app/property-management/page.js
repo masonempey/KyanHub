@@ -14,8 +14,9 @@ import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-import DragHandleIcon from "@mui/icons-material/DragHandle"; // New drag handle icon
+import DragHandleIcon from "@mui/icons-material/DragHandle";
 import MaintenanceSection from "./MaintenanceSection";
+import CleaningSection from "./CleaningSection";
 import { useUser } from "../../contexts/UserContext";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -37,6 +38,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
 
 const SortableItem = ({ id, children }) => {
   const { attributes, listeners, setNodeRef, transform, transition } =
@@ -49,7 +52,7 @@ const SortableItem = ({ id, children }) => {
 
   return (
     <div ref={setNodeRef} style={style}>
-      {children(listeners)} {/* Pass listeners to children for drag handle */}
+      {children(listeners)}
     </div>
   );
 };
@@ -82,6 +85,7 @@ const AddPage = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState(0); // State for active tab
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -429,6 +433,10 @@ const AddPage = () => {
     return `${month}${currentYear}`;
   };
 
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
   if (userLoading || propertiesLoading || isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
@@ -457,7 +465,7 @@ const AddPage = () => {
               )}
 
               <div className="grid grid-cols-[auto_1fr_auto] py-3 px-4 bg-primary/10 rounded-t-lg text-dark font-semibold">
-                <span className="w-8"></span> {/* Space for drag handle */}
+                <span className="w-8"></span>
                 <span>Product</span>
                 <span className="text-right">Amount</span>
               </div>
@@ -480,7 +488,7 @@ const AddPage = () => {
                               aria-label={`drag ${product.name}`}
                               className="text-dark/70 hover:text-primary cursor-grab"
                               size="small"
-                              {...dragListeners} // Apply drag listeners here
+                              {...dragListeners}
                             >
                               <DragHandleIcon fontSize="small" />
                             </IconButton>
@@ -582,14 +590,44 @@ const AddPage = () => {
             </div>
           </div>
 
-          <div className="flex-1 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm border border-primary/10">
-            <MaintenanceSection
-              propertyId={propertyId}
-              selectedPropertyName={selectedPropertyName}
-            />
+          <div className="flex-1 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm border border-primary/10 flex flex-col">
+            <Tabs
+              value={activeTab}
+              onChange={handleTabChange}
+              sx={{
+                borderBottom: "1px solid rgba(236, 203, 52, 0.2)",
+                "& .MuiTab-root": {
+                  color: "#333333",
+                  "&.Mui-selected": {
+                    color: "#eccb34",
+                  },
+                },
+                "& .MuiTabs-indicator": {
+                  backgroundColor: "#eccb34",
+                },
+              }}
+            >
+              <Tab label="Maintenance" />
+              <Tab label="Cleaning" />
+            </Tabs>
+            <div className="flex-1 overflow-y-auto">
+              {activeTab === 0 && (
+                <MaintenanceSection
+                  propertyId={propertyId}
+                  selectedPropertyName={selectedPropertyName}
+                />
+              )}
+              {activeTab === 1 && (
+                <CleaningSection
+                  propertyId={propertyId}
+                  selectedPropertyName={selectedPropertyName}
+                />
+              )}
+            </div>
           </div>
         </div>
 
+        {/* Dialogs remain unchanged */}
         <Dialog
           open={deleteDialogOpen}
           onClose={handleDeleteCancel}
