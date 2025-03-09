@@ -44,6 +44,7 @@ const MaintenanceSection = ({
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [confirmSubmitDialogOpen, setConfirmSubmitDialogOpen] = useState(false);
 
   const handleDateChange = useCallback(
     (newDate) => {
@@ -158,7 +159,7 @@ const MaintenanceSection = ({
 
       if (isFileAttached && fileAttached) {
         const fileBase64 = await convertFileToBase64(fileAttached);
-        const uploadRes = await fetchWithAuth("/api/upload/maintenance", {
+        const uploadRes = await fetchWithAuth("/api/upload/invoice", {
           method: "POST",
           body: JSON.stringify({
             propertyName: selectedPropertyName,
@@ -528,7 +529,14 @@ const MaintenanceSection = ({
             },
             minWidth: "200px",
           }}
-          onClick={handleMaintenanceSubmit}
+          onClick={() => {
+            const newErrors = validateInputs();
+            if (Object.keys(newErrors).length > 0) {
+              setErrors(newErrors);
+              return;
+            }
+            setConfirmSubmitDialogOpen(true);
+          }}
         >
           Submit Maintenance
         </Button>
@@ -674,6 +682,68 @@ const MaintenanceSection = ({
             className="bg-primary text-dark hover:bg-primary/80 transition-colors"
           >
             Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={confirmSubmitDialogOpen}
+        onClose={() => setConfirmSubmitDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
+          },
+        }}
+      >
+        <DialogTitle sx={{ color: "#333333" }}>Confirm Submission</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: "#333333" }}>
+            Please confirm you want to submit the following maintenance request:
+          </DialogContentText>
+          <div className="mt-4 space-y-2 text-dark">
+            <p>
+              <strong>Property:</strong> {selectedPropertyName}
+            </p>
+            <p>
+              <strong>Category:</strong> {selectedCategory}
+            </p>
+            <p>
+              <strong>Company:</strong> {selectedCompany}
+            </p>
+            <p>
+              <strong>Cost:</strong> ${Number(maintenanceCost).toFixed(2)}
+            </p>
+            <p>
+              <strong>Date:</strong>{" "}
+              {dayjs(selectedDate).format("MMMM D, YYYY")}
+            </p>
+            <p>
+              <strong>Description:</strong>{" "}
+              {maintenanceDescription || "None provided"}
+            </p>
+            <p>
+              <strong>File:</strong>{" "}
+              {fileAttached ? fileAttached.name : "None attached"}
+            </p>
+          </div>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setConfirmSubmitDialogOpen(false)}
+            className="text-dark hover:bg-primary/5 transition-colors"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              setConfirmSubmitDialogOpen(false);
+              handleMaintenanceSubmit();
+            }}
+            className="bg-primary text-dark hover:bg-primary/80 transition-colors"
+          >
+            Confirm Submission
           </Button>
         </DialogActions>
       </Dialog>
