@@ -9,34 +9,34 @@ import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import fetchWithAuth from "@/lib/fetchWithAuth"; // Updated import path
 
-const AddCompanyDialog = ({ open, onClose, onAddCompany }) => {
+const AddCompanyDialog = ({ open, onClose, onAddCompany, endpoint }) => {
   const [companyName, setCompanyName] = useState("");
+  const [error, setError] = useState(""); // Add error state
 
   const handleSubmit = async () => {
     if (!companyName.trim()) {
-      alert("Please enter a company name");
+      setError("Please enter a company name");
       return;
     }
 
     try {
       const response = await fetchWithAuth(
-        `/api/maintenance/add-company/${encodeURIComponent(companyName)}`,
+        `${endpoint}/${encodeURIComponent(companyName)}`,
         {
           method: "POST",
         }
       );
-
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to add company: ${errorText}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to add company");
       }
-
       onAddCompany(companyName);
       setCompanyName("");
+      setError("");
       onClose();
     } catch (error) {
-      console.error("Error adding company:", error);
-      alert(`Failed to add company: ${error.message}`);
+      console.error("Error:", error);
+      setError(error.message);
     }
   };
 
@@ -62,6 +62,8 @@ const AddCompanyDialog = ({ open, onClose, onAddCompany }) => {
           fullWidth
           value={companyName}
           onChange={(e) => setCompanyName(e.target.value)}
+          error={!!error}
+          helperText={error}
           sx={{
             "& .MuiInputBase-input": { color: "#fafafa" },
             "& .MuiInputLabel-root": { color: "#fafafa" },
@@ -69,6 +71,7 @@ const AddCompanyDialog = ({ open, onClose, onAddCompany }) => {
               "& fieldset": { borderColor: "#fafafa" },
               "&:hover fieldset": { borderColor: "#eccb34" },
             },
+            "& .MuiFormHelperText-root": { color: "#fafafa" },
           }}
         />
       </DialogContent>

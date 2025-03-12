@@ -13,10 +13,11 @@ import AddIcon from "@mui/icons-material/Add";
 const AddProduct = ({ onAddProduct }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [productName, setProductName] = useState("");
-  const [productPrice, setProductPrice] = useState("");
+  const [ownerPrice, setOwnerPrice] = useState("");
+  const [realPrice, setRealPrice] = useState("");
   const [errors, setErrors] = useState({});
 
-  // Handlers remain unchanged
+  // Handle product name changes
   const handleProductChange = (event) => {
     const value = event.target.value;
     setProductName(value);
@@ -26,16 +27,28 @@ const AddProduct = ({ onAddProduct }) => {
     setErrors(newErrors);
   };
 
-  const handlePriceChange = (event) => {
+  // Handle owner price changes
+  const handleOwnerPriceChange = (event) => {
     const value = event.target.value;
-    setProductPrice(value);
+    setOwnerPrice(value);
     const newErrors = { ...errors };
-    if (!value) {
-      newErrors.productPrice = "Price is required.";
-    } else if (isNaN(value) || Number(value) <= 0) {
-      newErrors.productPrice = "Price must be a positive number.";
+    if (value && (isNaN(value) || Number(value) < 0)) {
+      newErrors.ownerPrice = "Price must be a non-negative number.";
     } else {
-      delete newErrors.productPrice;
+      delete newErrors.ownerPrice;
+    }
+    setErrors(newErrors);
+  };
+
+  // Handle real price changes
+  const handleRealPriceChange = (event) => {
+    const value = event.target.value;
+    setRealPrice(value);
+    const newErrors = { ...errors };
+    if (value && (isNaN(value) || Number(value) < 0)) {
+      newErrors.realPrice = "Price must be a non-negative number.";
+    } else {
+      delete newErrors.realPrice;
     }
     setErrors(newErrors);
   };
@@ -43,11 +56,15 @@ const AddProduct = ({ onAddProduct }) => {
   const validateInputs = () => {
     const newErrors = {};
     if (!productName) newErrors.productName = "Product name is required.";
-    if (!productPrice) {
-      newErrors.productPrice = "Price is required.";
-    } else if (isNaN(productPrice) || Number(productPrice) <= 0) {
-      newErrors.productPrice = "Price must be a positive number.";
+
+    if (ownerPrice && (isNaN(ownerPrice) || Number(ownerPrice) < 0)) {
+      newErrors.ownerPrice = "Price must be a non-negative number.";
     }
+
+    if (realPrice && (isNaN(realPrice) || Number(realPrice) < 0)) {
+      newErrors.realPrice = "Price must be a non-negative number.";
+    }
+
     return newErrors;
   };
 
@@ -64,7 +81,8 @@ const AddProduct = ({ onAddProduct }) => {
 
     const productData = {
       name: productName,
-      price: Number(productPrice),
+      owner_price: ownerPrice ? Number(ownerPrice) : null,
+      real_price: realPrice ? Number(realPrice) : null,
     };
 
     if (onAddProduct) {
@@ -72,14 +90,16 @@ const AddProduct = ({ onAddProduct }) => {
     }
 
     setProductName("");
-    setProductPrice("");
+    setOwnerPrice("");
+    setRealPrice("");
     setErrors({});
     setDialogOpen(false);
   };
 
   const handleCancel = () => {
     setProductName("");
-    setProductPrice("");
+    setOwnerPrice("");
+    setRealPrice("");
     setErrors({});
     setDialogOpen(false);
   };
@@ -145,13 +165,34 @@ const AddProduct = ({ onAddProduct }) => {
           />
 
           <TextField
-            placeholder="Enter product price"
+            placeholder="Enter owner price (what you charge)"
             variant="outlined"
-            value={productPrice}
-            onChange={handlePriceChange}
+            value={ownerPrice}
+            onChange={handleOwnerPriceChange}
             fullWidth
-            error={!!errors.productPrice}
-            helperText={errors.productPrice}
+            error={!!errors.ownerPrice}
+            helperText={errors.ownerPrice}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                backgroundColor: "#ffffff",
+                "& fieldset": { borderColor: "#eccb34" },
+                "&:hover fieldset": { borderColor: "#eccb34" },
+                "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+              },
+              "& .MuiInputBase-input": { color: "#333333" },
+              "& .MuiFormHelperText-root": { color: "#eccb34" },
+              mb: 2,
+            }}
+          />
+
+          <TextField
+            placeholder="Enter real price (what you pay)"
+            variant="outlined"
+            value={realPrice}
+            onChange={handleRealPriceChange}
+            fullWidth
+            error={!!errors.realPrice}
+            helperText={errors.realPrice}
             sx={{
               "& .MuiOutlinedInput-root": {
                 backgroundColor: "#ffffff",

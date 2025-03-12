@@ -1,4 +1,4 @@
-// app/api/upload/maintenance/route.js
+// app/api/upload/invoice/route.js
 import { Buffer } from "buffer";
 import GoogleService from "@/lib/services/googleService";
 import dotenv from "dotenv";
@@ -8,7 +8,7 @@ export async function POST(request) {
   try {
     const { propertyName, monthYear, file, fileName } = await request.json();
 
-    console.log("Uploading maintenance Invoice:", propertyName, monthYear);
+    console.log("Uploading Invoice:", propertyName, monthYear);
 
     if (!propertyName || !monthYear) {
       return new Response(
@@ -35,6 +35,7 @@ export async function POST(request) {
       propertyName,
       monthYear
     );
+
     const { fileId, webViewLink } = await GoogleService.uploadPDF(
       buffer,
       fileName,

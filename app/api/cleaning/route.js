@@ -1,20 +1,20 @@
-// app/api/maintenance/route.js
-import MaintenanceService from "@/lib/services/maintenanceService";
+// app/api/Cleaning/route.js
+import CleaningService from "@/lib/services/cleaningService";
 
 export async function POST(request) {
   try {
-    const maintenanceData = await request.json();
-    await MaintenanceService.insertMaintenance(maintenanceData);
+    const cleaningData = await request.json();
+    await CleaningService.insertCleaning(cleaningData);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Maintenance data inserted successfully",
+        message: "Cleaning data inserted successfully",
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error inserting maintenance data:", error);
+    console.error("Error inserting cleaning data:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { "Content-Type": "application/json" } }
@@ -34,7 +34,7 @@ export async function GET(request) {
       );
     }
 
-    const maintenanceData = await MaintenanceService.getMaintenanceByProperty(
+    const maintenanceData = await CleaningService.getCleaningByProperty(
       propertyId
     );
 
@@ -43,7 +43,7 @@ export async function GET(request) {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Error fetching maintenance data:", error);
+    console.error("Error fetching cleaning data:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { "Content-Type": "application/json" } }
@@ -54,26 +54,28 @@ export async function GET(request) {
 export async function DELETE(request) {
   try {
     const url = new URL(request.url);
-    const maintenanceId = url.searchParams.get("id");
+    const cleaningId = url.searchParams.get("id");
 
-    if (!maintenanceId) {
+    if (!cleaningId) {
       return new Response(
-        JSON.stringify({ success: false, error: "Maintenance ID is required" }),
+        JSON.stringify({ success: false, error: "Cleaning ID is required" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    await MaintenanceService.deleteMaintenance(maintenanceId);
+    console.log("Deleting cleaning with ID:", cleaningId); // Add this for debugging
+
+    await CleaningService.deleteCleaning(cleaningId);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Maintenance data deleted successfully",
+        message: "Cleaning record deleted successfully",
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error deleting maintenance data:", error);
+    console.error("Error deleting cleaning record:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { "Content-Type": "application/json" } }

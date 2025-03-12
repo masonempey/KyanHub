@@ -3,18 +3,9 @@
 import React, { useState } from "react";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase/client";
-import { TextField, Button, Typography, Paper, Alert } from "@mui/material";
-import { styled } from "@mui/system";
-import styles from "./Login.module.css";
+import { Alert } from "@mui/material";
 import { useRouter } from "next/navigation";
 import fetchWithAuth from "@/lib/fetchWithAuth";
-
-const FormContainer = styled(Paper)({
-  padding: "2rem",
-  maxWidth: "20vw",
-  width: "100vw",
-  backgroundColor: "#fafafa",
-});
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -33,7 +24,6 @@ const Login = () => {
     setIsLoading(true);
     try {
       const res = await fetchWithAuth("/api/users/register", {
-        // Updated to match existing route
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -71,13 +61,12 @@ const Login = () => {
       const idToken = await userCredential.user.getIdToken();
 
       const validateRes = await fetchWithAuth("/api/users/validate", {
-        // Updated to match existing route
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ uid: userCredential.user.uid }), // Send uid as expected by route
+        body: JSON.stringify({ uid: userCredential.user.uid }),
       });
 
       if (!validateRes.ok) {
@@ -103,7 +92,6 @@ const Login = () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
-      console.log("Google sign-in successful, token:", idToken);
 
       const res = await fetchWithAuth("/api/users/googleregister", {
         method: "POST",
@@ -121,9 +109,7 @@ const Login = () => {
       if (!res.ok) {
         throw new Error(data.message || "Google sign-in failed");
       }
-      console.log("Google register response:", data);
 
-      console.log("Redirecting to /property-management...");
       router.push("/property-management");
     } catch (error) {
       console.error("Google sign-in error:", error);
@@ -138,113 +124,85 @@ const Login = () => {
   };
 
   return (
-    <div className={styles.container}>
-      <FormContainer elevation={3}>
-        <Typography
-          variant="h4"
-          align="center"
-          gutterBottom
-          sx={{
-            fontFamily: "Lato",
-            fontWeight: 800,
-            color: "#eccb34",
-          }}
-        >
+    <div className="flex items-center justify-center h-screen w-full bg-transparent">
+      <div className="bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm overflow-hidden border border-primary/10 p-8 w-full max-w-md">
+        <h2 className="text-3xl font-bold text-primary text-center mb-6">
           {isLogin ? "Login" : "Sign Up"}
-        </Typography>
+        </h2>
+
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
             {error}
-          </Alert>
+          </div>
         )}
-        <TextField
-          label="Email"
-          variant="outlined"
-          fullWidth
-          margin="normal"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={isLoading}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              "& fieldset": { borderColor: "#eccb34" },
-              "&:hover fieldset": { borderColor: "#eccb34" },
-              "&.Mui-focused fieldset": { borderColor: "#eccb34" },
-            },
-            "& .MuiInputLabel-root": {
-              color: "#eccb34",
-              "&.Mui-focused": { color: "#eccb34" },
-            },
-          }}
-        />
-        <TextField
-          label="Password"
-          variant="outlined"
-          type="password"
-          fullWidth
-          margin="normal"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={isLoading}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              "& fieldset": { borderColor: "#eccb34" },
-              "&:hover fieldset": { borderColor: "#eccb34" },
-              "&.Mui-focused fieldset": { borderColor: "#eccb34" },
-            },
-            "& .MuiInputLabel-root": {
-              color: "#eccb34",
-              "&.Mui-focused": { color: "#eccb34" },
-            },
-          }}
-        />
-        <Button
-          variant="contained"
-          fullWidth
-          onClick={isLogin ? handleLogin : handleSignUp}
-          disabled={isLoading}
-          sx={{
-            mt: 2,
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            "&:hover": { backgroundColor: "#2b2b2b" },
-          }}
-        >
-          {isLoading ? "Processing..." : isLogin ? "Login" : "Sign Up"}
-        </Button>
-        <Button
-          variant="text"
-          fullWidth
-          onClick={() => {
-            setIsLogin(!isLogin);
-            setError("");
-          }}
-          disabled={isLoading}
-          sx={{
-            mt: 2,
-            color: "#eccb34",
-            "&:hover": { backgroundColor: "rgba(236, 203, 52, 0.1)" },
-          }}
-        >
-          {isLogin
-            ? "Need an account? Sign Up"
-            : "Already have an account? Login"}
-        </Button>
-        <Button
-          variant="contained"
-          fullWidth
-          onClick={handleGoogleSignIn}
-          disabled={isLoading}
-          sx={{
-            mt: 2,
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            "&:hover": { backgroundColor: "#2b2b2b" },
-          }}
-        >
-          {isLoading ? "Processing..." : "Sign in with Google"}
-        </Button>
-      </FormContainer>
+
+        <div className="space-y-4">
+          <div>
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-dark mb-1 ml-1"
+            >
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading}
+              className="w-full px-4 py-2 border border-primary/30 rounded-lg focus:outline-none focus:border-primary bg-white text-dark"
+              placeholder="Enter your email"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-dark mb-1 ml-1"
+            >
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+              className="w-full px-4 py-2 border border-primary/30 rounded-lg focus:outline-none focus:border-primary bg-white text-dark"
+              placeholder="Enter your password"
+            />
+          </div>
+
+          <button
+            onClick={isLogin ? handleLogin : handleSignUp}
+            disabled={isLoading}
+            className="w-full bg-primary hover:bg-dark hover:text-secondary text-dark font-medium px-6 py-3 rounded-lg shadow-md transition-colors duration-300 mt-2"
+          >
+            {isLoading ? "Processing..." : isLogin ? "Login" : "Sign Up"}
+          </button>
+
+          <button
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError("");
+            }}
+            disabled={isLoading}
+            className="w-full text-primary hover:bg-primary/5 px-6 py-3 rounded-lg transition-colors duration-300"
+          >
+            {isLogin
+              ? "Need an account? Sign Up"
+              : "Already have an account? Login"}
+          </button>
+
+          <button
+            onClick={handleGoogleSignIn}
+            disabled={isLoading}
+            className="w-full bg-primary hover:bg-dark hover:text-secondary text-dark font-medium px-6 py-3 rounded-lg shadow-md transition-colors duration-300"
+          >
+            {isLoading ? "Processing..." : "Sign in with Google"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
