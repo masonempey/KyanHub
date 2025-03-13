@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useProperties } from "@/contexts/PropertyContext";
 import MaintenanceSection from "./MaintenanceSection";
 import InventorySection from "./InventorySection";
+import RestockSection from "./RestockSection";
 import ViewMaintenanceSection from "./ViewMaintenanceSection";
 import ViewCleaningSection from "./ViewCleaningSection";
 import CleaningSection from "./CleaningSection";
@@ -21,10 +22,15 @@ const PropertyManagementPage = () => {
     selectedPropertyName,
   } = useProperties();
 
-  const [activeTab, setActiveTab] = useState(0);
+  const [rightActiveTab, setRightActiveTab] = useState(0);
+  const [leftActiveTab, setLeftActiveTab] = useState(0);
 
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue);
+  const handleRightTabChange = (event, newValue) => {
+    setRightActiveTab(newValue);
+  };
+
+  const handleLeftTabChange = (event, newValue) => {
+    setLeftActiveTab(newValue);
   };
 
   if (userLoading || propertiesLoading) {
@@ -40,24 +46,43 @@ const PropertyManagementPage = () => {
       <div className="flex flex-col h-full w-full p-6 bg-transparent">
         {/* Two-column layout with equal widths */}
         <div className="flex gap-6 h-full">
-          {/* Left column - Inventory Section - now 1/2 width */}
+          {/* Left column - Now with tabs for Inventory and Restock */}
           <div className="w-1/2 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm border border-primary/10 flex flex-col">
-            <div className="p-4 border-b border-primary/20">
-              <h2 className="text-xl font-bold text-dark">Inventory</h2>
-            </div>
+            <Tabs
+              value={leftActiveTab}
+              onChange={handleLeftTabChange}
+              sx={{
+                borderBottom: "1px solid rgba(236, 203, 52, 0.2)",
+                "& .MuiTab-root": {
+                  color: "#333333",
+                  "&.Mui-selected": {
+                    color: "#eccb34",
+                  },
+                },
+                "& .MuiTabs-indicator": {
+                  backgroundColor: "#eccb34",
+                },
+              }}
+            >
+              <Tab label="Inventory" />
+              <Tab label="Restock" />
+            </Tabs>
             <div className="flex-1 overflow-y-auto">
-              <InventorySection
-                propertyId={propertyId}
-                selectedPropertyName={selectedPropertyName}
-              />
+              {leftActiveTab === 0 && (
+                <InventorySection
+                  propertyId={propertyId}
+                  selectedPropertyName={selectedPropertyName}
+                />
+              )}
+              {leftActiveTab === 1 && <RestockSection />}
             </div>
           </div>
 
-          {/* Right column - Tabbed Maintenance Section - now 1/2 width */}
+          {/* Right column - Tabbed Maintenance Section - now with 4 tabs */}
           <div className="w-1/2 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm border border-primary/10 flex flex-col">
             <Tabs
-              value={activeTab}
-              onChange={handleTabChange}
+              value={rightActiveTab}
+              onChange={handleRightTabChange}
               sx={{
                 borderBottom: "1px solid rgba(236, 203, 52, 0.2)",
                 "& .MuiTab-root": {
@@ -77,25 +102,25 @@ const PropertyManagementPage = () => {
               <Tab label="View Cleaning" />
             </Tabs>
             <div className="flex-1 overflow-y-auto">
-              {activeTab === 0 && (
+              {rightActiveTab === 0 && (
                 <MaintenanceSection
                   propertyId={propertyId}
                   selectedPropertyName={selectedPropertyName}
                 />
               )}
-              {activeTab === 1 && (
+              {rightActiveTab === 1 && (
                 <CleaningSection
                   propertyId={propertyId}
                   selectedPropertyName={selectedPropertyName}
                 />
               )}
-              {activeTab === 2 && (
+              {rightActiveTab === 2 && (
                 <ViewMaintenanceSection
                   propertyId={propertyId}
                   selectedPropertyName={selectedPropertyName}
                 />
               )}
-              {activeTab === 3 && (
+              {rightActiveTab === 3 && (
                 <ViewCleaningSection
                   propertyId={propertyId}
                   selectedPropertyName={selectedPropertyName}

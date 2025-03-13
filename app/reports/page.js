@@ -14,12 +14,8 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
-import Alert from "@mui/material/Alert";
 import BookingCard from "./BookingCard";
 import fetchWithAuth from "@/lib/fetchWithAuth";
-import BackgroundContainer from "../components/backgroundContainer";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { useUser } from "@/contexts/UserContext";
 import AdminProtected from "@/app/components/AdminProtected";
 

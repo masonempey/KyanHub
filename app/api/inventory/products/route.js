@@ -3,7 +3,6 @@ import InventoryService from "@/lib/services/inventoryService";
 export async function GET() {
   try {
     const products = await InventoryService.getAllProducts();
-    console.log("Products fetched:", products);
     return new Response(JSON.stringify(products), {
       status: 200,
       headers: { "Content-Type": "application/json" },
