@@ -34,14 +34,23 @@ export async function POST(request) {
     const kyanReceiptsFolder = "Kyan Receipts";
 
     await GoogleService.init();
+
+    // Find or create the Kyan Receipts parent folder
     const receiptsFolderId = await GoogleService.findKyanFinanceFolder(
       kyanReceiptsFolder
     );
 
+    // Find or create the monthYear subfolder within Kyan Receipts
+    const monthYearFolderId = await GoogleService.findKyanReceiptsSubfolder(
+      receiptsFolderId,
+      monthYear
+    );
+
+    // Upload the PDF to the monthYear subfolder
     const { fileId, webViewLink } = await GoogleService.uploadPDF(
       buffer,
       fileName,
-      receiptsFolderId
+      monthYearFolderId // Use the subfolder ID instead of receiptsFolderId
     );
 
     const [month, year] = monthYear.match(/([a-zA-Z]+)(\d+)/).slice(1, 3);
@@ -49,6 +58,10 @@ export async function POST(request) {
     const kyanFinancialsSheet = `${year} Financials`;
     const kyanSheetId = await GoogleService.findKyanFinanceSheet(
       kyanFinancialsSheet
+    );
+
+    console.log(
+      `Accessing spreadsheet at: https://docs.google.com/spreadsheets/d/${kyanSheetId}/edit`
     );
 
     await GoogleService.uploadKyanFinanceValues(kyanSheetId, {
@@ -59,7 +72,7 @@ export async function POST(request) {
       description,
       fileId,
     });
-    console.log("Uploaded restock receipt:", propertyName, monthYear);
+    console.log("Uploaded restock receipt:", store, monthYear);
 
     return new Response(
       JSON.stringify({
