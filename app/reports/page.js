@@ -1,7 +1,6 @@
 "use client";
 
 import { useProperties } from "@/contexts/PropertyContext";
-import styles from "./Reports.module.css";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import { useState, useEffect } from "react";
@@ -169,7 +168,7 @@ const ReportsPage = () => {
 
   if (userLoading || propertiesLoading || isLoading) {
     return (
-      <div className={styles.loadingContainer}>
+      <div>
         <CircularProgress sx={{ color: "#eccb34" }} />
       </div>
     );
