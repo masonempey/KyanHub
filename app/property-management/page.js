@@ -5,8 +5,6 @@ import { useProperties } from "@/contexts/PropertyContext";
 import MaintenanceSection from "./MaintenanceSection";
 import InventorySection from "./InventorySection";
 import RestockSection from "./RestockSection";
-import ViewMaintenanceSection from "./ViewMaintenanceSection";
-import ViewCleaningSection from "./ViewCleaningSection";
 import CleaningSection from "./CleaningSection";
 import { useUser } from "@/contexts/UserContext";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -98,8 +96,6 @@ const PropertyManagementPage = () => {
             >
               <Tab label="Add Maintenance" />
               <Tab label="Add Cleaning" />
-              <Tab label="View Maintenance" />
-              <Tab label="View Cleaning" />
             </Tabs>
             <div className="flex-1 overflow-y-auto">
               {rightActiveTab === 0 && (
@@ -110,18 +106,6 @@ const PropertyManagementPage = () => {
               )}
               {rightActiveTab === 1 && (
                 <CleaningSection
-                  propertyId={propertyId}
-                  selectedPropertyName={selectedPropertyName}
-                />
-              )}
-              {rightActiveTab === 2 && (
-                <ViewMaintenanceSection
-                  propertyId={propertyId}
-                  selectedPropertyName={selectedPropertyName}
-                />
-              )}
-              {rightActiveTab === 3 && (
-                <ViewCleaningSection
                   propertyId={propertyId}
                   selectedPropertyName={selectedPropertyName}
                 />

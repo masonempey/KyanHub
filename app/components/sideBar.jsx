@@ -6,6 +6,7 @@ import AddCircleSharpIcon from "@mui/icons-material/AddCircleSharp";
 import SummarizeSharpIcon from "@mui/icons-material/SummarizeSharp";
 import NotificationsNoneSharpIcon from "@mui/icons-material/NotificationsNoneSharp";
 import PersonOutlineSharpIcon from "@mui/icons-material/PersonOutlineSharp";
+import MapsHomeWorkIcon from "@mui/icons-material/MapsHomeWork";
 import { useRouter } from "next/navigation";
 
 const SideBar = () => {
@@ -65,6 +66,15 @@ const SideBar = () => {
           <SummarizeSharpIcon
             className={getIconClasses("SummarizeSharpIcon")}
           />
+        </div>
+
+        <div
+          className={getContainerClasses("MapsHomeWorkIcon")}
+          onMouseOver={() => handleMouseOver("MapsHomeWorkIcon")}
+          onMouseOut={handleMouseOut}
+          onClick={() => router.push("/property-view")}
+        >
+          <MapsHomeWorkIcon className={getIconClasses("MapsHomeWorkIcon")} />
         </div>
       </div>
       <div className="flex flex-col items-center gap-6 mt-auto">
