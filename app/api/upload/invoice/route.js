@@ -1,6 +1,7 @@
 // app/api/upload/invoice/route.js
 import { Buffer } from "buffer";
 import GoogleService from "@/lib/services/googleService";
+import PropertyService from "@/lib/services/propertyService";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -30,9 +31,12 @@ export async function POST(request) {
     const base64Data = file.split(",")[1];
     const buffer = Buffer.from(base64Data, "base64");
 
+    const folderId = await PropertyService.getFolderID(propertyName);
+
     await GoogleService.init();
+
     const receiptsFolderId = await GoogleService.findReceiptsFolder(
-      propertyName,
+      folderId,
       monthYear
     );
 

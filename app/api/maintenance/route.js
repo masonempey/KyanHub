@@ -1,10 +1,31 @@
 // app/api/maintenance/route.js
 import MaintenanceService from "@/lib/services/maintenanceService";
+import GoogleService from "@/lib/services/googleService";
+import PropertyService from "@/lib/services/propertyService";
+
+GoogleService.init().catch(console.error);
 
 export async function POST(request) {
   try {
     const maintenanceData = await request.json();
     await MaintenanceService.insertMaintenance(maintenanceData);
+
+    const sheetId = await PropertyService.getClientSheetID(
+      maintenanceData.propertyId
+    );
+
+    if (!sheetId) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message:
+            "Maintenance data inserted, but no Google Sheet ID found for property",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    await GoogleService.insertInvoiceToSheet(maintenanceData, sheetId);
 
     return new Response(
       JSON.stringify({

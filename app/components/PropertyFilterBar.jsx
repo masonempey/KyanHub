@@ -18,21 +18,27 @@ const PropertyFilterBar = ({
   useEffect(() => {
     if (!loading && Object.keys(properties).length > 0 && !property) {
       const firstPropertyId = Object.keys(properties)[0];
-      const firstPropertyName = properties[firstPropertyId];
+      const firstPropertyObj = properties[firstPropertyId];
+      // Extract name from the property object
+      const firstPropertyName =
+        typeof firstPropertyObj === "object"
+          ? firstPropertyObj.name
+          : firstPropertyObj;
+
       setProperty(firstPropertyId);
       setLabel("Properties");
       if (typeof onPropertySelect === "function") {
-        onPropertySelect(firstPropertyId, firstPropertyName);
+        onPropertySelect(firstPropertyId, firstPropertyObj);
       }
     }
   }, [properties, loading, onPropertySelect]);
 
   const handleChange = (event) => {
     const selectedId = event.target.value;
-    const propertyName = properties[selectedId];
+    const propertyObj = properties[selectedId];
     setProperty(selectedId);
     if (typeof onPropertySelect === "function") {
-      onPropertySelect(selectedId, propertyName);
+      onPropertySelect(selectedId, propertyObj);
     }
   };
 
@@ -71,15 +77,23 @@ const PropertyFilterBar = ({
             borderRadius: "8px",
           }}
         >
-          {Object.entries(properties).map(([uid, name]) => (
-            <MenuItem
-              key={uid}
-              value={uid}
-              sx={{ color: "#333333" }} // 'dark'
-            >
-              {name}
-            </MenuItem>
-          ))}
+          {Object.entries(properties).map(([uid, propertyData]) => {
+            // Extract name safely from the property data
+            const displayName =
+              typeof propertyData === "object"
+                ? propertyData.name
+                : propertyData;
+
+            return (
+              <MenuItem
+                key={uid}
+                value={uid}
+                sx={{ color: "#333333" }} // 'dark'
+              >
+                {displayName}
+              </MenuItem>
+            );
+          })}
         </Select>
       </FormControl>
     </Box>
