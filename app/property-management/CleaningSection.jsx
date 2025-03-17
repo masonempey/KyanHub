@@ -13,6 +13,7 @@ import TextField from "@mui/material/TextField";
 import OptionBar from "../components/OptionBar";
 import DatePicker from "../components/DatePicker";
 import AddCompanyDialog from "../components/AddCompanyDialog";
+import EditCompanyDialog from "../components/EditCompanyDialog";
 import dayjs from "dayjs";
 import { useUser } from "@/contexts/UserContext";
 import fetchWithAuth from "@/lib/fetchWithAuth";
@@ -38,6 +39,8 @@ const CleaningSection = ({
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [confirmSubmitDialogOpen, setConfirmSubmitDialogOpen] = useState(false);
+  const [editCompanyDialogOpen, setEditCompanyDialogOpen] = useState(false);
+  const [companyToEdit, setCompanyToEdit] = useState(null);
 
   const handleDateChange = useCallback(
     (newDate) => {
@@ -200,8 +203,12 @@ const CleaningSection = ({
     setCleaningDescription(event.target.value);
   };
 
-  const handleAddCompany = (newCompanyName) => {
-    const newCompany = { label: newCompanyName, value: newCompanyName };
+  const handleAddCompany = (newCompanyName, googleFolderId) => {
+    const newCompany = {
+      label: newCompanyName,
+      value: newCompanyName,
+      googleFolderId: googleFolderId || "",
+    };
     setCompanies((prev) => [...prev, newCompany]);
   };
 
@@ -240,6 +247,17 @@ const CleaningSection = ({
     setCompanyToDelete(null);
   };
 
+  const handleEditCompanyClick = (company) => {
+    setCompanyToEdit(company);
+    setEditCompanyDialogOpen(true);
+  };
+
+  const handleEditCompanySuccess = (companyName, googleFolderId) => {
+    setCompanies((prev) =>
+      prev.map((c) => (c.value === companyName ? { ...c, googleFolderId } : c))
+    );
+  };
+
   return (
     <div className="p-6 flex flex-col h-full">
       <h2 className="text-2xl font-bold text-dark mb-4">Cleaning Management</h2>
@@ -275,6 +293,7 @@ const CleaningSection = ({
                     setErrors(newErrors);
                   }}
                   onDelete={handleDeleteCompanyClick}
+                  onEdit={handleEditCompanyClick}
                 />
               </div>
               <Button
@@ -425,6 +444,13 @@ const CleaningSection = ({
         onClose={() => setCompanyDialogOpen(false)}
         onAddCompany={handleAddCompany}
         endpoint="/api/cleaning/add-company"
+      />
+
+      <EditCompanyDialog
+        open={editCompanyDialogOpen}
+        onClose={() => setEditCompanyDialogOpen(false)}
+        company={companyToEdit}
+        onEditSuccess={handleEditCompanySuccess}
       />
 
       <Dialog
