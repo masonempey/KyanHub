@@ -18,13 +18,10 @@ export const UserProvider = ({ children }) => {
 
   // Auth state listener
   useEffect(() => {
-    console.log("UserContext auth effect running, pathname:", pathname);
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log("onAuthStateChanged fired:", firebaseUser?.uid || "No user");
       try {
         if (firebaseUser) {
           if (!user || user.uid !== firebaseUser.uid) {
-            console.log("Fetching user data for:", firebaseUser.uid);
             const response = await fetch(`/api/users/${firebaseUser.uid}`);
             const userData = await response.json();
             console.log("User data fetched:", userData);
@@ -38,8 +35,15 @@ export const UserProvider = ({ children }) => {
 
             console.log("Setting user:", userWithRole);
             setUser(userWithRole);
-          } else {
-            console.log("User already set, no update needed:", user.uid);
+
+            // Initialize watches for admin users via API
+            if (userWithRole.role === "admin") {
+              console.log("Admin user authenticated, calling init-watch API");
+              await fetch("/api/init/init-watch", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+              });
+            }
           }
         } else {
           console.log("No Firebase user, clearing user state");
@@ -58,7 +62,7 @@ export const UserProvider = ({ children }) => {
       console.log("Unsubscribing from onAuthStateChanged");
       unsubscribe();
     };
-  }, [user]); // Depend on user to avoid redundant fetches
+  }, [user]);
 
   // Redirect logic
   useEffect(() => {
