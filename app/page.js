@@ -15,7 +15,7 @@ const HomePage = () => {
       if (user) {
         router.push("/property-management");
       } else {
-        router.push("/login"); // Unauthenticated -> login
+        router.push("/login");
       }
     }
   }, [router, user, userLoading, propertiesLoading]);
