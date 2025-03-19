@@ -82,7 +82,7 @@ export async function POST(request) {
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
       const extractResponse = await fetch(
-        `https://api.algodocs.com/v1/document/${documentId}`, // Corrected endpoint
+        `https://api.algodocs.com/v1/extracted_data/${documentId}`, // Corrected endpoint
         {
           method: "GET",
           headers,
