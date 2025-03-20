@@ -15,85 +15,134 @@ export const UserProvider = ({ children }) => {
   const pathname = usePathname();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [initWatchCalled, setInitWatchCalled] = useState(false);
 
-  // Auth state listener
+  // Auth state listener - optimized to not depend on user
   useEffect(() => {
+    let isMounted = true;
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
+          // Only fetch user data if we don't have it yet or it's for a different user
           if (!user || user.uid !== firebaseUser.uid) {
-            const response = await fetch(`/api/users/${firebaseUser.uid}`);
-            const userData = await response.json();
-            console.log("User data fetched:", userData);
+            // Use Promise.race with a timeout to prevent this from hanging
+            const userDataPromise = Promise.race([
+              fetch(`/api/users/${firebaseUser.uid}`).then((res) => res.json()),
+              new Promise((_, reject) =>
+                setTimeout(
+                  () => reject(new Error("User data fetch timeout")),
+                  5000
+                )
+              ),
+            ]);
 
-            const userWithRole = {
-              ...firebaseUser,
-              email: firebaseUser.email,
-              uid: firebaseUser.uid,
-              role: userData.role,
-            };
+            try {
+              const userData = await userDataPromise;
 
-            console.log("Setting user:", userWithRole);
-            setUser(userWithRole);
+              if (isMounted) {
+                const userWithRole = {
+                  email: firebaseUser.email,
+                  uid: firebaseUser.uid,
+                  role: userData.role,
+                };
 
-            // Initialize watches for admin users via API
-            if (userWithRole.role === "admin") {
-              console.log("Admin user authenticated, calling init-watch API");
-              await fetch("/api/init/init-watch", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-              });
+                setUser(userWithRole);
+              }
+            } catch (error) {
+              console.error("Error fetching user data:", error);
+              if (isMounted) {
+                // Still set basic user info even if role fetch fails
+                setUser({
+                  email: firebaseUser.email,
+                  uid: firebaseUser.uid,
+                  role: "unknown",
+                });
+              }
             }
           }
         } else {
-          console.log("No Firebase user, clearing user state");
-          setUser(null);
+          if (isMounted) {
+            setUser(null);
+          }
         }
       } catch (error) {
         console.error("Error in onAuthStateChanged:", error);
-        setUser(null);
+        if (isMounted) {
+          setUser(null);
+        }
       } finally {
-        console.log("Setting loading false");
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     });
 
     return () => {
-      console.log("Unsubscribing from onAuthStateChanged");
+      isMounted = false;
       unsubscribe();
     };
-  }, [user]);
+  }, []);
 
-  // Redirect logic
+  // Separate non-blocking effect for admin initialization
   useEffect(() => {
-    console.log(
-      "Redirect effect - User:",
-      user,
-      "Loading:",
-      loading,
-      "Path:",
-      pathname
-    );
-    if (!loading) {
-      if (user && pathname === "/login") {
+    if (user?.role === "admin" && !initWatchCalled) {
+      console.log("Admin user authenticated, calling init-watch API");
+      setInitWatchCalled(true);
+
+      // Make this non-blocking with fetch
+      fetch("/api/init/init-watch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`Init watch failed: ${response.status}`);
+          }
+          console.log("Init watch completed successfully");
+        })
+        .catch((err) => {
+          console.error("Init watch error:", err);
+          // Reset flag after some time to allow retry
+          setTimeout(() => setInitWatchCalled(false), 60000);
+        });
+    }
+  }, [user, initWatchCalled]);
+
+  // Optimized redirect logic
+  useEffect(() => {
+    if (loading) return; // Don't redirect while loading
+
+    const currentPath = pathname || "";
+
+    // Handle redirects based on auth state
+    if (user) {
+      // User is logged in
+      if (currentPath === "/login") {
         console.log("User signed in, redirecting to /property-management");
         router.push("/property-management");
-      } else if (!user && pathname !== "/login") {
+      }
+    } else {
+      // User not logged in
+      if (currentPath !== "/login") {
         console.log("No user, redirecting to /login");
         router.push("/login");
       }
     }
   }, [user, loading, pathname, router]);
 
+  // Memoized context value to prevent unnecessary re-renders
   const contextValue = React.useMemo(
     () => ({
       user,
       loading,
       logout: async () => {
-        console.log("Logging out...");
-        await signOut(auth);
-        setUser(null);
-        router.push("/login");
+        try {
+          await signOut(auth);
+          setUser(null);
+          router.push("/login");
+        } catch (error) {
+          console.error("Error signing out:", error);
+        }
       },
       login: () => router.push("/login"),
     }),

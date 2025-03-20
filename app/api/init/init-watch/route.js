@@ -48,8 +48,7 @@ export async function POST(request) {
         ? process.env.VERCEL_URL || "https://kyanhub.vercel.app"
         : process.env.LOCAL_WEBHOOK_URL || "http://localhost:3000";
 
-    const webhookUrl = `${baseUrl}/api/webhook`;
-    console.log(`Using webhook URL: ${webhookUrl}`);
+    const webhookUrl = `${baseUrl}/api/webhook/drive-notifications`;
 
     const watchedFolders = await loadWatchedFolders();
     const results = [];

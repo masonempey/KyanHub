@@ -1,41 +1,39 @@
 // app/api/process-invoice/route.js
 import { NextResponse } from "next/server";
 import googleService from "@/lib/services/googleService";
+import InvoiceService from "@/lib/services/invoiceService";
+import NotificationService from "@/lib/services/notificationsService";
 
 export async function POST(request) {
   try {
     const { fileId } = await request.json();
 
-    // if (!fileId) {
-    //   return NextResponse.json(
-    //     { success: false, error: "File ID is required" },
-    //     { status: 400 }
-    //   );
-    // }
+    if (!fileId) {
+      return NextResponse.json(
+        { success: false, error: "File ID is required" },
+        { status: 400 }
+      );
+    }
 
-    // const fileData = await googleService.downloadFileAsBuffer(fileId);
-    // console.log(
-    //   `Processing file: ${fileData.name} (${fileData.buffer.length} bytes)`
-    // );
+    // Download the file from Google Drive
+    const fileData = await googleService.downloadFileAsBuffer(fileId);
+    console.log(
+      `Processing file: ${fileData.name} (${fileData.buffer.length} bytes)`
+    );
 
-    // const base64Data = fileData.buffer.toString("base64");
-    // console.log("Base64 data length:", base64Data.length);
+    // Create a "started processing" notification
+    await NotificationService.createNotification({
+      title: `Processing Started: ${fileData.name}`,
+      message: `Your invoice is being processed. You'll be notified when complete.`,
+      type: "invoice_processing",
+      data: { fileId, fileName: fileData.name },
+    });
 
+    // AlgoDocs setup
     const email = process.env.ALGODOCS_EMAIL;
     const apiKey = process.env.ALGODOCS_API_KEY;
     const extractorId = process.env.ALGODOCS_EXTRACTOR_ID;
     const folderId = process.env.ALGODOCS_FOLDER_ID;
-
-    // const formData = new FormData();
-    // formData.append("file_base64", base64Data);
-    // formData.append("filename", fileData.name);
-
-    // for (const [key, value] of formData.entries()) {
-    //   console.log(`FormData entry: ${key}=${value.slice(0, 50)}...`);
-    // }
-
-    // const url = `https://api.algodocs.com/v1/document/upload_base64/${extractorId}/${folderId}`;
-    // console.log("Request URL:", url);
 
     const headers = {
       Authorization: `Basic ${Buffer.from(`${email}:${apiKey}`).toString(
@@ -43,33 +41,41 @@ export async function POST(request) {
       )}`,
     };
 
-    // const uploadResponse = await fetch(url, {
-    //   method: "POST",
-    //   headers,
-    //   body: formData,
-    // });
+    // Convert file to base64 and upload
+    const base64Data = fileData.buffer.toString("base64");
 
-    // console.log("Request headers:", headers);
-    // console.log("Response status:", uploadResponse.status);
-    // console.log(
-    //   "Response headers:",
-    //   Object.fromEntries(uploadResponse.headers)
-    // );
+    const formData = new FormData();
+    formData.append("file_base64", base64Data);
+    formData.append("filename", fileData.name);
 
-    // if (!uploadResponse.ok) {
-    //   const errorText = await uploadResponse.text();
-    //   console.error("AlgoDocs upload error:", errorText);
-    //   return NextResponse.json(
-    //     { success: false, error: `AlgoDocs upload failed: ${errorText}` },
-    //     { status: 500 }
-    //   );
-    // }
+    const url = `https://api.algodocs.com/v1/document/upload_base64/${extractorId}/${folderId}`;
 
-    // const uploadResult = await uploadResponse.json();
-    // console.log("Upload result:", uploadResult);
-    // const documentId = uploadResult.id;
+    const uploadResponse = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
 
-    const documentId = 1102237;
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error("AlgoDocs upload error:", errorText);
+
+      // Create error notification
+      await NotificationService.createNotification({
+        title: `Processing Failed: ${fileData.name}`,
+        message: `There was an error uploading your invoice.`,
+        type: "invoice_error",
+        data: { fileId, fileName: fileData.name, error: errorText },
+      });
+
+      return NextResponse.json(
+        { success: false, error: `AlgoDocs upload failed: ${errorText}` },
+        { status: 500 }
+      );
+    }
+
+    const uploadResult = await uploadResponse.json();
+    const documentId = uploadResult.id;
 
     // Poll for extracted data
     let extractedData = null;
@@ -82,7 +88,7 @@ export async function POST(request) {
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
       const extractResponse = await fetch(
-        `https://api.algodocs.com/v1/extracted_data/${documentId}`, // Corrected endpoint
+        `https://api.algodocs.com/v1/extracted_data/${documentId}`,
         {
           method: "GET",
           headers,
@@ -93,6 +99,18 @@ export async function POST(request) {
         const errorText = await extractResponse.text();
         console.error("AlgoDocs fetch error:", errorText);
         if (extractResponse.status === 404) {
+          // Create error notification
+          await NotificationService.createNotification({
+            title: `Processing Failed: ${fileData.name}`,
+            message: `Document not found on AlgoDocs.`,
+            type: "invoice_error",
+            data: {
+              fileId,
+              fileName: fileData.name,
+              error: "Document not found",
+            },
+          });
+
           return NextResponse.json(
             { success: false, error: "Document not found" },
             { status: 404 }
@@ -105,7 +123,6 @@ export async function POST(request) {
       const result = await extractResponse.json();
       console.log("Extract response:", result);
 
-      // Check for extracted data (adjust based on actual response)
       if (
         result.extracted_data ||
         (result.status === "completed" && result.data)
@@ -117,23 +134,53 @@ export async function POST(request) {
     }
 
     if (!extractedData) {
+      // Create timeout notification
+      await NotificationService.createNotification({
+        title: `Processing Timeout: ${fileData.name}`,
+        message: `The invoice is taking longer than expected to process.`,
+        type: "invoice_warning",
+        data: { fileId, fileName: fileData.name },
+      });
+
       return NextResponse.json(
         { success: false, error: "Timed out waiting for extraction" },
         { status: 500 }
       );
     }
 
-    console.log("Extracted data:", extractedData);
+    // Use correct case for service
+    await InvoiceService.saveInvoiceData({
+      fileId: fileId,
+      fileName: fileData.name,
+      extractedData: extractedData,
+      processedAt: new Date(),
+    });
+
+    // Success notification is created in InvoiceService.saveInvoiceData
+    // but we could add a custom one here if needed
 
     return NextResponse.json({
       success: true,
       message: "Invoice processed successfully",
-      documentId: uploadResult.id,
+      documentId: documentId,
       fileName: fileData.name,
       extractedData: extractedData,
     });
   } catch (error) {
     console.error("Error processing invoice:", error);
+
+    // Create error notification for unhandled exceptions
+    try {
+      await NotificationService.createNotification({
+        title: `Processing Error`,
+        message: `Failed to process invoice: ${error.message}`,
+        type: "invoice_error",
+        data: { error: error.message },
+      });
+    } catch (notifyError) {
+      console.error("Failed to create error notification:", notifyError);
+    }
+
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

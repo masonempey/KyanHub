@@ -5,6 +5,7 @@ import { useProperties } from "@/contexts/PropertyContext";
 import MaintenanceSection from "./MaintenanceSection";
 import InventorySection from "./InventorySection";
 import RestockSection from "./RestockSection";
+import ViewStockSection from "./ViewStockSection";
 import CleaningSection from "./CleaningSection";
 import ManagePropertySection from "./ManagePropertySection";
 import { useUser } from "@/contexts/UserContext";
@@ -124,6 +125,7 @@ const PropertyManagementPage = () => {
               >
                 <Tab label="Inventory" />
                 <Tab label="Restock" />
+                <Tab label="View Stock" />
               </Tabs>
               <div className="flex-1 overflow-y-auto">
                 {leftActiveTab === 0 && (
@@ -133,6 +135,7 @@ const PropertyManagementPage = () => {
                   />
                 )}
                 {leftActiveTab === 1 && <RestockSection />}
+                {leftActiveTab === 2 && <ViewStockSection />}
               </div>
             </div>
 
