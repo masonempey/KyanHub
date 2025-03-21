@@ -94,11 +94,18 @@ export const UserProvider = ({ children }) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       })
-        .then((response) => {
+        .then(async (response) => {
           if (!response.ok) {
-            throw new Error(`Init watch failed: ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(
+              `Init watch failed (${response.status}): ${errorText}`
+            );
           }
           console.log("Init watch completed successfully");
+          return response.json();
+        })
+        .then((data) => {
+          console.log("Watch initialization results:", data);
         })
         .catch((err) => {
           console.error("Init watch error:", err);
