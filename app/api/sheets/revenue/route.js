@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import googleService from "@/lib/services/googleService";
 import PropertyService from "@/lib/services/propertyService";
+import EmailService from "@/lib/services/emailService";
 
 const SHEET_LAYOUTS = {
   "Kyan Owned Properties": {
@@ -241,6 +242,14 @@ export async function PUT(request) {
         ]);
       }
     }
+
+    EmailService.sendEmail({
+      to: "mason@kyanproperties.com",
+      subject: "Test Email",
+      message: "This is a test email",
+      buttonText: "Click me",
+      buttonUrl: "https://kyanhub.com",
+    });
 
     return NextResponse.json({
       success: true,
