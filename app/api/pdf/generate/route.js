@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { Buffer } from "buffer";
 import googleService from "@/lib/services/googleService";
+import PropertyService from "@/lib/services/propertyService";
 
 const formatDate = (date) => {
   const options = { month: "long", day: "numeric", year: "numeric" };
@@ -35,10 +36,13 @@ export async function POST(request) {
           const pdfBuffer = Buffer.concat(chunks);
           console.log("Uploading PDF for:", propertyName, monthYear);
 
+          const folderId = await PropertyService.getFolderID(propertyName);
+
           const receiptsFolderId = await googleService.findReceiptsFolder(
-            propertyName,
+            folderId,
             monthYear
           );
+
           const { fileId, webViewLink } = await googleService.uploadPDF(
             pdfBuffer,
             `${propertyName}-invoice.pdf`,

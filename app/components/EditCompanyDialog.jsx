@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -7,48 +7,46 @@ import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 
-const AddCompanyDialog = ({ open, onClose, onAddCompany, endpoint }) => {
-  const [companyName, setCompanyName] = useState("");
+const EditCompanyDialog = ({ open, onClose, company, onEditSuccess }) => {
   const [googleFolderId, setGoogleFolderId] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!companyName.trim()) {
-      setError("Company name is required");
-      return;
+  useEffect(() => {
+    if (open && company) {
+      setGoogleFolderId(company.googleFolderId || "");
     }
+  }, [open, company]);
 
+  const handleSubmit = async () => {
     setIsSubmitting(true);
     setError("");
 
     try {
-      const response = await fetchWithAuth(endpoint, {
-        method: "POST",
+      const response = await fetchWithAuth("/api/cleaning/add-company", {
+        method: "PATCH",
         body: JSON.stringify({
-          companyName: companyName.trim(),
+          companyName: company.value,
           googleFolderId: googleFolderId.trim(),
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to add company: ${await response.text()}`);
+        throw new Error(`Failed to update company: ${await response.text()}`);
       }
 
-      const data = await response.json();
-      onAddCompany(companyName.trim(), googleFolderId.trim());
+      onEditSuccess(company.value, googleFolderId.trim());
       handleClose();
     } catch (error) {
-      console.error("Error adding company:", error);
-      setError(error.message || "Failed to add company");
+      console.error("Error updating company:", error);
+      setError(error.message || "Failed to update company");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleClose = () => {
-    setCompanyName("");
-    setGoogleFolderId(""); // Reset folder ID
+    setGoogleFolderId("");
     setError("");
     onClose();
   };
@@ -66,17 +64,14 @@ const AddCompanyDialog = ({ open, onClose, onAddCompany, endpoint }) => {
         },
       }}
     >
-      <DialogTitle sx={{ color: "#333333" }}>Add New Company</DialogTitle>
+      <DialogTitle sx={{ color: "#333333" }}>Edit Company</DialogTitle>
       <DialogContent>
         <TextField
-          autoFocus
           margin="dense"
           label="Company Name"
           fullWidth
-          value={companyName}
-          onChange={(e) => setCompanyName(e.target.value)}
-          error={!!error}
-          helperText={error}
+          value={company?.value || ""}
+          disabled
           sx={{
             "& .MuiOutlinedInput-root": {
               "& fieldset": { borderColor: "#eccb34" },
@@ -84,18 +79,18 @@ const AddCompanyDialog = ({ open, onClose, onAddCompany, endpoint }) => {
               "&.Mui-focused fieldset": { borderColor: "#eccb34" },
             },
             "& .MuiInputBase-input": { color: "#333333" },
-            "& .MuiFormHelperText-root": { color: "#eccb34" },
             marginBottom: 2,
           }}
         />
 
-        {/* New Google Folder ID input */}
         <TextField
           margin="dense"
           label="Google Folder ID"
           fullWidth
           value={googleFolderId}
           onChange={(e) => setGoogleFolderId(e.target.value)}
+          error={!!error}
+          helperText={error || "Enter the company's Google Drive Folder ID"}
           sx={{
             "& .MuiOutlinedInput-root": {
               "& fieldset": { borderColor: "#eccb34" },
@@ -103,9 +98,8 @@ const AddCompanyDialog = ({ open, onClose, onAddCompany, endpoint }) => {
               "&.Mui-focused fieldset": { borderColor: "#eccb34" },
             },
             "& .MuiInputBase-input": { color: "#333333" },
-            "& .MuiFormHelperText-root": { color: "#eccb34" },
+            "& .MuiFormHelperText-root": { color: error ? "#f44336" : "#666" },
           }}
-          helperText="Optional: Enter the company's Google Drive Folder ID"
         />
       </DialogContent>
       <DialogActions>
@@ -121,11 +115,11 @@ const AddCompanyDialog = ({ open, onClose, onAddCompany, endpoint }) => {
           className="bg-primary text-dark hover:bg-primary/80 transition-colors"
           disabled={isSubmitting}
         >
-          {isSubmitting ? "Adding..." : "Add"}
+          {isSubmitting ? "Updating..." : "Update"}
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-export default AddCompanyDialog;
+export default EditCompanyDialog;

@@ -7,6 +7,7 @@ import Select from "@mui/material/Select";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
 
 const menuProps = {
   PaperProps: {
@@ -31,6 +32,7 @@ const OptionBar = ({
   options = [],
   onSelect,
   onDelete,
+  onEdit, // Add onEdit prop
 }) => {
   const [selectedOption, setSelectedOption] = useState("");
 
@@ -43,6 +45,12 @@ const OptionBar = ({
   const handleDelete = (value) => (event) => {
     event.stopPropagation(); // Prevent dropdown selection when clicking delete
     if (onDelete) onDelete(value);
+  };
+
+  // Add handler for edit button
+  const handleEdit = (option) => (event) => {
+    event.stopPropagation(); // Prevent dropdown selection when clicking edit
+    if (onEdit) onEdit(option);
   };
 
   return (
@@ -88,20 +96,41 @@ const OptionBar = ({
               }}
             >
               {option.label}
-              <IconButton
-                aria-label={`delete ${option.label}`}
-                onClick={handleDelete(option.value)}
-                sx={{
-                  color: "#333333",
-                  "&:hover": {
-                    color: "#eccb34",
-                    backgroundColor: "rgba(236, 203, 52, 0.1)",
-                  },
-                }}
-                size="small"
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
+              <div className="flex">
+                {/* Add Edit button */}
+                {onEdit && (
+                  <IconButton
+                    aria-label={`edit ${option.label}`}
+                    onClick={handleEdit(option)}
+                    sx={{
+                      color: "#333333",
+                      marginRight: "4px",
+                      "&:hover": {
+                        color: "#eccb34",
+                        backgroundColor: "rgba(236, 203, 52, 0.1)",
+                      },
+                    }}
+                    size="small"
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                )}
+                {/* Existing Delete button */}
+                <IconButton
+                  aria-label={`delete ${option.label}`}
+                  onClick={handleDelete(option.value)}
+                  sx={{
+                    color: "#333333",
+                    "&:hover": {
+                      color: "#eccb34",
+                      backgroundColor: "rgba(236, 203, 52, 0.1)",
+                    },
+                  }}
+                  size="small"
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </div>
             </MenuItem>
           ))}
         </Select>

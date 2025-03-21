@@ -1,11 +1,11 @@
-// app/api/cleaning/add-company/[companyName]/route.js
-import CleaningService from "@/lib/services/cleaningService";
+// app/api/maintenance/add-company/route.js
+import MaintenanceService from "@/lib/services/maintenanceService";
 
 export async function POST(request, { params }) {
   try {
-    const resolvedParams = await params;
-    const { companyName } = resolvedParams;
-    await CleaningService.insertCompany(companyName);
+    const { companyName, googleFolderId } = await request.json();
+    await MaintenanceService.insertCompany(companyName, googleFolderId);
+
     return new Response(
       JSON.stringify({
         success: true,

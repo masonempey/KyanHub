@@ -14,6 +14,7 @@ import OptionBar from "../components/OptionBar";
 import DatePicker from "../components/DatePicker";
 import AddCompanyDialog from "../components/AddCompanyDialog";
 import AddCategoryDialog from "../components/AddCategoryDialog";
+import EditCompanyDialog from "../components/EditCompanyDialog";
 import dayjs from "dayjs";
 import { useUser } from "@/contexts/UserContext";
 import fetchWithAuth from "@/lib/fetchWithAuth";
@@ -45,6 +46,8 @@ const MaintenanceSection = ({
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [confirmSubmitDialogOpen, setConfirmSubmitDialogOpen] = useState(false);
+  const [editCompanyDialogOpen, setEditCompanyDialogOpen] = useState(false);
+  const [companyToEdit, setCompanyToEdit] = useState(null);
 
   const handleDateChange = useCallback(
     (newDate) => {
@@ -76,6 +79,7 @@ const MaintenanceSection = ({
             label: company.company_name,
             value: company.company_name,
             id: company.id,
+            googleFolderId: company.google_folder_id || "",
           }))
         );
       } catch (error) {
@@ -234,8 +238,12 @@ const MaintenanceSection = ({
     setMaintenanceDescription(event.target.value);
   };
 
-  const handleAddCompany = (newCompanyName) => {
-    const newCompany = { label: newCompanyName, value: newCompanyName };
+  const handleAddCompany = (newCompanyName, googleFolderId) => {
+    const newCompany = {
+      label: newCompanyName,
+      value: newCompanyName,
+      googleFolderId: googleFolderId || "",
+    };
     setCompanies((prev) => [...prev, newCompany]);
   };
 
@@ -316,6 +324,17 @@ const MaintenanceSection = ({
     setCategoryToDelete(null);
   };
 
+  const handleEditCompanyClick = (company) => {
+    setCompanyToEdit(company);
+    setEditCompanyDialogOpen(true);
+  };
+
+  const handleEditCompanySuccess = (companyName, googleFolderId) => {
+    setCompanies((prev) =>
+      prev.map((c) => (c.value === companyName ? { ...c, googleFolderId } : c))
+    );
+  };
+
   return (
     <div className="p-6 flex flex-col h-full">
       <h2 className="text-2xl font-bold text-dark mb-4">
@@ -337,6 +356,51 @@ const MaintenanceSection = ({
         {/* Left Column */}
         <div>
           {/* Category with Add button closer */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <OptionBar
+                  label="Company"
+                  placeholder="Maintenance Company"
+                  options={companies}
+                  onSelect={(value) => {
+                    setSelectedCompany(value);
+                    const newErrors = { ...errors };
+                    if (!value)
+                      newErrors.selectedCompany = "Company is required.";
+                    else delete newErrors.selectedCompany;
+                    setErrors(newErrors);
+                  }}
+                  onDelete={handleDeleteCompanyClick}
+                  onEdit={handleEditCompanyClick}
+                />
+              </div>
+              <Button
+                variant="contained"
+                startIcon={<AddCircleOutlineIcon />}
+                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-2 py-1 rounded-lg shadow-md transition-colors duration-300"
+                sx={{
+                  textTransform: "none",
+                  fontSize: "0.8rem",
+                  minWidth: "auto",
+                  marginTop: "1rem",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                  "&:hover": {
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                  },
+                }}
+                onClick={() => setCategoryDialogOpen(true)}
+              >
+                Add
+              </Button>
+            </div>
+            {errors.selectedCategory && (
+              <p className="text-primary text-sm mt-1">
+                {errors.selectedCategory}
+              </p>
+            )}
+          </div>
+
           <div className="mb-4">
             <div className="flex items-center gap-2">
               <div className="flex-1">
@@ -370,51 +434,6 @@ const MaintenanceSection = ({
                   },
                 }}
                 onClick={() => setCategoryDialogOpen(true)}
-              >
-                Add
-              </Button>
-            </div>
-            {errors.selectedCategory && (
-              <p className="text-primary text-sm mt-1">
-                {errors.selectedCategory}
-              </p>
-            )}
-          </div>
-
-          {/* Company with Add button closer */}
-          <div className="mb-4">
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <OptionBar
-                  label="Company"
-                  placeholder="Maintenance Company"
-                  options={companies}
-                  onSelect={(value) => {
-                    setSelectedCompany(value);
-                    const newErrors = { ...errors };
-                    if (!value)
-                      newErrors.selectedCompany = "Company is required.";
-                    else delete newErrors.selectedCompany;
-                    setErrors(newErrors);
-                  }}
-                  onDelete={handleDeleteCompanyClick}
-                />
-              </div>
-              <Button
-                variant="contained"
-                startIcon={<AddCircleOutlineIcon />}
-                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-2 py-1 rounded-lg shadow-md transition-colors duration-300"
-                sx={{
-                  textTransform: "none",
-                  fontSize: "0.8rem",
-                  minWidth: "auto",
-                  marginTop: "1rem",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                  "&:hover": {
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                  },
-                }}
-                onClick={() => setCompanyDialogOpen(true)}
               >
                 Add
               </Button>
@@ -542,7 +561,6 @@ const MaintenanceSection = ({
         </Button>
       </div>
 
-      {/* Dialogs remain the same */}
       <AddCompanyDialog
         open={companyDialogOpen}
         onClose={() => setCompanyDialogOpen(false)}
@@ -554,6 +572,14 @@ const MaintenanceSection = ({
         open={categoryDialogOpen}
         onClose={() => setCategoryDialogOpen(false)}
         onAddCategory={handleAddCategory}
+      />
+
+      <EditCompanyDialog
+        open={editCompanyDialogOpen}
+        onClose={() => setEditCompanyDialogOpen(false)}
+        company={companyToEdit}
+        onEditSuccess={handleEditCompanySuccess}
+        endpoint="/api/maintenance/add-company"
       />
 
       <Dialog
