@@ -32,8 +32,6 @@ export async function GET(request, { params }) {
         `${IGMS_CONFIG.baseUrl}/bookings?${queryParams}`
       );
 
-      console.log("IGMS API Response:", response.data);
-
       if (response.data.data?.length > 0) {
         const filteredBookings = response.data.data.filter((booking) => {
           const checkOutDate = new Date(booking.local_checkout_dttm)
@@ -130,10 +128,7 @@ export async function GET(request, { params }) {
           revenueByMonth,
         };
 
-        console.log("Inserting booking:", newBooking);
-
         await bookingService.insertBooking(newBooking);
-        console.log("BOOKING SENT", newBooking);
         return newBooking;
       })
     );

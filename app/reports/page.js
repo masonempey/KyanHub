@@ -55,44 +55,45 @@ const ReportsPage = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const fetchBookings = async (propertyId) => {
-      setLoading(true);
-      setIsLoading(true);
-      try {
-        if (!startDate || !endDate || endDate.isBefore(startDate)) {
-          throw new Error("Invalid date range.");
-        }
-        if (!propertyId) {
-          throw new Error("No property selected.");
-        }
-        const response = await fetchWithAuth(
-          `/api/igms/bookings-with-guests/${propertyId}/${startDate.format(
-            "YYYY-MM-DD"
-          )}/${endDate.format("YYYY-MM-DD")}`
-        );
-        if (!response.ok) {
-          throw new Error(`Failed to fetch bookings: ${await response.text()}`);
-        }
-        const data = await response.json();
-        if (data.success && data.bookings) {
-          setBookings(data.bookings);
-        } else {
-          setBookings([]);
-        }
-      } catch (error) {
-        console.error("Failed to fetch bookings:", error);
-        setErrorMessage(error.message || "Failed to fetch bookings.");
-        setErrorDialogOpen(true);
-      } finally {
-        setLoading(false);
-        setIsLoading(false);
-      }
-    };
-
     if (user && propertyId) {
-      fetchBookings(propertyId);
+      fetchBookings(propertyId, startDate, endDate);
     }
-  }, [user, propertyId, startDate, endDate]);
+  }, [user, propertyId]);
+
+  const fetchBookings = async (propertyId, start, end) => {
+    setLoading(true);
+    setIsLoading(true);
+    try {
+      if (!startDate || !end || endDate.isBefore(start)) {
+        throw new Error("Invalid date range.");
+      }
+      if (!propertyId) {
+        throw new Error("No property selected.");
+      }
+      const response = await fetchWithAuth(
+        `/api/igms/bookings-with-guests/${propertyId}/${startDate.format(
+          "YYYY-MM-DD"
+        )}/${endDate.format("YYYY-MM-DD")}`
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to fetch bookings: ${await response.text()}`);
+      }
+      const data = await response.json();
+      console.log("My Booking Test", data);
+      if (data.success && data.bookings) {
+        setBookings(data.bookings);
+      } else {
+        setBookings([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch bookings:", error);
+      setErrorMessage(error.message || "Failed to fetch bookings.");
+      setErrorDialogOpen(true);
+    } finally {
+      setLoading(false);
+      setIsLoading(false);
+    }
+  };
 
   const handleStartDateChange = (newValue) => {
     setStartDate(newValue);
@@ -120,6 +121,16 @@ const ReportsPage = () => {
     setConfirmDialogOpen(true);
   };
 
+  const handleSearchBookings = () => {
+    if (startDate && endDate && !endDate.isBefore(startDate)) {
+      fetchBookings(propertyId, startDate, endDate);
+    } else {
+      const newErrors = { ...errors };
+      newErrors.dateRange = "Please select a valid date range.";
+      setErrors(newErrors);
+    }
+  };
+
   const handleConfirmUpdate = async () => {
     if (!propertyId || !selectedPropertyName || !bookings.length) {
       setErrorMessage("No property or bookings selected.");
@@ -140,6 +151,7 @@ const ReportsPage = () => {
       const response = await fetchWithAuth(`/api/sheets/revenue`, {
         method: "PUT",
         body: JSON.stringify({
+          propertyId,
           propertyName,
           bookings,
           year,
@@ -278,8 +290,34 @@ const ReportsPage = () => {
                         </p>
                       )}
 
-                      {/* Separate button section with proper alignment */}
-                      <div className="flex justify-end mt-2">
+                      <div className="flex justify-end mt-2 gap-2">
+                        <Button
+                          variant="contained"
+                          onClick={handleSearchBookings}
+                          disabled={loading || !propertyId}
+                          className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
+                          sx={{
+                            textTransform: "none",
+                            fontSize: "1rem",
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                            "&:hover": {
+                              boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                            },
+                          }}
+                        >
+                          {loading ? (
+                            <span className="flex items-center">
+                              <CircularProgress
+                                size={20}
+                                sx={{ color: "#333333", mr: 1 }}
+                              />
+                              Searching...
+                            </span>
+                          ) : (
+                            "Search Bookings"
+                          )}
+                        </Button>
+
                         <Button
                           variant="contained"
                           onClick={handleUpdateRevenue}

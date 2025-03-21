@@ -1,51 +1,59 @@
 // app/api/sheets/revenue/route.js (unchanged from last numeric version)
 import { NextResponse } from "next/server";
 import googleService from "@/lib/services/googleService";
+import PropertyService from "@/lib/services/propertyService";
 
 const SHEET_LAYOUTS = {
   "Kyan Owned Properties": {
     revenueColumn: "H",
     cleaningColumn: "E",
     rightSideStart: "L",
-    rightSideEnd: "P",
+    rightSideEnd: "Q",
   },
   colours_1306: {
     revenueColumn: "B",
     cleaningColumn: "C",
     rightSideStart: "K",
-    rightSideEnd: "O",
+    rightSideEnd: "P",
   },
   "Windsor Town Homes": {
     revenueColumn: "I",
     cleaningColumn: "F",
     rightSideStart: "M",
-    rightSideEnd: "Q",
+    rightSideEnd: "R",
   },
   "Windsor 5119": {
     revenueColumn: "H",
     cleaningColumn: "E",
     rightSideStart: "L",
-    rightSideEnd: "P",
+    rightSideEnd: "Q",
   },
   default: {
     revenueColumn: "B",
     cleaningColumn: "C",
     rightSideStart: "J",
-    rightSideEnd: "N",
+    rightSideEnd: "O",
   },
 };
 
 const getSheetLayout = (propertyName) => {
   if (["Era 1102", "Colours - 1904", "Colours 1709"].includes(propertyName))
     return SHEET_LAYOUTS["Kyan Owned Properties"];
+
   if (propertyName === "Colours 1306") return SHEET_LAYOUTS.colours_1306;
+
   if (
-    (propertyName === "Windsor 95 - 703",
-    "Windsor 96 - 5503",
-    "Windsor 97 - 5505",
-    "Windsor 98 - 5507")
+    [
+      "Windsor 95 - 703",
+      "Windsor 96 - 5503",
+      "Windsor 97 - 5505",
+      "Windsor 98 - 5507",
+    ].includes(propertyName)
   )
     return SHEET_LAYOUTS["Windsor Town Homes"];
+
+  if (propertyName === "Windsor 5119") return SHEET_LAYOUTS["Windsor 5119"];
+
   return SHEET_LAYOUTS.default;
 };
 
@@ -75,56 +83,51 @@ export async function PUT(request) {
   try {
     console.log("Starting revenue update...");
     await googleService.init();
-    const { propertyName, bookings, year, monthName } = await request.json();
-    console.log("Request body:", { propertyName, bookings, year, monthName });
 
-    console.log("Fetching all Drive files to find spreadsheet...");
-    const sheetResponse = await googleService.drive.files.list({
-      fields: "files(id, name, mimeType)",
+    const { propertyId, propertyName, bookings, year, monthName } =
+      await request.json();
+    console.log("Request body:", {
+      propertyId,
+      propertyName,
+      bookings,
+      year,
+      monthName,
     });
 
-    if (!sheetResponse?.data) {
-      console.log("No data returned from Drive API");
-      throw new Error("Drive API returned no data");
-    }
-
-    if (!sheetResponse.data.files) {
-      console.log("No 'files' property in response");
-      throw new Error("Drive API response missing 'files' property");
-    }
-
-    const allSpreadsheets = sheetResponse.data.files.filter(
-      (file) => file.mimeType === "application/vnd.google-apps.spreadsheet"
-    );
     console.log(
-      "All spreadsheets found:",
-      allSpreadsheets.map((file) => ({
-        name: file.name,
-        id: file.id,
-      }))
+      "Booking Codes:",
+      bookings.map((booking) => booking.bookingCode)
     );
 
-    const spreadsheets = allSpreadsheets.filter((file) =>
-      file.name.toLowerCase().includes(propertyName.toLowerCase())
-    );
+    // Get the Google Sheet ID directly from the database instead of searching
+    const sheetId = await PropertyService.getClientSheetID(propertyId);
 
-    if (spreadsheets.length === 0) {
-      console.log(`No spreadsheets found containing '${propertyName}'`);
-      throw new Error(`No spreadsheet found containing '${propertyName}'`);
-    } else {
-      console.log(
-        `Spreadsheet found: ${spreadsheets[0].name} (ID: ${spreadsheets[0].id})`
+    if (!sheetId) {
+      const errorMsg = `No Google Sheet ID found for property: ${propertyName} (ID: ${propertyId})`;
+      console.error(errorMsg);
+      return NextResponse.json(
+        { success: false, error: errorMsg },
+        { status: 404 }
       );
     }
 
-    const sheetId = spreadsheets[0].id;
-    const sheetNameResult = spreadsheets[0].name;
+    console.log(`Using sheet ID ${sheetId} for property ${propertyName}`);
+
+    // Get sheet metadata to confirm it exists and get the actual name
+    const sheetMetadata = await googleService.sheets.spreadsheets.get({
+      spreadsheetId: sheetId,
+      fields: "properties.title,sheets.properties.title",
+    });
+
+    const sheetNameResult = sheetMetadata.data.properties.title;
     console.log(`Processing sheet: ${sheetNameResult} (ID: ${sheetId})`);
 
+    // Continue with your existing code for updating the sheet
     const layout = getSheetLayout(propertyName);
     const sheetName = getSheetName(propertyName, layout);
     console.log("Using layout:", layout);
     console.log("Using sheet name:", sheetName);
+
     const columnData = await googleService.getSheetData(
       sheetId,
       `${sheetName}!A:A`
@@ -192,16 +195,17 @@ export async function PUT(request) {
       sheetId,
       `${sheetName}!${layout.rightSideStart}:${layout.rightSideEnd}`
     );
-    console.log("Right side data:", rightSideData);
 
     const newBookings = bookings.filter((booking) => {
       return !rightSideData.some((row) => {
         if (!row || !row[0]) return false;
         const rowMonth = String(row[0]);
         const rowName = String(row[1] || "");
+        const rowBookingCode = String(row[4] || "");
         return (
-          rowMonth.toLowerCase() === monthName.toLowerCase() &&
-          rowName.toLowerCase() === booking.guestName.toLowerCase()
+          (rowMonth.toLowerCase() === monthName.toLowerCase() &&
+            rowName.toLowerCase() === booking.guestName.toLowerCase()) ||
+          (rowBookingCode && rowBookingCode === booking.bookingCode)
         );
       });
     });
@@ -223,6 +227,7 @@ export async function PUT(request) {
             revenue === "0.00" ? "" : `$${revenue}`,
             cleaning === "0.00" ? "" : cleaning ? `$${cleaning}` : "",
             booking.platform,
+            booking.bookingCode || "",
           ],
           row: firstEmptyRow + index,
         };
