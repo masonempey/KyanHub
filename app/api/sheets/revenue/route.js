@@ -112,8 +112,6 @@ export async function PUT(request) {
       );
     }
 
-    console.log(`Using sheet ID ${sheetId} for property ${propertyName}`);
-
     // Get sheet metadata to confirm it exists and get the actual name
     const sheetMetadata = await googleService.sheets.spreadsheets.get({
       spreadsheetId: sheetId,

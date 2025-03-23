@@ -74,24 +74,56 @@ const PropertyList = ({
     setViewDialogOpen(true);
   };
 
-  const handleEdit = (property, e) => {
+  const handleEdit = async (property, e) => {
     e.stopPropagation();
     setSelectedProperty(property);
 
-    const propertyWithDetails = getPropertyWithDetails(property.id) || {};
+    // Show loading indicator
+    setIsLoading(true);
 
-    setEditFormData({
-      name: property.name || "",
-      address: property.address || "",
-      bedrooms: property.bedrooms || "",
-      bathrooms: property.bathrooms || "",
-      sqft: property.sqft || "",
-      GoogleSheetId: propertyWithDetails?.GoogleSheetId || "",
-      GoogleFolderId: propertyWithDetails?.GoogleFolderId || "",
-    });
+    try {
+      // Fetch full property details directly from API when editing
+      const response = await fetchWithAuth(`/api/properties/${property.id}`);
 
-    console.log("Edit property with details:", propertyWithDetails);
-    setEditDialogOpen(true);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch property details: ${await response.text()}`
+        );
+      }
+
+      const fullPropertyData = await response.json();
+      console.log("Fetched property details:", fullPropertyData);
+
+      // Set form data with fields from API response - note the snake_case to camelCase conversion
+      setEditFormData({
+        name: property.name || "",
+        address: property.address || "",
+        bedrooms: property.Bedrooms || fullPropertyData.bedrooms || "",
+        bathrooms: property.Bathrooms || fullPropertyData.bathrooms || "",
+        sqft: property.sqft || fullPropertyData.sqft || "",
+        GoogleSheetId: fullPropertyData.google_sheet_id || "",
+        GoogleFolderId: fullPropertyData.google_folder_id || "",
+      });
+    } catch (error) {
+      console.error("Failed to fetch property details:", error);
+      // Fall back to what we have in the context (which might be incomplete)
+      const propertyWithDetails = getPropertyWithDetails(property.id) || {};
+
+      setEditFormData({
+        name: property.name || "",
+        address: property.address || "",
+        bedrooms: property.Bedrooms || "",
+        bathrooms: property.Bathrooms || "",
+        sqft: property.sqft || "",
+        GoogleSheetId: propertyWithDetails?.GoogleSheetId || "",
+        GoogleFolderId: propertyWithDetails?.GoogleFolderId || "",
+      });
+
+      onError && onError("Failed to load complete property details");
+    } finally {
+      setIsLoading(false);
+      setEditDialogOpen(true);
+    }
   };
 
   const handleInputChange = (e) => {
