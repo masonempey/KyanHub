@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import googleService from "@/lib/services/googleService";
 import PropertyService from "@/lib/services/propertyService";
-import EmailService from "@/lib/services/emailService";
+// import EmailService from "@/lib/services/emailService";
 
 const SHEET_LAYOUTS = {
   "Kyan Owned Properties": {
@@ -23,6 +23,12 @@ const SHEET_LAYOUTS = {
     rightSideStart: "M",
     rightSideEnd: "R",
   },
+  "Windsor Combos": {
+    revenueColumn: "C",
+    cleaningColumn: "B",
+    rightSideStart: "F",
+    rightSideEnd: "K",
+  },
   "Windsor 5119": {
     revenueColumn: "H",
     cleaningColumn: "E",
@@ -38,10 +44,15 @@ const SHEET_LAYOUTS = {
 };
 
 const getSheetLayout = (propertyName) => {
-  if (["Era 1102", "Colours - 1904", "Colours 1709"].includes(propertyName))
+  const trimmedPropertyName = propertyName.trim();
+
+  if (
+    ["Era 1102", "Colours - 1904", "Colours 1709"].includes(trimmedPropertyName)
+  )
     return SHEET_LAYOUTS["Kyan Owned Properties"];
 
-  if (propertyName === "Colours 1306") return SHEET_LAYOUTS.colours_1306;
+  if (trimmedPropertyName === "Colours - 1306")
+    return SHEET_LAYOUTS.colours_1306;
 
   if (
     [
@@ -49,11 +60,17 @@ const getSheetLayout = (propertyName) => {
       "Windsor 96 - 5503",
       "Windsor 97 - 5505",
       "Windsor 98 - 5507",
-    ].includes(propertyName)
+    ].includes(trimmedPropertyName)
   )
     return SHEET_LAYOUTS["Windsor Town Homes"];
 
-  if (propertyName === "Windsor 5119") return SHEET_LAYOUTS["Windsor 5119"];
+  if (
+    ["Windsor 95/96 Combo", "Windsor 97/98 Combo"].includes(trimmedPropertyName)
+  )
+    return SHEET_LAYOUTS["Windsor Combos"];
+
+  if (trimmedPropertyName === "Windsor Park - 5119")
+    return SHEET_LAYOUTS["Windsor 5119"];
 
   return SHEET_LAYOUTS.default;
 };
@@ -241,13 +258,13 @@ export async function PUT(request) {
       }
     }
 
-    EmailService.sendEmail({
-      to: "mason@kyanproperties.com",
-      subject: "Test Email",
-      message: "This is a test email",
-      buttonText: "Click me",
-      buttonUrl: "https://kyanhub.com",
-    });
+    // EmailService.sendEmail({
+    //   to: "mason@kyanproperties.com",
+    //   subject: "Test Email",
+    //   message: "This is a test email",
+    //   buttonText: "Click me",
+    //   buttonUrl: "https://kyanhub.com",
+    // });
 
     return NextResponse.json({
       success: true,
