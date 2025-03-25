@@ -1,6 +1,7 @@
 // app/api/upload/restock/route.js
 import { Buffer } from "buffer";
 import GoogleService from "@/lib/services/googleService";
+import KyanFinancialsService from "@/lib/services/kyanFinancialsService";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -65,7 +66,20 @@ export async function POST(request) {
       description,
       fileId,
     });
-    console.log("Uploaded restock receipt:", store, monthYear);
+
+    const dateNow = new Date();
+    const recordCode = `${store.substring(0, 3).toUpperCase()}-${year}${month
+      .substring(0, 3)
+      .toUpperCase()}-${Math.round(parseFloat(cost))}`;
+
+    await KyanFinancialsService.insertRecord({
+      dateSubmitted: dateNow,
+      store,
+      description,
+      cost: parseFloat(cost),
+      receiptImageUrl: webViewLink,
+      recordCode: recordCode,
+    });
 
     return new Response(
       JSON.stringify({
