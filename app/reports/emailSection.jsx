@@ -13,6 +13,13 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import AddIcon from "@mui/icons-material/Add";
 import SaveIcon from "@mui/icons-material/Save";
+import SendIcon from "@mui/icons-material/Send";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import Alert from "@mui/material/Alert";
+import Snackbar from "@mui/material/Snackbar";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 
 const EmailTemplates = () => {
@@ -28,6 +35,19 @@ const EmailTemplates = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Test email state
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [testEmailData, setTestEmailData] = useState({
+    to: "",
+    variables: "",
+  });
+  const [sendingTest, setSendingTest] = useState(false);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
 
   useEffect(() => {
     fetchEmailTemplates();
@@ -58,6 +78,13 @@ const EmailTemplates = () => {
     });
   };
 
+  const handleTestInputChange = (field) => (event) => {
+    setTestEmailData({
+      ...testEmailData,
+      [field]: event.target.value,
+    });
+  };
+
   const saveTemplate = async () => {
     if (!currentTemplate.name || !currentTemplate.subject) {
       setError("Template name and subject are required");
@@ -70,8 +97,15 @@ const EmailTemplates = () => {
 
     try {
       const method = currentTemplate.id ? "PUT" : "POST";
-      const response = await fetchWithAuth("/api/email/templates", {
+      const url = currentTemplate.id
+        ? `/api/email/templates/${currentTemplate.id}`
+        : "/api/email/templates";
+
+      const response = await fetchWithAuth(url, {
         method,
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(currentTemplate),
       });
 
@@ -158,6 +192,77 @@ const EmailTemplates = () => {
     setError("");
   };
 
+  // Open test email dialog
+  const openTestDialog = (template) => {
+    setTestEmailData({
+      to: "",
+      variables:
+        '{\n  "property.name": "Sample Property",\n  "property.address": "123 Main St",\n  "booking.guestName": "John Doe"\n}',
+    });
+    setCurrentTemplate(template);
+    setTestDialogOpen(true);
+  };
+
+  // Send test email
+  const sendTestEmail = async () => {
+    if (!testEmailData.to) {
+      showSnackbar("Email recipient is required", "error");
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      let variables = {};
+      try {
+        variables = JSON.parse(testEmailData.variables || "{}");
+      } catch (e) {
+        showSnackbar("Invalid JSON in variables field", "error");
+        setSendingTest(false);
+        return;
+      }
+
+      const response = await fetchWithAuth("/api/email/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: testEmailData.to,
+          subject: currentTemplate.subject,
+          message: currentTemplate.message,
+          buttonText: currentTemplate.buttonText,
+          buttonUrl: currentTemplate.buttonUrl,
+          variables: variables,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to send test email");
+      }
+
+      setTestDialogOpen(false);
+      showSnackbar("Test email sent successfully!", "success");
+    } catch (error) {
+      console.error("Error sending test email:", error);
+      showSnackbar(error.message || "Failed to send test email", "error");
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
+  const showSnackbar = (message, severity = "success") => {
+    setSnackbar({
+      open: true,
+      message,
+      severity,
+    });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
@@ -191,8 +296,19 @@ const EmailTemplates = () => {
                     <ListItemSecondaryAction>
                       <IconButton
                         edge="end"
+                        aria-label="send test"
+                        onClick={() => openTestDialog(template)}
+                        title="Send test email"
+                        className="text-dark hover:text-blue-500"
+                        sx={{ mr: 0.5 }}
+                      >
+                        <SendIcon />
+                      </IconButton>
+                      <IconButton
+                        edge="end"
                         aria-label="edit"
                         onClick={() => editTemplate(template)}
+                        title="Edit template"
                         className="text-dark hover:text-primary"
                       >
                         <EditIcon />
@@ -201,6 +317,7 @@ const EmailTemplates = () => {
                         edge="end"
                         aria-label="delete"
                         onClick={() => deleteTemplate(template.id)}
+                        title="Delete template"
                         className="text-dark hover:text-red-500"
                       >
                         <DeleteIcon />
@@ -290,7 +407,7 @@ const EmailTemplates = () => {
                 multiline
                 rows={6}
                 className="bg-white rounded-lg"
-                helperText="HTML is supported"
+                helperText="HTML is supported. Use {{variable}} syntax for dynamic content."
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     "& fieldset": { borderColor: "#eccb34" },
@@ -334,31 +451,148 @@ const EmailTemplates = () => {
                 />
               </div>
 
-              <div className="flex justify-end pt-4">
-                <Button
-                  variant="contained"
-                  onClick={saveTemplate}
-                  disabled={loading}
-                  startIcon={
-                    loading ? <CircularProgress size={20} /> : <SaveIcon />
-                  }
-                  className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
-                  sx={{
-                    textTransform: "none",
-                    fontSize: "1rem",
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                    "&:hover": {
-                      boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                    },
-                  }}
-                >
-                  {currentTemplate.id ? "Update Template" : "Save Template"}
-                </Button>
+              <div className="flex justify-between pt-4">
+                {currentTemplate.id && (
+                  <Button
+                    variant="outlined"
+                    onClick={() => openTestDialog(currentTemplate)}
+                    startIcon={<SendIcon />}
+                    sx={{
+                      textTransform: "none",
+                      fontSize: "1rem",
+                      color: "#3f51b5",
+                      borderColor: "#3f51b5",
+                      "&:hover": {
+                        backgroundColor: "rgba(63, 81, 181, 0.04)",
+                        borderColor: "#3f51b5",
+                      },
+                    }}
+                  >
+                    Test Email
+                  </Button>
+                )}
+                <div className={currentTemplate.id ? "" : "ml-auto"}>
+                  <Button
+                    variant="contained"
+                    onClick={saveTemplate}
+                    disabled={loading}
+                    startIcon={
+                      loading ? <CircularProgress size={20} /> : <SaveIcon />
+                    }
+                    className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
+                    sx={{
+                      textTransform: "none",
+                      fontSize: "1rem",
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                      "&:hover": {
+                        boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                      },
+                    }}
+                  >
+                    {currentTemplate.id ? "Update Template" : "Save Template"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Test Email Dialog */}
+      <Dialog
+        open={testDialogOpen}
+        onClose={() => !sendingTest && setTestDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Send Test Email - {currentTemplate.name}</DialogTitle>
+        <DialogContent>
+          <div className="space-y-4 mt-2">
+            <TextField
+              label="Recipient Email"
+              fullWidth
+              value={testEmailData.to}
+              onChange={handleTestInputChange("to")}
+              required
+              size="small"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  "& fieldset": { borderColor: "#eccb34" },
+                  "&:hover fieldset": { borderColor: "#eccb34" },
+                  "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+                },
+              }}
+            />
+
+            <TextField
+              label="Template Variables (JSON format)"
+              fullWidth
+              value={testEmailData.variables}
+              onChange={handleTestInputChange("variables")}
+              multiline
+              rows={8}
+              helperText="Enter JSON object with variables to substitute in the template"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  "& fieldset": { borderColor: "#eccb34" },
+                  "&:hover fieldset": { borderColor: "#eccb34" },
+                  "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+                },
+              }}
+            />
+
+            <div className="text-xs text-gray-500 mt-2">
+              <p>Variable examples:</p>
+              <ul className="list-disc pl-5">
+                <li>{property.name} - Name of the property</li>
+                <li>{booking.guestName} - Guest name</li>
+                <li>{booking.checkIn} - Check-in date</li>
+              </ul>
+            </div>
+          </div>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setTestDialogOpen(false)}
+            disabled={sendingTest}
+            sx={{ color: "#333" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={sendTestEmail}
+            disabled={sendingTest}
+            variant="contained"
+            startIcon={
+              sendingTest ? <CircularProgress size={20} /> : <SendIcon />
+            }
+            sx={{
+              textTransform: "none",
+              bgcolor: "#eccb34",
+              color: "#333333",
+              "&:hover": { bgcolor: "#d9b92f" },
+            }}
+          >
+            Send Test
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          onClose={handleCloseSnackbar}
+          severity={snackbar.severity}
+          sx={{ width: "100%" }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </div>
   );
 };

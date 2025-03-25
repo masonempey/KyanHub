@@ -50,19 +50,12 @@ export async function POST(request) {
     const { fileId, webViewLink } = await GoogleService.uploadPDF(
       buffer,
       fileName,
-      monthYearFolderId // Use the subfolder ID instead of receiptsFolderId
+      monthYearFolderId
     );
 
     const [month, year] = monthYear.match(/([a-zA-Z]+)(\d+)/).slice(1, 3);
 
-    const kyanFinancialsSheet = `${year} Financials`;
-    const kyanSheetId = await GoogleService.findKyanFinanceSheet(
-      kyanFinancialsSheet
-    );
-
-    console.log(
-      `Accessing spreadsheet at: https://docs.google.com/spreadsheets/d/${kyanSheetId}/edit`
-    );
+    const kyanSheetId = "1Yj7-lhynaWQ_kYof-6fIhWVmK3xlzGFE2XpuqHix1bk";
 
     await GoogleService.uploadKyanFinanceValues(kyanSheetId, {
       month,
