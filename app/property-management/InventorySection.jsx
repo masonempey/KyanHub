@@ -537,6 +537,7 @@ const InventorySection = () => {
           amounts={amounts}
           rates={rates}
           selectedPropertyName={selectedPropertyName}
+          propertyId={propertyId}
           monthYear={setCurrentMonthYear(currentMonth)}
         />
 
