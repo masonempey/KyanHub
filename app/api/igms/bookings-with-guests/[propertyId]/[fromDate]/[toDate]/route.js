@@ -32,6 +32,11 @@ export async function GET(request, { params }) {
         `${IGMS_CONFIG.baseUrl}/bookings?${queryParams}`
       );
 
+      console.log(
+        `Page ${currentPage} raw data count:`,
+        response.data.data?.length || 0
+      );
+
       if (response.data.data?.length > 0) {
         const filteredBookings = response.data.data.filter((booking) => {
           const checkOutDate = new Date(booking.local_checkout_dttm)
@@ -40,8 +45,7 @@ export async function GET(request, { params }) {
           return (
             checkOutDate !== fromDate &&
             booking.booking_status === "accepted" &&
-            booking.property_uid === propertyId &&
-            booking.platform_type !== "airgms"
+            booking.property_uid === propertyId
           );
         });
 
@@ -127,6 +131,8 @@ export async function GET(request, { params }) {
           nightsByMonth,
           revenueByMonth,
         };
+
+        console.log("THESE BOOKINGS", newBooking);
 
         await bookingService.insertBooking(newBooking);
         return newBooking;

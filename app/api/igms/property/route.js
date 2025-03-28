@@ -15,11 +15,6 @@ export async function GET() {
     let currentPage = 1;
     let hasMorePages = true;
 
-    console.log("IGMS Token:", {
-      exists: !!IGMS_CONFIG.token,
-      length: IGMS_CONFIG.token?.length,
-    });
-
     while (hasMorePages) {
       const queryParams = new URLSearchParams({
         access_token: IGMS_CONFIG.token,
@@ -42,6 +37,8 @@ export async function GET() {
     }
 
     allProperties.sort((a, b) => a.name.localeCompare(b.name));
+
+    console.log(`Fetched ${allProperties} properties from IGMS`);
     await PropertyService.upsertProperties(allProperties);
 
     return new Response(
