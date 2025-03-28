@@ -42,7 +42,7 @@ export async function POST(request) {
     );
 
     // Find or create the monthYear subfolder within Kyan Receipts
-    const monthYearFolderId = await GoogleService.findKyanReceiptsSubfolder(
+    const monthYearFolderId = await GoogleService.findReceiptsSubfolder(
       receiptsFolderId,
       monthYear
     );

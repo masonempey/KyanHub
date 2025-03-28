@@ -7,9 +7,11 @@ import DialogTitle from "@mui/material/DialogTitle";
 import { useState } from "react";
 import dayjs from "dayjs";
 import fetchWithAuth from "@/lib/fetchWithAuth";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const PdfSection = ({
   selectedPropertyName,
+  propertyId,
   products,
   amounts,
   rates,
@@ -19,6 +21,7 @@ const PdfSection = ({
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [pdfLink, setPdfLink] = useState("");
+  const [isLoading, setIsLoading] = useState(false); // Add missing state
 
   const handleGeneratePDF = async () => {
     if (!selectedPropertyName) {
@@ -33,10 +36,10 @@ const PdfSection = ({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${await user.getIdToken()}`,
         },
         body: JSON.stringify({
           propertyName: selectedPropertyName,
+          propertyId,
           products,
           amounts: amounts.map(Number),
           rates,
@@ -75,8 +78,16 @@ const PdfSection = ({
           },
         }}
         onClick={handleGeneratePDF}
+        disabled={isLoading}
       >
-        Send PDF&apos;s to Drive
+        {isLoading ? (
+          <span className="flex items-center">
+            <CircularProgress size={20} sx={{ color: "#333333", mr: 1 }} />
+            Processing...
+          </span>
+        ) : (
+          "Send PDF's to Drive"
+        )}
       </Button>
       <Dialog
         open={successDialogOpen}
@@ -93,7 +104,12 @@ const PdfSection = ({
         <DialogContent>
           <DialogContentText sx={{ color: "#fafafa" }}>
             PDF uploaded successfully to Drive!{" "}
-            <a href={pdfLink} target="_blank" style={{ color: "#fafafa" }}>
+            <a
+              href={pdfLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "#fafafa" }}
+            >
               View Link
             </a>
           </DialogContentText>
