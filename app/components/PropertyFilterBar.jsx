@@ -11,6 +11,7 @@ const PropertyFilterBar = ({
   properties = {},
   loading = false,
   onPropertySelect,
+  mobile = false,
 }) => {
   const [property, setProperty] = useState("");
   const [label, setLabel] = useState("Search All Properties");
@@ -31,20 +32,21 @@ const PropertyFilterBar = ({
         onPropertySelect(firstPropertyId, firstPropertyObj);
       }
     }
-  }, [properties, loading, onPropertySelect]);
+  }, [properties, loading, property, onPropertySelect]);
 
   const handleChange = (event) => {
     const selectedId = event.target.value;
-    const propertyObj = properties[selectedId];
     setProperty(selectedId);
+
+    const selectedProperty = properties[selectedId];
     if (typeof onPropertySelect === "function") {
-      onPropertySelect(selectedId, propertyObj);
+      onPropertySelect(selectedId, selectedProperty);
     }
   };
 
   return (
-    <Box>
-      <FormControl fullWidth size="large">
+    <Box sx={{ maxWidth: mobile ? "100%" : "250px" }}>
+      <FormControl fullWidth size={mobile ? "small" : "medium"}>
         <InputLabel
           id="property-select-label"
           sx={{
@@ -59,9 +61,8 @@ const PropertyFilterBar = ({
           labelId="property-select-label"
           id="property-select"
           value={property}
-          label="Property"
+          label={label}
           onChange={handleChange}
-          disabled={loading}
           sx={{
             "& .MuiOutlinedInput-notchedOutline": {
               borderColor: "#333333", // 'dark'
@@ -75,6 +76,7 @@ const PropertyFilterBar = ({
             color: "#333333", // 'dark'
             backgroundColor: "white",
             borderRadius: "8px",
+            fontSize: mobile ? "0.875rem" : "1rem",
           }}
         >
           {Object.entries(properties).map(([uid, propertyData]) => {

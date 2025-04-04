@@ -43,9 +43,13 @@ export default function RootLayoutClient({ children }) {
     if (pathname === "/reports") {
       return "Reports";
     }
+    if (pathname === "/property-view") {
+      return "Property View";
+    }
     if (pathname === "/profile") {
       return "Profile";
     }
+    return "Dashboard";
   };
 
   return (
@@ -62,7 +66,11 @@ export default function RootLayoutClient({ children }) {
             onMonthChange={handleMonthChange}
           />
         )}
-        <main className={`main-content ${isLoginPage ? "no-sidebar" : ""}`}>
+        <main
+          className={`main-content ${
+            isLoginPage ? "no-sidebar" : ""
+          } pt-16 md:pt-0`}
+        >
           {children}
         </main>
       </div>
