@@ -462,7 +462,7 @@ const InventorySection = () => {
             {products.map((product, index) => (
               <SortableItem key={product.id} id={product.id}>
                 {(dragListeners) => (
-                  <div className="grid grid-cols-[auto_1fr_auto] py-3 px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors">
+                  <div className="grid grid-cols-[auto_1fr_auto] py-3 px-2 sm:px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors">
                     <IconButton
                       aria-label={`drag ${product.name}`}
                       className="text-dark/70 hover:text-primary cursor-grab"
@@ -541,14 +541,14 @@ const InventorySection = () => {
           monthYear={setCurrentMonthYear(currentMonth)}
         />
 
-        <div className="flex gap-4">
+        <div className="flex flex-col xs:flex-row gap-2 xs:gap-4 w-full xs:w-auto mt-3 xs:mt-0">
           <Button
             variant="contained"
             onClick={handleUpdateInventory}
             className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
             sx={{
               textTransform: "none",
-              fontSize: "1rem",
+              fontSize: { xs: "0.875rem", sm: "1rem" },
               boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
               "&:hover": {
                 boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
@@ -660,12 +660,18 @@ const InventorySection = () => {
       <Dialog
         open={editDialogOpen}
         onClose={handleEditCancel}
+        fullWidth
+        maxWidth="sm"
         PaperProps={{
           sx: {
             backgroundColor: "#fafafa",
             color: "#333333",
-            borderRadius: "12px",
+            borderRadius: { xs: "8px", sm: "12px" },
+            width: "95%",
+            padding: { xs: "8px", sm: "16px" },
+            margin: { xs: "8px", sm: "16px" },
             border: "1px solid rgba(236, 203, 52, 0.2)",
+            overflowY: "auto",
           },
         }}
       >

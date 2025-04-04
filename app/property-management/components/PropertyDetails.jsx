@@ -81,11 +81,17 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
   }
 
   return (
-    <div className="overflow-auto pb-6">
+    <div className="overflow-auto pb-6 px-2 sm:px-4">
       {property && (
         <>
-          <div className="flex justify-between items-center mb-6">
-            <Typography variant="h4" component="h2">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+            <Typography
+              variant="h4"
+              component="h2"
+              sx={{
+                fontSize: { xs: "1.5rem", sm: "2rem" },
+              }}
+            >
               {property.name}
             </Typography>
             <Button
@@ -96,6 +102,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
               sx={{
                 bgcolor: "#eccb34",
                 color: "#333333",
+                whiteSpace: "nowrap",
                 "&:hover": {
                   bgcolor: "#d9b92f",
                 },
@@ -109,10 +116,15 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
             <Tabs
               value={detailsTab}
               onChange={(e, val) => setDetailsTab(val)}
+              variant="scrollable" // Add this for small screens
+              scrollButtons="auto" // Add this for small screens
+              allowScrollButtonsMobile // Add this for small screens
               sx={{
                 "& .MuiTab-root": {
                   color: "#333333",
                   "&.Mui-selected": { color: "#eccb34" },
+                  fontSize: { xs: "0.8rem", sm: "0.875rem" }, // Responsive font size
+                  padding: { xs: "6px 12px", sm: "12px 16px" }, // Responsive padding
                 },
                 "& .MuiTabs-indicator": { backgroundColor: "#eccb34" },
               }}
@@ -153,7 +165,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                           variant="outlined"
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="City"
                           name="city"
@@ -163,7 +175,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                           variant="outlined"
                         />
                       </Grid>
-                      <Grid item xs={3}>
+                      <Grid item xs={6} sm={3}>
                         <TextField
                           label="State"
                           name="state"
@@ -173,7 +185,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                           variant="outlined"
                         />
                       </Grid>
-                      <Grid item xs={3}>
+                      <Grid item xs={6} sm={3}>
                         <TextField
                           label="Zip Code"
                           name="zipCode"
@@ -188,6 +200,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                 </Card>
               </Grid>
 
+              {/* Second card adjustments similar to above */}
               <Grid item xs={12} md={6}>
                 <Card>
                   <CardContent>
@@ -248,17 +261,19 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
             </Grid>
           )}
 
+          {/* For other tabs */}
           {detailsTab === 1 && (
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <Card>
+                  {/* Similar adjustments to the grid items for financial section */}
                   <CardContent>
                     <Typography variant="h6" gutterBottom>
                       Financial Overview
                     </Typography>
                     <Divider className="mb-4" />
                     <Grid container spacing={2}>
-                      <Grid item xs={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Purchase Price"
                           name="purchasePrice"
@@ -269,7 +284,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                           variant="outlined"
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Current Value"
                           name="currentValue"
@@ -280,7 +295,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                           variant="outlined"
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Monthly Rental Income"
                           name="rentalIncome"
@@ -291,7 +306,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                           variant="outlined"
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Monthly Expenses"
                           name="monthlyExpenses"
@@ -306,7 +321,6 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                   </CardContent>
                 </Card>
               </Grid>
-
               <Grid item xs={12} md={6}>
                 <Card>
                   <CardContent>
@@ -315,7 +329,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                     </Typography>
                     <Divider className="mb-4" />
                     <Grid container spacing={2}>
-                      <Grid item xs={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Mortgage Amount"
                           name="mortgageAmount"
@@ -326,7 +340,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                           variant="outlined"
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Interest Rate"
                           name="interestRate"
@@ -337,7 +351,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                           variant="outlined"
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Loan Term (years)"
                           name="loanTerm"
@@ -348,7 +362,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                           variant="outlined"
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Monthly Payment"
                           name="monthlyPayment"
@@ -376,7 +390,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                     </Typography>
                     <Divider className="mb-4" />
                     <Grid container spacing={2}>
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Property Manager"
                           name="propertyManager"
@@ -405,7 +419,7 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                         />
                       </Grid>
 
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={12} sm={6}>
                         <TextField
                           label="Maintenance Contact"
                           name="maintenanceContact"

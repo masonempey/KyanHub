@@ -115,7 +115,7 @@ const ViewStockSection = () => {
         </h2>
 
         {/* Search and filter controls */}
-        <div className="flex flex-wrap gap-4 mb-4 justify-between">
+        <div className="flex flex-wrap gap-2 sm:gap-4 mb-4 justify-between">
           <TextField
             placeholder="Search products..."
             variant="outlined"
@@ -130,7 +130,8 @@ const ViewStockSection = () => {
               ),
             }}
             sx={{
-              width: "350px",
+              width: "100%",
+              maxWidth: "350px",
               "& .MuiOutlinedInput-root": {
                 backgroundColor: "#ffffff",
                 "& fieldset": { borderColor: "#eccb34" },
@@ -141,7 +142,7 @@ const ViewStockSection = () => {
             }}
           />
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
             <Button
               variant={sortBy === "name" ? "contained" : "outlined"}
               onClick={() => setSortBy("name")}
@@ -214,7 +215,7 @@ const ViewStockSection = () => {
             sortedProducts.map((product, index) => (
               <div
                 key={product.id || `item-${index}`}
-                className="grid grid-cols-[1fr_auto] py-3 px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors"
+                className="grid grid-cols-[auto_1fr_auto] py-3 px-2 sm:px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors"
               >
                 <div className="flex flex-col">
                   <span className="text-dark">

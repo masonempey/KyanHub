@@ -104,9 +104,9 @@ const PropertyManagementPage = () => {
 
         {mainView === "operations" ? (
           // Operations View - Original two-column layout
-          <div className="flex gap-6 h-full">
-            {/* Left column - Now with tabs for Inventory and Restock */}
-            <div className="w-1/2 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm border border-primary/10 flex flex-col">
+          <div className="flex flex-col lg:flex-row gap-6 h-full">
+            {/* Left column - Now responsive */}
+            <div className="w-full lg:w-1/2 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm border border-primary/10 flex flex-col mb-6 lg:mb-0">
               <Tabs
                 value={leftActiveTab}
                 onChange={handleLeftTabChange}
@@ -139,8 +139,8 @@ const PropertyManagementPage = () => {
               </div>
             </div>
 
-            {/* Right column - Tabbed Maintenance Section - now with 4 tabs */}
-            <div className="w-1/2 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm border border-primary/10 flex flex-col">
+            {/* Right column - Now responsive */}
+            <div className="w-full lg:w-1/2 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm border border-primary/10 flex flex-col">
               <Tabs
                 value={rightActiveTab}
                 onChange={handleRightTabChange}

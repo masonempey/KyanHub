@@ -273,7 +273,7 @@ const CleaningSection = ({
       )}
 
       {/* Main content area - arranged in two columns */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Left Column */}
         <div>
           {/* Company with Add button closer */}
