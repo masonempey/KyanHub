@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Button from "@mui/material/Button";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import EditIcon from "@mui/icons-material/Edit";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -16,10 +17,13 @@ import dayjs from "dayjs";
 import { useUser } from "@/contexts/UserContext";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 import CircularProgress from "@mui/material/CircularProgress";
-import { Description } from "@mui/icons-material";
+import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
+import IconButton from "@mui/material/IconButton";
 
 const RestockSection = () => {
   const { user, loading } = useUser();
+  const [isUploading, setIsUploading] = useState(false);
   const [selectedStore, setSelectedStore] = useState("");
   const [restockCost, setRestockCost] = useState("");
   const [restockDescription, setRestockDescription] = useState("");
@@ -27,6 +31,8 @@ const RestockSection = () => {
   const [stores, setStores] = useState([]);
   const [isFileAttached, setIsFileAttached] = useState(false);
   const [fileAttached, setFileAttached] = useState(null);
+  const [customFileName, setCustomFileName] = useState("");
+  const [showFileRename, setShowFileRename] = useState(false);
   const [deleteStoreDialogOpen, setDeleteStoreDialogOpen] = useState(false);
   const [storeToDelete, setStoreToDelete] = useState(null);
   const [errors, setErrors] = useState({});
@@ -37,9 +43,25 @@ const RestockSection = () => {
   const [products, setProducts] = useState([]);
   const [restockItems, setRestockItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredProducts, setFilteredProducts] = useState([]);
 
   const currentDate = dayjs();
 
+  // Filter products based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredProducts(products);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = products.filter((product) =>
+        product.name.toLowerCase().includes(query)
+      );
+      setFilteredProducts(filtered);
+    }
+  }, [searchQuery, products]);
+
+  // Load stores and products
   useEffect(() => {
     const fetchStores = async () => {
       try {
@@ -76,6 +98,7 @@ const RestockSection = () => {
         );
 
         setProducts(uniqueProducts);
+        setFilteredProducts(uniqueProducts);
         setRestockItems(uniqueProducts.map(() => "0"));
       } catch (error) {
         console.error("Error fetching products:", error);
@@ -99,6 +122,15 @@ const RestockSection = () => {
       fetchProducts();
     }
   }, [user, loading]);
+
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setFileAttached(file);
+      setIsFileAttached(true);
+      setCustomFileName(file.name);
+    }
+  };
 
   const handleRestockItemChange = (index, value) => {
     const newItems = [...restockItems];
@@ -135,13 +167,19 @@ const RestockSection = () => {
       }
     });
 
+    if (isFileAttached && !customFileName.trim()) {
+      newErrors.fileName = "File name cannot be empty";
+    }
+
     return newErrors;
   };
 
   const handleRestockSubmit = async () => {
+    setIsUploading(true);
     const newErrors = validateInputs();
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      setIsUploading(false);
       return;
     }
 
@@ -167,7 +205,7 @@ const RestockSection = () => {
             cost: restockCost,
             store: selectedStore,
             file: fileBase64,
-            fileName: fileAttached.name,
+            fileName: customFileName || fileAttached.name, // Use custom filename if provided
           }),
         });
 
@@ -195,9 +233,13 @@ const RestockSection = () => {
       setRestockDescription("");
       setIsFileAttached(false);
       setFileAttached(null);
+      setCustomFileName("");
+      setShowFileRename(false);
       setRestockItems(products.map(() => "0")); // Reset all item quantities
       setErrors({});
+      setIsUploading(false);
     } catch (error) {
+      setIsUploading(false);
       console.error("Error submitting restock request:", error);
       setErrorMessage(error.message || "An error occurred. Please try again.");
       setErrorDialogOpen(true);
@@ -271,7 +313,7 @@ const RestockSection = () => {
     setStoreToDelete(null);
   };
 
-  if (isLoading) {
+  if (isLoading || isUploading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
         <CircularProgress sx={{ color: "#eccb34" }} />
@@ -280,48 +322,51 @@ const RestockSection = () => {
   }
 
   return (
-    <div className="p-4 flex flex-col h-full">
-      <h2 className="text-2xl font-bold text-dark mb-4">Restock Management</h2>
+    <div className="p-4 flex flex-col h-full bg-white/80 rounded-lg">
+      <h2 className="text-xl sm:text-2xl font-bold text-dark mb-4">
+        Restock Management
+      </h2>
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      {/* Main form area */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         {/* Left column */}
         <div>
           {/* Store with Add button */}
           <div className="mb-4">
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <OptionBar
-                  label="Store"
-                  placeholder="Store Name"
-                  options={stores}
-                  onSelect={(value) => {
-                    setSelectedStore(value);
-                    const newErrors = { ...errors };
-                    if (!value) newErrors.selectedStore = "Store is required.";
-                    else delete newErrors.selectedStore;
-                    setErrors(newErrors);
+            <div className="flex flex-col space-y-2">
+              <div className="flex flex-row items-center space-x-2">
+                <label className="font-medium text-dark">Store</label>
+                <Button
+                  variant="contained"
+                  startIcon={<AddCircleOutlineIcon />}
+                  className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-2 py-1 rounded-lg shadow-md transition-colors duration-300"
+                  sx={{
+                    textTransform: "none",
+                    fontSize: "0.8rem",
+                    minWidth: "auto",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                    "&:hover": {
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                    },
                   }}
-                  onDelete={handleDeleteStoreClick}
-                />
+                  onClick={() => setStoreDialogOpen(true)}
+                >
+                  Add
+                </Button>
               </div>
-              <Button
-                variant="contained"
-                startIcon={<AddCircleOutlineIcon />}
-                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-2 py-1 rounded-lg shadow-md transition-colors duration-300"
-                sx={{
-                  textTransform: "none",
-                  fontSize: "0.8rem",
-                  minWidth: "auto",
-                  marginTop: "1rem",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                  "&:hover": {
-                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                  },
+              <OptionBar
+                label=""
+                placeholder="Store Name"
+                options={stores}
+                onSelect={(value) => {
+                  setSelectedStore(value);
+                  const newErrors = { ...errors };
+                  if (!value) newErrors.selectedStore = "Store is required.";
+                  else delete newErrors.selectedStore;
+                  setErrors(newErrors);
                 }}
-                onClick={() => setStoreDialogOpen(true)}
-              >
-                Add
-              </Button>
+                onDelete={handleDeleteStoreClick}
+              />
             </div>
             {errors.selectedStore && (
               <p className="text-primary text-sm mt-1">
@@ -332,6 +377,7 @@ const RestockSection = () => {
 
           {/* Restock Cost */}
           <div className="mb-4">
+            <label className="font-medium text-dark block mb-2">Cost</label>
             <TextField
               type="text"
               inputMode="numeric"
@@ -358,41 +404,77 @@ const RestockSection = () => {
 
         {/* Right column */}
         <div>
-          {/* Upload Files Button */}
-          <div className="flex justify-center mt-10">
-            <Button
-              component="label"
-              variant="contained"
-              startIcon={<CloudUploadIcon />}
-              className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium rounded-lg shadow-md transition-colors duration-300"
-              sx={{
-                textTransform: "none",
-                fontSize: "1rem",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                "&:hover": {
-                  boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                },
-                padding: "8px 16px",
-              }}
-            >
-              {isFileAttached
-                ? `File Attached: ${fileAttached?.name}`
-                : "Upload Receipt"}
-              <input
-                type="file"
-                hidden
-                onChange={(event) => {
-                  setFileAttached(event.target.files[0]);
-                  setIsFileAttached(true);
+          {/* Upload Files Button with Rename Option */}
+          <div className="mb-4">
+            <label className="font-medium text-dark block mb-2">Receipt</label>
+            <div className="flex flex-col space-y-2">
+              <Button
+                component="label"
+                variant="contained"
+                startIcon={<CloudUploadIcon />}
+                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium rounded-lg shadow-md transition-colors duration-300"
+                sx={{
+                  textTransform: "none",
+                  fontSize: { xs: "0.875rem", sm: "0.9rem" },
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                  "&:hover": {
+                    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                  },
+                  padding: "8px 16px",
                 }}
-              />
-            </Button>
+              >
+                {isFileAttached ? "Change Receipt" : "Upload Receipt"}
+                <input type="file" hidden onChange={handleFileChange} />
+              </Button>
+
+              {isFileAttached && (
+                <div className="flex items-center">
+                  <div className="bg-white text-dark border border-primary/30 rounded-lg px-3 py-2 flex items-center justify-between w-full">
+                    <div className="truncate">
+                      {showFileRename ? (
+                        <TextField
+                          autoFocus
+                          value={customFileName}
+                          onChange={(e) => setCustomFileName(e.target.value)}
+                          size="small"
+                          fullWidth
+                          onBlur={() => setShowFileRename(false)}
+                          onKeyPress={(e) => {
+                            if (e.key === "Enter") {
+                              setShowFileRename(false);
+                            }
+                          }}
+                          sx={{
+                            "& .MuiOutlinedInput-root": {
+                              "& fieldset": { borderColor: "#eccb34" },
+                            },
+                          }}
+                        />
+                      ) : (
+                        <span className="truncate">{customFileName}</span>
+                      )}
+                    </div>
+                    <IconButton
+                      size="small"
+                      onClick={() => setShowFileRename(!showFileRename)}
+                      className="ml-1 text-dark hover:text-primary"
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </div>
+                </div>
+              )}
+              {errors.fileName && (
+                <p className="text-primary text-sm">{errors.fileName}</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Restock Description */}
       <div className="mb-4">
+        <label className="font-medium text-dark block mb-2">Description</label>
         <TextField
           type="text"
           value={restockDescription}
@@ -413,6 +495,30 @@ const RestockSection = () => {
         />
       </div>
 
+      {/* Search Products */}
+      <div className="mb-3 px-1">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full p-2 pr-10 bg-white text-dark border border-primary/30 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
+            <SearchIcon fontSize="small" />
+          </div>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-10 flex items-center pr-2 text-gray-400 hover:text-gray-600"
+            >
+              <ClearIcon fontSize="small" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Products to restock */}
       <div className="flex-1 flex flex-col mb-4">
         <div className="grid grid-cols-[1fr_auto] py-3 px-4 bg-primary/10 rounded-t-lg text-dark font-semibold">
@@ -425,32 +531,42 @@ const RestockSection = () => {
         )}
 
         <div className="flex-1 overflow-y-auto bg-secondary/80 rounded-b-lg border border-primary/10 max-h-40">
-          {products.map((product, index) => (
-            <div
-              key={product.id}
-              className="grid grid-cols-[1fr_auto] py-2 px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors"
-            >
-              <div className="flex flex-col">
-                <span className="text-dark">{product.name}</span>
+          {filteredProducts.map((product) => {
+            const originalIndex = products.findIndex(
+              (p) => p.id === product.id
+            );
+            return (
+              <div
+                key={product.id}
+                className="grid grid-cols-[1fr_auto] py-2 px-2 sm:px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors"
+              >
+                <div className="flex flex-col min-w-0 pr-2">
+                  <span className="text-dark truncate">{product.name}</span>
+                </div>
+                <div className="flex flex-col items-end">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={restockItems[originalIndex] || "0"}
+                    onChange={(e) =>
+                      handleRestockItemChange(originalIndex, e.target.value)
+                    }
+                    className="bg-white text-dark border border-primary/30 rounded-lg px-3 py-1 w-16 text-right focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm"
+                  />
+                  {errors[`item_${originalIndex}`] && (
+                    <p className="text-primary text-xs mt-1">
+                      {errors[`item_${originalIndex}`]}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-col items-end">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={restockItems[index] || "0"}
-                  onChange={(e) =>
-                    handleRestockItemChange(index, e.target.value)
-                  }
-                  className="bg-white text-dark border border-primary/30 rounded-lg px-3 py-1 w-16 text-right focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm"
-                />
-                {errors[`item_${index}`] && (
-                  <p className="text-primary text-xs mt-1">
-                    {errors[`item_${index}`]}
-                  </p>
-                )}
-              </div>
+            );
+          })}
+          {filteredProducts.length === 0 && searchQuery && (
+            <div className="p-4 text-center text-gray-500">
+              No products match your search
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -466,7 +582,8 @@ const RestockSection = () => {
             "&:hover": {
               boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
             },
-            minWidth: "180px",
+            minWidth: { xs: "80%", sm: "180px" },
+            maxWidth: "300px",
           }}
           onClick={() => {
             const newErrors = validateInputs();
@@ -492,101 +609,7 @@ const RestockSection = () => {
         placeholder="Enter store name"
       />
 
-      <Dialog
-        open={deleteStoreDialogOpen}
-        onClose={handleDeleteStoreCancel}
-        PaperProps={{
-          sx: {
-            backgroundColor: "#fafafa",
-            color: "#333333",
-            borderRadius: "12px",
-            border: "1px solid rgba(236, 203, 52, 0.2)",
-          },
-        }}
-      >
-        <DialogTitle sx={{ color: "#333333" }}>Confirm Deletion</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ color: "#333333" }}>
-            Are you sure you want to delete the store "{storeToDelete}"? This
-            action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={handleDeleteStoreCancel}
-            className="text-dark hover:bg-primary/5 transition-colors"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteStoreConfirm}
-            className="bg-primary text-dark hover:bg-primary/80 transition-colors"
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={successDialogOpen}
-        onClose={() => setSuccessDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            backgroundColor: "#fafafa",
-            color: "#333333",
-            borderRadius: "12px",
-            border: "1px solid rgba(236, 203, 52, 0.2)",
-          },
-        }}
-      >
-        <DialogTitle sx={{ color: "#333333" }}>
-          <span className="flex items-center">
-            <span className="text-primary mr-2">✓</span> Success
-          </span>
-        </DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ color: "#333333" }}>
-            Restock request submitted successfully!
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setSuccessDialogOpen(false)}
-            className="bg-primary text-dark hover:bg-primary/80 transition-colors"
-          >
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={errorDialogOpen}
-        onClose={() => setErrorDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            backgroundColor: "#fafafa",
-            color: "#333333",
-            borderRadius: "12px",
-            border: "1px solid rgba(236, 203, 52, 0.2)",
-          },
-        }}
-      >
-        <DialogTitle sx={{ color: "#333333" }}>Error</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ color: "#333333" }}>
-            {errorMessage}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setErrorDialogOpen(false)}
-            className="bg-primary text-dark hover:bg-primary/80 transition-colors"
-          >
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-
+      {/* Keep all other dialogs unchanged */}
       <Dialog
         open={confirmSubmitDialogOpen}
         onClose={() => setConfirmSubmitDialogOpen(false)}
@@ -621,7 +644,7 @@ const RestockSection = () => {
             </p>
             <p>
               <strong>Receipt:</strong>{" "}
-              {fileAttached ? fileAttached.name : "None attached"}
+              {isFileAttached ? customFileName : "None attached"}
             </p>
 
             <div>

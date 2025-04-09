@@ -259,43 +259,25 @@ const CleaningSection = ({
   };
 
   return (
-    <div className="p-6 flex flex-col h-full">
-      <h2 className="text-2xl font-bold text-dark mb-4">Cleaning Management</h2>
+    <div className="p-4 flex flex-col h-full bg-white/80 rounded-lg">
+      <h2 className="text-xl sm:text-2xl font-bold text-dark mb-4">
+        Cleaning Management
+      </h2>
 
-      <div className="text-dark font-semibold mb-4 grid grid-cols-2 py-3 px-4 bg-primary/10 rounded-t-lg mt-2">
+      <div className="text-dark font-semibold mb-4 py-2 px-3 bg-primary/10 rounded-lg">
         {selectedPropertyName || "Select a Property"}
       </div>
-
       {errors.selectedPropertyName && (
         <p className="text-primary mb-2 text-sm">
           {errors.selectedPropertyName}
         </p>
       )}
 
-      {/* Main content area - arranged in two columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Left Column */}
-        <div>
-          {/* Company with Add button closer */}
-          <div className="mb-4">
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <OptionBar
-                  label="Company"
-                  placeholder="Cleaning Company"
-                  options={companies}
-                  onSelect={(value) => {
-                    setSelectedCompany(value);
-                    const newErrors = { ...errors };
-                    if (!value)
-                      newErrors.selectedCompany = "Company is required.";
-                    else delete newErrors.selectedCompany;
-                    setErrors(newErrors);
-                  }}
-                  onDelete={handleDeleteCompanyClick}
-                  onEdit={handleEditCompanyClick}
-                />
-              </div>
+      <div className="flex flex-col space-y-6">
+        <div className="w-full">
+          <div className="flex flex-col space-y-2">
+            <div className="flex flex-row items-center space-x-2">
+              <label className="font-medium text-dark">Company</label>
               <Button
                 variant="contained"
                 startIcon={<AddCircleOutlineIcon />}
@@ -304,7 +286,6 @@ const CleaningSection = ({
                   textTransform: "none",
                   fontSize: "0.8rem",
                   minWidth: "auto",
-                  marginTop: "1rem",
                   boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                   "&:hover": {
                     boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
@@ -315,46 +296,110 @@ const CleaningSection = ({
                 Add
               </Button>
             </div>
+            <OptionBar
+              label=""
+              placeholder="Cleaning Company"
+              options={companies}
+              onSelect={(value) => {
+                setSelectedCompany(value);
+                const newErrors = { ...errors };
+                if (!value) newErrors.selectedCompany = "Company is required.";
+                else delete newErrors.selectedCompany;
+                setErrors(newErrors);
+              }}
+              onDelete={handleDeleteCompanyClick}
+              onEdit={handleEditCompanyClick}
+            />
             {errors.selectedCompany && (
-              <p className="text-primary text-sm mt-1">
-                {errors.selectedCompany}
-              </p>
+              <p className="text-primary text-sm">{errors.selectedCompany}</p>
             )}
           </div>
+        </div>
 
-          {/* Cleaning Cost */}
-          <div className="mb-4">
-            <TextField
-              type="text"
-              inputMode="numeric"
-              value={cleaningCost}
-              onChange={handleCleaningCostChange}
-              fullWidth
-              placeholder="Cleaning Cost"
-              error={!!errors.cleaningCost}
-              helperText={errors.cleaningCost}
-              className="bg-white rounded-lg"
-              size="small"
-              sx={{
-                "& .MuiOutlinedInput-root": {
-                  "& fieldset": { borderColor: "#eccb34" },
-                  "&:hover fieldset": { borderColor: "#eccb34" },
-                  "&.Mui-focused fieldset": { borderColor: "#eccb34" },
-                },
-                "& .MuiInputBase-input": { color: "#333333" },
-                "& .MuiFormHelperText-root": { color: "#eccb34", marginTop: 0 },
-              }}
-            />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="w-full">
+            <div className="flex flex-col space-y-6">
+              <div>
+                <label className="font-medium text-dark block mb-2">Cost</label>
+                <TextField
+                  type="text"
+                  inputMode="numeric"
+                  value={cleaningCost}
+                  onChange={handleCleaningCostChange}
+                  fullWidth
+                  placeholder="Cleaning Cost"
+                  error={!!errors.cleaningCost}
+                  helperText={errors.cleaningCost}
+                  className="bg-white rounded-lg"
+                  size="small"
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      "& fieldset": { borderColor: "#eccb34" },
+                      "&:hover fieldset": { borderColor: "#eccb34" },
+                      "&.Mui-focused fieldset": { borderColor: "#eccb34" },
+                    },
+                    "& .MuiInputBase-input": { color: "#333333" },
+                    "& .MuiFormHelperText-root": {
+                      color: "#eccb34",
+                      marginTop: 0,
+                    },
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="font-medium text-dark block mb-2">Date</label>
+                <DatePicker
+                  value={selectedDate}
+                  onDateChange={handleDateChange}
+                />
+                {errors.selectedDate && (
+                  <p className="text-primary text-sm mt-1">
+                    {errors.selectedDate}
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-2">
+                <Button
+                  component="label"
+                  variant="contained"
+                  startIcon={<CloudUploadIcon />}
+                  className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium rounded-lg shadow-md transition-colors duration-300 w-full"
+                  sx={{
+                    textTransform: "none",
+                    fontSize: "0.9rem",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                    "&:hover": {
+                      boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                    },
+                    padding: "8px 16px",
+                  }}
+                >
+                  {isFileAttached ? "File Attached" : "Upload Files"}
+                  <input
+                    type="file"
+                    hidden
+                    onChange={(event) => {
+                      setFileAttached(event.target.files[0]);
+                      setIsFileAttached(true);
+                    }}
+                  />
+                </Button>
+              </div>
+            </div>
           </div>
 
-          {/* Cleaning Description */}
-          <div>
+          <div className="w-full">
+            <label className="font-medium text-dark block mb-2">
+              Description
+            </label>
             <TextField
               type="text"
               value={cleaningDescription}
               onChange={handleCleaningDescriptionChange}
               multiline
-              rows={8}
+              rows={6}
               fullWidth
               placeholder="Cleaning Description"
               className="bg-white rounded-lg"
@@ -370,75 +415,34 @@ const CleaningSection = ({
           </div>
         </div>
 
-        {/* Right Column */}
-        <div>
-          {/* Date Picker */}
-          <div className="mb-6">
-            <DatePicker value={selectedDate} onDateChange={handleDateChange} />
-            {errors.selectedDate && (
-              <p className="text-primary text-sm mt-1">{errors.selectedDate}</p>
-            )}
-          </div>
-
-          {/* Upload Files Button - Centered under calendar */}
-          <div className="flex justify-center mb-6">
-            <Button
-              component="label"
-              variant="contained"
-              startIcon={<CloudUploadIcon />}
-              className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium rounded-lg shadow-md transition-colors duration-300"
-              sx={{
-                textTransform: "none",
-                fontSize: "1rem",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                "&:hover": {
-                  boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                },
-                padding: "8px 16px",
-              }}
-            >
-              {isFileAttached ? "File Attached" : "Upload Files"}
-              <input
-                type="file"
-                hidden
-                onChange={(event) => {
-                  setFileAttached(event.target.files[0]);
-                  setIsFileAttached(true);
-                }}
-              />
-            </Button>
-          </div>
+        <div className="flex justify-center mt-6">
+          <Button
+            variant="contained"
+            className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-8 py-3 rounded-lg shadow-md transition-colors duration-300"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              "&:hover": {
+                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+              },
+              minWidth: { xs: "80%", sm: "200px" },
+              maxWidth: "300px",
+            }}
+            onClick={() => {
+              const newErrors = validateInputs();
+              if (Object.keys(newErrors).length > 0) {
+                setErrors(newErrors);
+                return;
+              }
+              setConfirmSubmitDialogOpen(true);
+            }}
+          >
+            Submit Cleaning
+          </Button>
         </div>
       </div>
 
-      {/* Submit Cleaning Button - Centered at bottom */}
-      <div className="flex justify-center mt-8">
-        <Button
-          variant="contained"
-          className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-8 py-3 rounded-lg shadow-md transition-colors duration-300"
-          sx={{
-            textTransform: "none",
-            fontSize: "1.1rem",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            "&:hover": {
-              boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-            },
-            minWidth: "200px",
-          }}
-          onClick={() => {
-            const newErrors = validateInputs();
-            if (Object.keys(newErrors).length > 0) {
-              setErrors(newErrors);
-              return;
-            }
-            setConfirmSubmitDialogOpen(true);
-          }}
-        >
-          Submit Cleaning
-        </Button>
-      </div>
-
-      {/* Dialogs */}
       <AddCompanyDialog
         open={companyDialogOpen}
         onClose={() => setCompanyDialogOpen(false)}

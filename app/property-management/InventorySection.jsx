@@ -80,6 +80,10 @@ const InventorySection = () => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
+  // Add search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredProducts, setFilteredProducts] = useState([]);
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -102,6 +106,18 @@ const InventorySection = () => {
       }, {});
     setFilteredProperties(filtered);
   }, [allProperties]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredProducts(products);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = products.filter((product) =>
+        product.name.toLowerCase().includes(query)
+      );
+      setFilteredProducts(filtered);
+    }
+  }, [searchQuery, products]);
 
   const handleAmountChange = (index, value) => {
     const newAmounts = [...amounts];
@@ -443,6 +459,56 @@ const InventorySection = () => {
         <p className="text-primary mb-4 text-sm">{errors.currentMonth}</p>
       )}
 
+      {/* Add search bar */}
+      <div className="mb-3 px-1">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full p-3 pr-10 bg-white text-dark border border-primary/30 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="w-5 h-5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+              />
+            </svg>
+          </div>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-10 flex items-center pr-2 text-gray-400 hover:text-gray-600"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-5 h-5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-[auto_1fr_auto] py-3 px-4 bg-primary/10 rounded-t-lg text-dark font-semibold">
         <span className="w-8"></span>
         <span>Product</span>
@@ -455,78 +521,92 @@ const InventorySection = () => {
         onDragEnd={handleDragEnd}
       >
         <SortableContext
-          items={products.map((p) => p.id)}
+          items={filteredProducts.map((p) => p.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="flex-1 overflow-y-auto bg-secondary/80 rounded-b-lg mb-6 border border-primary/10">
-            {products.map((product, index) => (
-              <SortableItem key={product.id} id={product.id}>
-                {(dragListeners) => (
-                  <div className="grid grid-cols-[auto_1fr_auto] py-3 px-2 sm:px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors">
-                    <IconButton
-                      aria-label={`drag ${product.name}`}
-                      className="text-dark/70 hover:text-primary cursor-grab"
-                      size="small"
-                      {...dragListeners}
-                    >
-                      <DragHandleIcon fontSize="small" />
-                    </IconButton>
-                    <div className="flex items-center">
-                      <div className="flex flex-col">
-                        <span className="text-dark">{product.name}</span>
-                        <div className="flex gap-2 text-dark/70 text-xs">
-                          {product.owner_price && (
-                            <span>
-                              Owner: $
-                              {parseFloat(product.owner_price).toFixed(2)}
-                            </span>
-                          )}
-                          {product.real_price && (
-                            <span>
-                              Cost: ${parseFloat(product.real_price).toFixed(2)}
-                            </span>
-                          )}
+          <div className="max-h-[400px] overflow-y-auto bg-secondary/80 rounded-b-lg mb-6 border border-primary/10">
+            {filteredProducts.map((product) => {
+              const originalIndex = products.findIndex(
+                (p) => p.id === product.id
+              );
+
+              return (
+                <SortableItem key={product.id} id={product.id}>
+                  {(dragListeners) => (
+                    <div className="grid grid-cols-[auto_1fr_auto] py-3 px-2 sm:px-4 border-b border-primary/10 items-center hover:bg-primary/5 transition-colors">
+                      <IconButton
+                        aria-label={`drag ${product.name}`}
+                        className="text-dark/70 hover:text-primary cursor-grab"
+                        size="small"
+                        {...dragListeners}
+                      >
+                        <DragHandleIcon fontSize="small" />
+                      </IconButton>
+                      <div className="flex items-center overflow-hidden pl-1 pr-2">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-dark truncate">
+                            {product.name}
+                          </span>
+                          <div className="flex gap-2 text-dark/70 text-xs flex-wrap">
+                            {product.owner_price && (
+                              <span>
+                                Owner: $
+                                {parseFloat(product.owner_price).toFixed(2)}
+                              </span>
+                            )}
+                            {product.real_price && (
+                              <span>
+                                Cost: $
+                                {parseFloat(product.real_price).toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex ml-auto">
+                          <IconButton
+                            aria-label={`edit ${product.name}`}
+                            onClick={() => handleEditClick(product)}
+                            className="text-dark hover:text-primary transition-colors"
+                            size="small"
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            aria-label={`delete ${product.name}`}
+                            onClick={() => handleDeleteClick(product)}
+                            className="text-dark hover:text-primary transition-colors"
+                            size="small"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
                         </div>
                       </div>
-                      <div className="flex ml-2">
-                        <IconButton
-                          aria-label={`edit ${product.name}`}
-                          onClick={() => handleEditClick(product)}
-                          className="text-dark hover:text-primary transition-colors"
-                          size="small"
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          aria-label={`delete ${product.name}`}
-                          onClick={() => handleDeleteClick(product)}
-                          className="text-dark hover:text-primary transition-colors"
-                          size="small"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                      <div className="flex flex-col items-end ml-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={amounts[originalIndex] || ""}
+                          onChange={(e) =>
+                            handleAmountChange(originalIndex, e.target.value)
+                          }
+                          className="bg-white text-dark border border-primary/30 rounded-lg px-3 py-2 w-16 sm:w-24 text-right focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm"
+                        />
+                        {errors[`amount_${originalIndex}`] && (
+                          <p className="text-primary text-xs mt-1">
+                            {errors[`amount_${originalIndex}`]}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <div className="flex flex-col items-end">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={amounts[index] || ""}
-                        onChange={(e) =>
-                          handleAmountChange(index, e.target.value)
-                        }
-                        className="bg-white text-dark border border-primary/30 rounded-lg px-3 py-2 w-24 text-right focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm"
-                      />
-                      {errors[`amount_${index}`] && (
-                        <p className="text-primary text-xs mt-1">
-                          {errors[`amount_${index}`]}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </SortableItem>
-            ))}
+                  )}
+                </SortableItem>
+              );
+            })}
+            {filteredProducts.length === 0 && searchQuery && (
+              <div className="p-4 text-center text-gray-500">
+                No products match your search
+              </div>
+            )}
           </div>
         </SortableContext>
       </DndContext>
