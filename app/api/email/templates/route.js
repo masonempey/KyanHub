@@ -27,10 +27,9 @@ export async function POST(request) {
       );
     }
 
-    // For created_by, use a default value or remove if not needed
     const newTemplate = await EmailTemplateService.createTemplate(
       templateData,
-      "system" // Default value or use request.headers.get("X-User-ID") if you set it elsewhere
+      "system"
     );
 
     return NextResponse.json(newTemplate);
@@ -38,39 +37,6 @@ export async function POST(request) {
     console.error("Error creating template:", error);
     return NextResponse.json(
       { error: "Failed to create template" },
-      { status: 500 }
-    );
-  }
-}
-
-// PUT to update a template
-export async function PUT(request) {
-  try {
-    const templateData = await request.json();
-
-    if (!templateData.id || !templateData.name || !templateData.subject) {
-      return NextResponse.json(
-        { error: "ID, name and subject are required" },
-        { status: 400 }
-      );
-    }
-
-    const updatedTemplate = await EmailTemplateService.updateTemplate(
-      templateData
-    );
-
-    if (!updatedTemplate) {
-      return NextResponse.json(
-        { error: "Template not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(updatedTemplate);
-  } catch (error) {
-    console.error("Error updating template:", error);
-    return NextResponse.json(
-      { error: "Failed to update template" },
       { status: 500 }
     );
   }

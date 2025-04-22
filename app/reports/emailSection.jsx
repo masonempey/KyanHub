@@ -150,7 +150,15 @@ const EmailTemplates = () => {
   };
 
   const editTemplate = (template) => {
-    setCurrentTemplate({ ...template });
+    // Ensure all fields have at least empty string values
+    setCurrentTemplate({
+      id: template.id || null,
+      name: template.name || "",
+      subject: template.subject || "",
+      message: template.message || "",
+      buttonText: template.buttonText || "",
+      buttonUrl: template.buttonUrl || "",
+    });
     setSuccess("");
     setError("");
   };
@@ -199,11 +207,49 @@ const EmailTemplates = () => {
       variables:
         '{\n  "property.name": "Sample Property",\n  "property.address": "123 Main St",\n  "booking.guestName": "John Doe"\n}',
     });
-    setCurrentTemplate(template);
+
+    // Ensure all fields have at least empty string values
+    setCurrentTemplate({
+      id: template.id || null,
+      name: template.name || "",
+      subject: template.subject || "",
+      message: template.message || "",
+      buttonText: template.buttonText || "",
+      buttonUrl: template.buttonUrl || "",
+    });
+
     setTestDialogOpen(true);
   };
 
-  // Send test email
+  const handleGoogleAuthRedirect = (error) => {
+    if (
+      error.message &&
+      error.message.includes("Google API authorization required")
+    ) {
+      const authUrlMatch = error.message.match(
+        /Please visit (https:\/\/[^\s]+) to grant/
+      );
+      if (authUrlMatch && authUrlMatch[1]) {
+        let authUrl = authUrlMatch[1];
+
+        // Add state parameter to track where to return
+        const currentPath = window.location.pathname;
+        if (!authUrl.includes("state=")) {
+          const separator = authUrl.includes("?") ? "&" : "?";
+          authUrl = `${authUrl}${separator}state=${encodeURIComponent(
+            currentPath
+          )}`;
+        }
+
+        // Redirect to the auth URL
+        window.location.href = authUrl;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Update your sendTestEmail function
   const sendTestEmail = async () => {
     if (!testEmailData.to) {
       showSnackbar("Email recipient is required", "error");
@@ -211,6 +257,7 @@ const EmailTemplates = () => {
     }
 
     setSendingTest(true);
+
     try {
       let variables = {};
       try {
@@ -223,9 +270,7 @@ const EmailTemplates = () => {
 
       const response = await fetchWithAuth("/api/email/send", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: testEmailData.to,
           subject: currentTemplate.subject,
@@ -238,6 +283,27 @@ const EmailTemplates = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
+
+        // Check for 403 Forbidden (Access Denied)
+        if (response.status === 403) {
+          setTestDialogOpen(false);
+          showSnackbar(
+            "Access Denied: Only info@kyanproperties.com may send emails",
+            "error"
+          );
+          return;
+        }
+
+        // Handle authorization required
+        if (
+          response.status === 401 &&
+          errorData.error?.includes("authorization required")
+        ) {
+          if (handleGoogleAuthRedirect(new Error(errorData.error))) {
+            return;
+          }
+        }
+
         throw new Error(errorData.error || "Failed to send test email");
       }
 
@@ -544,9 +610,9 @@ const EmailTemplates = () => {
             <div className="text-xs text-gray-500 mt-2">
               <p>Variable examples:</p>
               <ul className="list-disc pl-5">
-                <li>{property.name} - Name of the property</li>
-                <li>{booking.guestName} - Guest name</li>
-                <li>{booking.checkIn} - Check-in date</li>
+                <li>{"{{property.name}}"} - Name of the property</li>
+                <li>{"{{booking.guestName}}"} - Guest name</li>
+                <li>{"{{booking.checkIn}}"} - Check-in date</li>
               </ul>
             </div>
           </div>

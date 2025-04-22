@@ -28,7 +28,6 @@ export async function POST(request) {
     } = await request.json();
 
     if (templateId) {
-      // Send email using template
       const result = await emailService.sendTemplateEmail({
         to,
         templateId,
@@ -36,7 +35,17 @@ export async function POST(request) {
       });
 
       if (!result.success) {
-        return NextResponse.json({ error: result.error }, { status: 500 });
+        if (result.error === "ACCESS_DENIED") {
+          return NextResponse.json({ error: result.message }, { status: 403 });
+        }
+        if (result.error === "VERIFICATION_FAILED") {
+          return NextResponse.json({ error: result.message }, { status: 401 });
+        }
+
+        return NextResponse.json(
+          { error: result.error || "Failed to send email" },
+          { status: 500 }
+        );
       }
 
       return NextResponse.json({ success: true, messageId: result.messageId });
@@ -55,10 +64,21 @@ export async function POST(request) {
         message,
         buttonText,
         buttonUrl,
+        variables,
       });
 
       if (!result.success) {
-        return NextResponse.json({ error: result.error }, { status: 500 });
+        if (result.error === "ACCESS_DENIED") {
+          return NextResponse.json({ error: result.message }, { status: 403 });
+        }
+        if (result.error === "VERIFICATION_FAILED") {
+          return NextResponse.json({ error: result.message }, { status: 401 });
+        }
+
+        return NextResponse.json(
+          { error: result.error || "Failed to send email" },
+          { status: 500 }
+        );
       }
 
       return NextResponse.json({ success: true, messageId: result.messageId });
