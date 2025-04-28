@@ -5,6 +5,8 @@ import { Button, IconButton } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import MenuIcon from "@mui/icons-material/Menu";
+import CloseIcon from "@mui/icons-material/Close";
 import { useUser } from "../../contexts/UserContext";
 
 const TopNav = ({
@@ -14,6 +16,8 @@ const TopNav = ({
   selectedMonth,
   currentPage,
   onMonthChange,
+  mobileMenuOpen, // Add this prop
+  setMobileMenuOpen, // Add this prop
 }) => {
   const { logout, login, user } = useUser();
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState(null);
@@ -27,11 +31,24 @@ const TopNav = ({
   };
 
   return (
-    <div className="w-full bg-transparent py-3 md:py-6 px-4 md:px-8 flex flex-col md:flex-row md:items-center border-b border-primary/10">
-      {/* Page Title */}
-      <h1 className="text-dark text-2xl md:text-4xl font-bold mb-4 md:mb-0 md:mr-6">
-        {currentPage}
-      </h1>
+    <div className="w-full bg-transparent py-3 md:py-6 px-4 md:px-8 flex flex-col md:flex-row md:items-center border-b border-primary/10 relative z-[55]">
+      {/* Page Title with Hamburger menu */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="md:hidden bg-primary/90 text-dark p-2 rounded-lg shadow-md"
+          aria-label="Toggle menu"
+        >
+          {mobileMenuOpen ? (
+            <CloseIcon fontSize="small" />
+          ) : (
+            <MenuIcon fontSize="small" />
+          )}
+        </button>
+        <h1 className="text-dark text-2xl md:text-4xl font-bold">
+          {currentPage}
+        </h1>
+      </div>
 
       {/* Mobile Menu Button (only visible on small screens) */}
       <div className="md:hidden flex justify-between items-center">

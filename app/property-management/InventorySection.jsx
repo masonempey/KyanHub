@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Button from "@mui/material/Button";
 import { useProperties } from "@/contexts/PropertyContext";
-import PdfSection from "../property-management/pdfSection";
 import AddProduct from "../property-management/addProduct";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
@@ -612,15 +611,6 @@ const InventorySection = () => {
       </DndContext>
 
       <div className="flex flex-wrap gap-4 justify-between items-center">
-        <PdfSection
-          products={products}
-          amounts={amounts}
-          rates={rates}
-          selectedPropertyName={selectedPropertyName}
-          propertyId={propertyId}
-          monthYear={setCurrentMonthYear(currentMonth)}
-        />
-
         <div className="flex flex-col xs:flex-row gap-2 xs:gap-4 w-full xs:w-auto mt-3 xs:mt-0">
           <Button
             variant="contained"

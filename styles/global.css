@@ -19,6 +19,7 @@ html {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  position: relative; /* Add this */
 }
 
 @media (min-width: 768px) {
@@ -47,5 +48,19 @@ html {
 @media (min-width: 768px) {
   .main-content {
     padding: 1rem;
+  }
+}
+
+/* Add this class for the main content area */
+.main-content-area {
+  position: relative;
+  z-index: 40;
+  margin-left: 0;
+  transition: margin-left 0.3s ease;
+}
+
+@media (min-width: 768px) {
+  .main-content-area {
+    margin-left: 5rem; /* Width of sidebar on desktop */
   }
 }

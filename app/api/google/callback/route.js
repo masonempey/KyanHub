@@ -6,6 +6,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get("code");
+    const state = searchParams.get("state"); // Use this for the return path
 
     if (!code) {
       return NextResponse.json(
@@ -53,7 +54,7 @@ export async function GET(request) {
     console.log("Google tokens saved to system settings successfully");
 
     // Redirect back to the email page or wherever the user came from
-    const returnPath = searchParams.get("state") || "/reports";
+    const returnPath = state || "/reports"; // Just use state, not localStorage
     return NextResponse.redirect(new URL(returnPath, request.url));
   } catch (error) {
     console.error("Error handling Google callback:", error);

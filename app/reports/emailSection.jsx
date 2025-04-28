@@ -22,6 +22,57 @@ import Alert from "@mui/material/Alert";
 import Snackbar from "@mui/material/Snackbar";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 
+const initializeGoogleAuth = async () => {
+  try {
+    const response = await fetchWithAuth("/api/google/auth-status", {
+      method: "GET",
+    });
+
+    const data = await response.json();
+
+    if (!data.isAuthorized) {
+      console.log("Google auth required, redirecting...");
+      handleGoogleAuthRedirect(
+        new Error(
+          `Insufficient Permission: Google API authorization required. Please visit ${data.authUrl} to grant permission.`
+        )
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error checking auth status:", error);
+    return true;
+  }
+};
+
+function handleGoogleAuthRedirect(error) {
+  const urlMatch = error.message.match(
+    /Please visit (https:\/\/accounts\.google\.com\S+) to grant/
+  );
+
+  if (urlMatch && urlMatch[1]) {
+    const authUrl = urlMatch[1];
+    console.log("Redirecting to Google auth:", authUrl);
+
+    // Store current page to return after auth
+    localStorage.setItem("authReturnPath", window.location.pathname);
+
+    // Add state parameter to the URL
+    const currentPath = window.location.pathname;
+    const authUrlWithState =
+      authUrl +
+      (authUrl.includes("?") ? "&" : "?") +
+      `state=${encodeURIComponent(currentPath)}`;
+
+    // Redirect to Google auth with state parameter
+    window.location.href = authUrlWithState;
+    return true;
+  }
+  return false;
+}
+
 const EmailTemplates = () => {
   const [emailTemplates, setEmailTemplates] = useState([]);
   const [currentTemplate, setCurrentTemplate] = useState({
@@ -50,6 +101,11 @@ const EmailTemplates = () => {
   });
 
   useEffect(() => {
+    fetchEmailTemplates();
+  }, []);
+
+  useEffect(() => {
+    initializeGoogleAuth();
     fetchEmailTemplates();
   }, []);
 
@@ -221,34 +277,6 @@ const EmailTemplates = () => {
     setTestDialogOpen(true);
   };
 
-  const handleGoogleAuthRedirect = (error) => {
-    if (
-      error.message &&
-      error.message.includes("Google API authorization required")
-    ) {
-      const authUrlMatch = error.message.match(
-        /Please visit (https:\/\/[^\s]+) to grant/
-      );
-      if (authUrlMatch && authUrlMatch[1]) {
-        let authUrl = authUrlMatch[1];
-
-        // Add state parameter to track where to return
-        const currentPath = window.location.pathname;
-        if (!authUrl.includes("state=")) {
-          const separator = authUrl.includes("?") ? "&" : "?";
-          authUrl = `${authUrl}${separator}state=${encodeURIComponent(
-            currentPath
-          )}`;
-        }
-
-        // Redirect to the auth URL
-        window.location.href = authUrl;
-        return true;
-      }
-    }
-    return false;
-  };
-
   // Update your sendTestEmail function
   const sendTestEmail = async () => {
     if (!testEmailData.to) {
@@ -311,7 +339,19 @@ const EmailTemplates = () => {
       showSnackbar("Test email sent successfully!", "success");
     } catch (error) {
       console.error("Error sending test email:", error);
-      showSnackbar(error.message || "Failed to send test email", "error");
+
+      // Check if we need to redirect for auth
+      if (error.message && error.message.includes("authorization required")) {
+        if (handleGoogleAuthRedirect(error)) {
+          return;
+        }
+      }
+
+      setSnackbar({
+        open: true,
+        message: error.message || "Failed to send email",
+        severity: "error",
+      });
     } finally {
       setSendingTest(false);
     }
