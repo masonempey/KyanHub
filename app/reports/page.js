@@ -21,6 +21,7 @@ import AdminProtected from "@/app/components/AdminProtected";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Box from "@mui/material/Box";
+import MultiPropertySelector from "../components/MultiPropertySelector";
 
 // Define monthNames array
 const monthNames = [
@@ -58,9 +59,23 @@ const ReportsPage = () => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [revenueSummary, setRevenueSummary] = useState(null);
+  const [emailSent, setEmailSent] = useState(false);
+
+  const [selectedProperties, setSelectedProperties] = useState([]);
+  const [processingIndex, setProcessingIndex] = useState(-1);
+  const [processingTotal, setProcessingTotal] = useState(0);
+  const [processedProperties, setProcessedProperties] = useState([]);
+  const [isMultiProcessing, setIsMultiProcessing] = useState(false);
+  const [confirmedQueue, setConfirmedQueue] = useState([]);
+  const [showProcessButton, setShowProcessButton] = useState(false);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
+  };
+
+  const handlePropertiesChange = (selectedIds) => {
+    setSelectedProperties(selectedIds);
   };
 
   useEffect(() => {
@@ -104,6 +119,77 @@ const ReportsPage = () => {
     }
   };
 
+  const fetchBookingsForMultipleProperties = async () => {
+    if (!selectedProperties.length) {
+      setErrorMessage("Please select at least one property.");
+      setErrorDialogOpen(true);
+      return;
+    }
+
+    setLoading(true);
+    setIsLoading(true);
+    setBookings([]);
+
+    try {
+      const allBookings = [];
+
+      const fetchPromises = selectedProperties.map((propId) =>
+        fetchWithAuth(
+          `/api/igms/bookings-with-guests/${propId}/${startDate.format(
+            "YYYY-MM-DD"
+          )}/${endDate.format("YYYY-MM-DD")}`
+        )
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(
+                `Failed to fetch bookings for property ${propId}: ${response.statusText}`
+              );
+            }
+            return response.json();
+          })
+          .then((data) => {
+            if (data.success && data.bookings) {
+              const propertyName =
+                typeof allProperties[propId] === "object"
+                  ? allProperties[propId].name
+                  : allProperties[propId];
+
+              const bookingsWithProperty = data.bookings.map((booking) => ({
+                ...booking,
+                propertyName,
+                _propertyId: propId, // Make sure this is set correctly
+              }));
+
+              return bookingsWithProperty;
+            }
+            return [];
+          })
+      );
+
+      const results = await Promise.allSettled(fetchPromises);
+
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          allBookings.push(...result.value);
+        } else {
+          console.error(
+            `Error fetching bookings for property ${selectedProperties[index]}:`,
+            result.reason
+          );
+        }
+      });
+
+      setBookings(allBookings);
+    } catch (error) {
+      console.error("Failed to fetch bookings:", error);
+      setErrorMessage(error.message || "Failed to fetch bookings.");
+      setErrorDialogOpen(true);
+    } finally {
+      setLoading(false);
+      setIsLoading(false);
+    }
+  };
+
   const handleStartDateChange = (newValue) => {
     setStartDate(newValue);
     const newErrors = { ...errors };
@@ -127,12 +213,160 @@ const ReportsPage = () => {
   };
 
   const handleUpdateRevenue = () => {
-    setConfirmDialogOpen(true);
+    if (!bookings.length) {
+      setErrorMessage("No bookings available to update.");
+      setErrorDialogOpen(true);
+      return;
+    }
+
+    // Important: For single property updates, ensure we're not using
+    // the multi-property flow
+    const monthIndex = startDate.month();
+    const monthName = monthNames[monthIndex];
+    const year = startDate.format("YYYY");
+
+    const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
+    const unPaddedMonthNum = (monthIndex + 1).toString();
+
+    const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
+    const monthYearKeyUnpadded = `${year}-${unPaddedMonthNum}`;
+
+    console.log("Calculating revenue for:", {
+      monthName,
+      year,
+      paddedKey: monthYearKeyPadded,
+      unPaddedKey: monthYearKeyUnpadded,
+    });
+
+    // Calculate for a SINGLE property, not multi-property
+    // Important: filter bookings by the current property ID
+    const propertyBookings = propertyId
+      ? bookings.filter((b) => !b._propertyId || b._propertyId === propertyId)
+      : bookings;
+
+    const totalRevenue = propertyBookings.reduce((sum, booking) => {
+      const revenuePadded = booking.revenueByMonth[monthYearKeyPadded] || 0;
+      const revenueUnpadded = booking.revenueByMonth[monthYearKeyUnpadded] || 0;
+      const revenue = revenuePadded || revenueUnpadded;
+      return sum + revenue;
+    }, 0);
+
+    const totalCleaning = propertyBookings.reduce((sum, booking) => {
+      const cleaningMatch =
+        booking.cleaningFeeMonth === monthYearKeyPadded ||
+        booking.cleaningFeeMonth === monthYearKeyUnpadded;
+      const cleaning = cleaningMatch ? booking.cleaningFee : 0;
+      return sum + cleaning;
+    }, 0);
+
+    console.log("Calculated totals:", {
+      totalRevenue,
+      totalCleaning,
+    });
+
+    setIsLoading(true);
+
+    const fetchOwnerAndExpenses = async () => {
+      try {
+        let expensesTotal = 0;
+        let expensesMessage = "";
+        try {
+          const expensesResponse = await fetchWithAuth(`/api/sheets/expenses`, {
+            method: "POST",
+            body: JSON.stringify({
+              propertyId,
+              year,
+              monthName,
+            }),
+          });
+
+          if (expensesResponse.ok) {
+            const expensesData = await expensesResponse.json();
+            if (expensesData.success) {
+              expensesTotal = parseFloat(expensesData.expensesTotal) || 0;
+              expensesMessage = expensesData.message || "";
+            } else {
+              console.warn(
+                "Expenses fetch returned error:",
+                expensesData.error
+              );
+              expensesMessage = expensesData.error || "Unknown error occurred";
+            }
+          } else {
+            console.warn(`Expenses API returned ${expensesResponse.status}`);
+            expensesMessage = `API error (${expensesResponse.status})`;
+          }
+        } catch (expenseError) {
+          console.error("Error fetching expenses:", expenseError);
+          expensesMessage = `Failed to fetch expenses: ${expenseError.message}`;
+        }
+
+        let ownerInfo = null;
+        let ownershipPercentage = 100;
+
+        try {
+          console.log(`Fetching owner for property ${propertyId}`);
+          const ownerResponse = await fetchWithAuth(
+            `/api/properties/${propertyId}/owner`
+          );
+          console.log(`Owner API response status: ${ownerResponse.status}`);
+
+          if (ownerResponse.ok) {
+            const ownerData = await ownerResponse.json();
+            console.log("Owner data:", ownerData);
+
+            if (ownerData.success && ownerData.owner) {
+              ownerInfo = ownerData.owner;
+              ownershipPercentage = ownerData.owner.ownership_percentage || 100;
+              console.log(
+                `Found owner: ${ownerInfo.name} with ${ownershipPercentage}% ownership`
+              );
+            } else {
+              console.warn(
+                "No owner found:",
+                ownerData.error || "Unknown reason"
+              );
+            }
+          } else {
+            console.warn(`Owner API error: ${ownerResponse.status}`);
+          }
+        } catch (ownerError) {
+          console.error("Error fetching owner:", ownerError);
+        }
+
+        const netAmount = totalRevenue - totalCleaning - expensesTotal;
+        const ownerProfit = (netAmount * ownershipPercentage) / 100;
+
+        setRevenueSummary({
+          totalRevenue,
+          totalCleaning,
+          expenses: expensesTotal,
+          netAmount,
+          ownershipPercentage,
+          ownerProfit,
+          ownerInfo,
+          propertyName: selectedPropertyName,
+          month: monthName,
+          year,
+          bookingCount: bookings.length,
+        });
+
+        setConfirmDialogOpen(true);
+      } catch (error) {
+        console.error("Error preparing revenue data:", error);
+        setErrorMessage(`Failed to prepare revenue data: ${error.message}`);
+        setErrorDialogOpen(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOwnerAndExpenses();
   };
 
   const handleSearchBookings = () => {
     if (startDate && endDate && !endDate.isBefore(startDate)) {
-      fetchBookings(propertyId, startDate, endDate);
+      fetchBookingsForMultipleProperties();
     } else {
       const newErrors = { ...errors };
       newErrors.dateRange = "Please select a valid date range.";
@@ -140,51 +374,583 @@ const ReportsPage = () => {
     }
   };
 
-  const handleConfirmUpdate = async () => {
-    if (!propertyId || !selectedPropertyName || !bookings.length) {
-      setErrorMessage("No property or bookings selected.");
+  const handleMultiPropertyUpdate = () => {
+    if (!selectedProperties.length) {
+      setErrorMessage("Please select at least one property.");
       setErrorDialogOpen(true);
       return;
     }
 
-    setUpdating(true);
-    setIsLoading(true);
-    setConfirmDialogOpen(false);
-    try {
-      const monthIndex = startDate.month();
-      const monthName = monthNames[monthIndex]; // Now defined
-      const year = startDate.format("YYYY");
+    if (!bookings.length) {
+      setErrorMessage("No bookings available to update.");
+      setErrorDialogOpen(true);
+      return;
+    }
 
-      const propertyName = selectedPropertyName;
+    // Initialize processing state
+    setProcessedProperties([]);
+    setProcessingIndex(0);
+    setProcessingTotal(selectedProperties.length);
+    setIsMultiProcessing(true);
 
-      const response = await fetchWithAuth(`/api/sheets/revenue`, {
-        method: "PUT",
-        body: JSON.stringify({
-          propertyId,
+    // Start the process with the first property
+    preparePropertyData(0);
+  };
+
+  // Step 1: Prepare data for the current property
+  const preparePropertyData = (index) => {
+    // Make sure we have a valid index
+    if (index < 0 || index >= selectedProperties.length) {
+      setIsMultiProcessing(false);
+      return;
+    }
+
+    const currentPropertyId = selectedProperties[index];
+
+    if (!currentPropertyId) {
+      console.error("Invalid property ID at index", index);
+      // Skip to next property
+      setProcessingIndex(index + 1);
+      preparePropertyData(index + 1);
+      return;
+    }
+
+    const propertyName =
+      typeof allProperties[currentPropertyId] === "object"
+        ? allProperties[currentPropertyId].name
+        : allProperties[currentPropertyId] || "Unknown Property";
+
+    // Filter bookings for current property
+    const propertyBookings = bookings.filter(
+      (booking) => booking._propertyId === currentPropertyId
+    );
+
+    if (propertyBookings.length === 0) {
+      // No bookings for this property, mark as processed and move to next
+      setProcessedProperties((prev) => [
+        ...prev,
+        {
+          propertyId: currentPropertyId,
           propertyName,
-          bookings,
+          success: true,
+          message: "No bookings to process",
+        },
+      ]);
+
+      setProcessingIndex(index + 1);
+      preparePropertyData(index + 1);
+      return;
+    }
+
+    // Calculate revenue for this property
+    const monthIndex = startDate.month();
+    const monthName = monthNames[monthIndex];
+    const year = startDate.format("YYYY");
+
+    const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
+    const unPaddedMonthNum = (monthIndex + 1).toString();
+    const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
+    const monthYearKeyUnpadded = `${year}-${unPaddedMonthNum}`;
+
+    // Calculate revenue and cleaning fees
+    const totalRevenue = propertyBookings.reduce((sum, booking) => {
+      const revenuePadded = booking.revenueByMonth[monthYearKeyPadded] || 0;
+      const revenueUnpadded = booking.revenueByMonth[monthYearKeyUnpadded] || 0;
+      const revenue = revenuePadded || revenueUnpadded;
+      return sum + revenue;
+    }, 0);
+
+    const totalCleaning = propertyBookings.reduce((sum, booking) => {
+      const cleaningMatch =
+        booking.cleaningFeeMonth === monthYearKeyPadded ||
+        booking.cleaningFeeMonth === monthYearKeyUnpadded;
+      const cleaning = cleaningMatch ? booking.cleaningFee : 0;
+      return sum + cleaning;
+    }, 0);
+
+    // Fetch expenses and owner info
+    Promise.all([
+      // Get expenses
+      fetchWithAuth(`/api/sheets/expenses`, {
+        method: "POST",
+        body: JSON.stringify({
+          propertyId: currentPropertyId,
           year,
           monthName,
         }),
-      });
+      }).then((res) =>
+        res.ok ? res.json() : { success: false, expensesTotal: 0 }
+      ),
 
-      if (!response.ok) {
-        throw new Error(`Failed to update revenue: ${await response.text()}`);
-      }
-      const data = await response.json();
-      if (data.success) {
-        setUpdateStatus("Revenue sheet updated successfully");
-      } else {
-        throw new Error(data.error || "Failed to update revenue sheet.");
-      }
-    } catch (error) {
-      console.error("Failed to update revenue sheet:", error);
-      setErrorMessage(error.message || "Failed to update revenue sheet.");
+      // Get owner info
+      fetchWithAuth(`/api/properties/${currentPropertyId}/owner`).then((res) =>
+        res.ok ? res.json() : { success: false, owner: null }
+      ),
+    ])
+      .then(([expensesData, ownerData]) => {
+        // Extract expense data
+        const expensesTotal = expensesData.success
+          ? parseFloat(expensesData.expensesTotal) || 0
+          : 0;
+
+        // Extract owner data
+        const ownerInfo =
+          ownerData.success && ownerData.owner ? ownerData.owner : null;
+
+        const ownershipPercentage = ownerInfo?.ownership_percentage || 100;
+
+        // Calculate profit
+        const netAmount = totalRevenue - totalCleaning - expensesTotal;
+        const ownerProfit = (netAmount * ownershipPercentage) / 100;
+
+        // Prepare revenue summary data
+        const summary = {
+          totalRevenue,
+          totalCleaning,
+          expenses: expensesTotal,
+          netAmount,
+          ownershipPercentage,
+          ownerProfit,
+          ownerInfo,
+          propertyName,
+          month: monthName,
+          year,
+          bookingCount: propertyBookings.length,
+          propertyId: currentPropertyId,
+          bookings: propertyBookings,
+          isMultiProperty: true,
+          currentIndex: index,
+        };
+
+        // Log what's happening
+        console.log(
+          `Preparing data for property at index ${index}: ${propertyName}`
+        );
+        console.log(
+          `Found ${propertyBookings.length} bookings for this property`
+        );
+
+        // Store bookings on a local variable to make sure they're included
+        const bookingsForProperty = [...propertyBookings];
+
+        // When creating the summary object, log it for debugging
+        console.log(`Summary prepared for ${propertyName}:`, {
+          propertyId: currentPropertyId,
+          revenueTotal: totalRevenue,
+          bookingsCount: bookingsForProperty.length,
+          hasOwner: ownerInfo ? "Yes" : "No",
+        });
+
+        // Store the data and show confirmation dialog
+        setRevenueSummary(summary);
+        setConfirmDialogOpen(true);
+      })
+      .catch((error) => {
+        console.error(`Error preparing data for ${propertyName}:`, error);
+        // Record failure and move to next property
+        setProcessedProperties((prev) => [
+          ...prev,
+          {
+            propertyId: currentPropertyId,
+            propertyName,
+            success: false,
+            error: `Data preparation failed: ${error.message}`,
+          },
+        ]);
+
+        setProcessingIndex(index + 1);
+        preparePropertyData(index + 1);
+      });
+  };
+
+  // Step 2: Handle the confirmation for updating a property
+  const handleConfirmUpdate = () => {
+    setConfirmDialogOpen(false);
+
+    if (!revenueSummary) {
+      setErrorMessage("No revenue data available.");
       setErrorDialogOpen(true);
-    } finally {
-      setUpdating(false);
-      setIsLoading(false);
+      return;
     }
+
+    // Check explicitly for bookings
+    if (!revenueSummary.bookings || !Array.isArray(revenueSummary.bookings)) {
+      console.error("Missing bookings data in revenue summary", revenueSummary);
+      revenueSummary.bookings = revenueSummary.bookings || [];
+    }
+
+    // Log what we're adding to queue
+    console.log(`Adding property to queue: ${revenueSummary.propertyName}`);
+    console.log(`Has ${revenueSummary.bookings.length} bookings`);
+
+    // Add the confirmed property to queue with spread to ensure deep copy
+    const itemToAdd = {
+      ...revenueSummary,
+      bookings: [...revenueSummary.bookings],
+    };
+
+    // Create a copy of current queue to work with
+    const updatedQueue = [...confirmedQueue, itemToAdd];
+    setConfirmedQueue(updatedQueue);
+
+    // If we're in multi-property mode
+    if (revenueSummary.isMultiProperty) {
+      const nextIndex = revenueSummary.currentIndex + 1;
+
+      // If this was the last property to confirm
+      if (nextIndex >= selectedProperties.length) {
+        // Wait a bit longer to ensure state updates, and pass the updated queue directly
+        setTimeout(() => {
+          console.log(
+            `Processing queue with ${updatedQueue.length} properties`
+          );
+          processConfirmedQueue(updatedQueue); // Pass the queue directly
+        }, 500); // Increase delay to 500ms to ensure state updates
+      } else {
+        // Move to next property for confirmation
+        setProcessingIndex(nextIndex);
+        preparePropertyData(nextIndex);
+      }
+    } else {
+      // For single property, also auto-process immediately with updated queue
+      setTimeout(() => {
+        processConfirmedQueue(updatedQueue); // Pass the queue directly
+      }, 500);
+    }
+  };
+
+  // Add a new function to process all confirmed properties
+  const processConfirmedQueue = async (queueToProcess = null) => {
+    // Use the passed queue or the state queue
+    const queue = queueToProcess || confirmedQueue;
+
+    if (!queue.length) {
+      console.log("No properties in queue to process");
+      return;
+    }
+
+    console.log(`QUEUE STATUS: ${queue.length} properties ready to process`);
+    console.log(
+      "Properties in queue:",
+      queue.map((p) => p.propertyName).join(", ")
+    );
+
+    // Initialize processing state
+    setIsMultiProcessing(true);
+    setProcessingTotal(queue.length);
+    setProcessingIndex(0);
+    setProcessedProperties([]);
+
+    // Make a fresh local copy of the queue
+    const localQueue = queue.map((item) => ({ ...item }));
+    console.log(`Created local queue with ${localQueue.length} properties`);
+
+    // Process the queue one by one
+    for (let i = 0; i < localQueue.length; i++) {
+      try {
+        setProcessingIndex(i);
+        setUpdating(true);
+
+        const item = localQueue[i];
+
+        // Verify we have all required data before proceeding
+        if (!item || !item.propertyId || !item.propertyName) {
+          console.error(`Invalid item at index ${i}:`, item);
+          throw new Error("Invalid property data");
+        }
+
+        if (!item.bookings || !Array.isArray(item.bookings)) {
+          console.warn(
+            `No bookings for ${item.propertyName}, using empty array`
+          );
+          item.bookings = [];
+        }
+
+        console.log(
+          `===== PROCESSING PROPERTY ${i + 1}/${localQueue.length} =====`
+        );
+        console.log(`Property: ${item.propertyName} (${item.propertyId})`);
+        console.log(`Has bookings: ${item.bookings.length}`);
+        console.log(`Has owner: ${item.ownerInfo ? "Yes" : "No"}`);
+
+        // Log owner details if available
+        if (item.ownerInfo) {
+          console.log(
+            `Owner: ${item.ownerInfo.name} (ID: ${item.ownerInfo.id})`
+          );
+        }
+
+        // Proceed with update and email logic
+        // Update revenue sheet
+        console.log(`Updating revenue sheet for ${item.propertyName}`);
+        const response = await fetchWithAuth(`/api/sheets/revenue`, {
+          method: "PUT",
+          body: JSON.stringify({
+            propertyId: item.propertyId,
+            propertyName: item.propertyName,
+            bookings: item.bookings,
+            year: item.year,
+            monthName: item.month,
+            expensesTotal: item.expenses || 0,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to update revenue: ${await response.text()}`);
+        }
+
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.error || "Failed to update revenue sheet.");
+        }
+
+        console.log(
+          `✅ Revenue sheet updated successfully for ${item.propertyName}`
+        );
+
+        // Handle email if there's an owner
+        let emailSuccess = true;
+        let emailMessage = "";
+
+        if (item.ownerInfo && item.ownerInfo.id) {
+          try {
+            console.log(
+              `Starting email process for ${item.propertyName} to ${item.ownerInfo.name}`
+            );
+
+            // Get spreadsheet URL
+            console.log(`Fetching spreadsheet ID for ${item.propertyId}`);
+            const sheetResponse = await fetchWithAuth(
+              `/api/properties/${item.propertyId}/sheetId`
+            );
+
+            console.log(
+              `Spreadsheet API response status: ${sheetResponse.status}`
+            );
+
+            const sheetData = sheetResponse.ok
+              ? await sheetResponse.json()
+              : { sheetId: null };
+            const sheetId = sheetData.sheetId;
+
+            const spreadsheetUrl = sheetId
+              ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit`
+              : "";
+
+            console.log(
+              `Got spreadsheet URL for ${item.propertyName}: ${
+                spreadsheetUrl || "none"
+              }`
+            );
+            console.log(`SENDING EMAIL NOW for ${item.propertyName}`);
+
+            // Add additional debugging for email payload
+            const emailPayload = {
+              ownerId: item.ownerInfo.id,
+              propertyName: item.propertyName,
+              propertyId: item.propertyId,
+              month: item.month,
+              year: item.year,
+              totalRevenue: item.totalRevenue,
+              totalCleaning: item.totalCleaning,
+              expenses: item.expenses,
+              profit: item.ownerProfit,
+              bookingCount: item.bookingCount,
+              spreadsheetUrl,
+            };
+            console.log(
+              "Email payload:",
+              JSON.stringify(emailPayload, null, 2)
+            );
+
+            // Send email
+            const emailResponse = await fetchWithAuth(
+              `/api/email/send-owner-report`,
+              {
+                method: "POST",
+                body: JSON.stringify(emailPayload),
+              }
+            );
+
+            console.log(`Email API response status: ${emailResponse.status}`);
+
+            if (!emailResponse.ok) {
+              const errorText = await emailResponse.text();
+              console.error(
+                `Email API error (${emailResponse.status}): ${errorText}`
+              );
+              throw new Error(`Email service error: ${errorText}`);
+            }
+
+            const emailResult = await emailResponse.json();
+            console.log(`Email result:`, emailResult);
+
+            if (!emailResult.success) {
+              console.error(`Email error: ${emailResult.error || "Unknown"}`);
+              throw new Error(emailResult.error || "Unknown email error");
+            }
+
+            console.log(`✅ Email sent successfully for ${item.propertyName}`);
+          } catch (emailError) {
+            console.error(
+              `❌ Email failed for ${item.propertyName}:`,
+              emailError
+            );
+            emailSuccess = false;
+            emailMessage = emailError.message;
+          }
+        } else {
+          console.log(
+            `Skipping email for ${item.propertyName} - no owner info`
+          );
+        }
+
+        // Record success
+        const resultMessage = emailSuccess
+          ? `Revenue updated successfully${
+              item.ownerInfo ? ` and email sent to ${item.ownerInfo.name}` : ""
+            }`
+          : `Revenue updated but email failed: ${emailMessage}`;
+
+        console.log(
+          `Recording result for ${item.propertyName}: ${resultMessage}`
+        );
+
+        setProcessedProperties((prev) => [
+          ...prev,
+          {
+            propertyId: item.propertyId,
+            propertyName: item.propertyName,
+            success: true,
+            message: resultMessage,
+          },
+        ]);
+
+        console.log(
+          `Finished processing ${item.propertyName} (${i + 1}/${
+            localQueue.length
+          })`
+        );
+        console.log(`-----------------------------------------`);
+      } catch (error) {
+        // Record failure
+        console.error(`❌ ERROR processing ${item.propertyName}:`, error);
+        setProcessedProperties((prev) => [
+          ...prev,
+          {
+            propertyId: item.propertyId,
+            propertyName: item.propertyName,
+            success: false,
+            error: error.message,
+          },
+        ]);
+      } finally {
+        setUpdating(false);
+      }
+
+      // Add a delay between processing regardless of success/failure
+      if (i < localQueue.length - 1) {
+        console.log(`Waiting 2 seconds before processing next property...`);
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+    }
+
+    console.log(`All ${localQueue.length} properties have been processed.`);
+
+    // Reset the queue after processing
+    setConfirmedQueue([]);
+    setShowProcessButton(false);
+    setIsMultiProcessing(false);
+  };
+
+  const ProcessingProgress = () => {
+    if (!isMultiProcessing) return null;
+
+    // Calculate progress
+    const progress = Math.min(
+      Math.round((processingIndex / processingTotal) * 100),
+      100
+    );
+
+    // Current property name
+    let currentPropertyName = "Processing complete";
+    if (
+      processingIndex < processingTotal &&
+      processingIndex < selectedProperties.length
+    ) {
+      const propertyId = selectedProperties[processingIndex];
+      if (propertyId && allProperties[propertyId]) {
+        currentPropertyName =
+          typeof allProperties[propertyId] === "object"
+            ? allProperties[propertyId].name
+            : allProperties[propertyId];
+      }
+    }
+
+    return (
+      <div className="mt-4 p-4 bg-secondary/80 rounded-lg border border-primary/10">
+        <h3 className="text-lg font-semibold mb-2">Processing Properties</h3>
+
+        <div className="mb-3">
+          <div className="flex justify-between mb-1">
+            <span>{`Property ${
+              processingIndex + 1
+            } of ${processingTotal}`}</span>
+            <span>{`${progress}%`}</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div
+              className="bg-primary h-2.5 rounded-full"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+        </div>
+
+        {processingIndex < processingTotal && (
+          <p className="text-dark">
+            Currently processing: <strong>{currentPropertyName}</strong>
+          </p>
+        )}
+
+        {processedProperties.length > 0 && (
+          <div className="mt-3">
+            <h4 className="font-medium mb-1">Processed Properties:</h4>
+            <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
+              {processedProperties.map((result, idx) => (
+                <div
+                  key={idx}
+                  className={`p-2 border-b border-gray-100 ${
+                    result.success ? "bg-green-50" : "bg-red-50"
+                  } ${
+                    idx === processedProperties.length - 1 ? "rounded-b-lg" : ""
+                  }`}
+                >
+                  <div className="flex justify-between">
+                    <span className="font-medium">{result.propertyName}</span>
+                    <span
+                      className={
+                        result.success ? "text-green-600" : "text-red-600"
+                      }
+                    >
+                      {result.success ? "✓ Success" : "✗ Error"}
+                    </span>
+                  </div>
+                  {!result.success && result.error && (
+                    <p className="text-sm text-red-600 mt-1">{result.error}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {processingIndex >= processingTotal && (
+          <div className="mt-3 p-2 bg-green-100 rounded-lg text-center">
+            <p className="text-green-800 font-medium">Processing complete</p>
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (userLoading || propertiesLoading || isLoading) {
@@ -203,16 +969,13 @@ const ReportsPage = () => {
     <AdminProtected>
       <div className="flex flex-col h-full w-full p-6 bg-transparent">
         <div className="flex flex-col lg:flex-row w-full h-full gap-6">
-          {/* Main Content Area */}
           <div className="flex-1 bg-secondary/95 rounded-2xl shadow-lg backdrop-blur-sm overflow-hidden border border-primary/10">
             <div className="p-6 flex flex-col h-full">
-              {/* Header with tabs */}
-              <div className="flex flex-col mb-6">
+              {/* Page header content */}
+              <div className="flex flex-col mb-4">
                 <h2 className="text-2xl font-bold text-dark mb-3">
                   KyanHub Management
                 </h2>
-
-                {/* Tab Navigation */}
                 <Tabs
                   value={activeTab}
                   onChange={handleTabChange}
@@ -241,25 +1004,34 @@ const ReportsPage = () => {
                 </Tabs>
               </div>
 
-              {/* Tab Content */}
               <div className="flex-1 overflow-hidden">
-                {/* Booking Reports Tab */}
                 {activeTab === 0 && (
                   <div className="flex flex-col h-full overflow-auto">
-                    {/* Date Selection with improved layout */}
-                    <div className="mb-6">
-                      <div className="grid grid-cols-2 py-3 px-4 bg-primary/10 rounded-t-lg text-dark font-semibold">
-                        <span>Date Range</span>
-                        <span className="text-right">
-                          {selectedPropertyName || "Select a property"}
-                        </span>
-                      </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+                      {/* Left Column */}
+                      <div className="lg:col-span-1">
+                        <div className="bg-white/50 rounded-xl shadow-sm border border-primary/10 p-4 mb-4">
+                          <h3 className="text-lg font-semibold mb-3 text-dark">
+                            Search Criteria
+                          </h3>
 
-                      <div className="bg-secondary/80 rounded-b-lg p-4 border border-primary/10">
-                        <LocalizationProvider dateAdapter={AdapterDayjs}>
-                          {/* Organized date picker section */}
-                          <div className="flex flex-col space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Property Selector */}
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-dark mb-1 ml-1">
+                              Properties
+                            </label>
+                            <MultiPropertySelector
+                              properties={allProperties}
+                              selectedProperties={selectedProperties}
+                              onChange={handlePropertiesChange}
+                              loading={loading || propertiesLoading}
+                              label="Select Properties"
+                            />
+                          </div>
+
+                          {/* Date Range Selector */}
+                          <LocalizationProvider dateAdapter={AdapterDayjs}>
+                            <div className="space-y-4">
                               <div>
                                 <label className="block text-sm font-medium text-dark mb-1 ml-1">
                                   Start Date
@@ -318,51 +1090,84 @@ const ReportsPage = () => {
                                   }}
                                 />
                               </div>
+
+                              {errors.dateRange && (
+                                <p className="text-primary text-sm">
+                                  {errors.dateRange}
+                                </p>
+                              )}
                             </div>
+                          </LocalizationProvider>
 
-                            {errors.dateRange && (
-                              <p className="text-primary text-sm mt-1">
-                                {errors.dateRange}
-                              </p>
-                            )}
+                          {/* Action Buttons */}
+                          <div className="flex flex-col gap-2 mt-4">
+                            <Button
+                              variant="contained"
+                              onClick={handleSearchBookings}
+                              disabled={loading || !selectedProperties.length}
+                              fullWidth
+                              className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium py-2 rounded-lg shadow-md transition-colors duration-300"
+                              sx={{
+                                textTransform: "none",
+                                fontSize: "1rem",
+                                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                                "&:hover": {
+                                  boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                                },
+                              }}
+                            >
+                              {loading ? (
+                                <span className="flex items-center justify-center">
+                                  <CircularProgress
+                                    size={20}
+                                    sx={{ color: "#333333", mr: 1 }}
+                                  />
+                                  Searching...
+                                </span>
+                              ) : (
+                                "Search Bookings"
+                              )}
+                            </Button>
 
-                            <div className="flex justify-end mt-2 gap-2">
+                            <Button
+                              variant="contained"
+                              onClick={handleMultiPropertyUpdate}
+                              disabled={
+                                updating ||
+                                !bookings.length ||
+                                isMultiProcessing
+                              }
+                              fullWidth
+                              className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium py-2 rounded-lg shadow-md transition-colors duration-300"
+                              sx={{
+                                textTransform: "none",
+                                fontSize: "1rem",
+                                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                                "&:hover": {
+                                  boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                                },
+                              }}
+                            >
+                              {updating ? (
+                                <span className="flex items-center justify-center">
+                                  <CircularProgress
+                                    size={20}
+                                    sx={{ color: "#333333", mr: 1 }}
+                                  />
+                                  Updating...
+                                </span>
+                              ) : (
+                                "Update Revenue Sheets"
+                              )}
+                            </Button>
+
+                            {showProcessButton && (
                               <Button
                                 variant="contained"
-                                onClick={handleSearchBookings}
-                                disabled={loading || !propertyId}
-                                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-6 py-2 rounded-lg shadow-md transition-colors duration-300"
-                                sx={{
-                                  textTransform: "none",
-                                  fontSize: "1rem",
-                                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                                  "&:hover": {
-                                    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                                  },
-                                }}
-                              >
-                                {loading ? (
-                                  <span className="flex items-center">
-                                    <CircularProgress
-                                      size={20}
-                                      sx={{ color: "#333333", mr: 1 }}
-                                    />
-                                    Searching...
-                                  </span>
-                                ) : (
-                                  "Search Bookings"
-                                )}
-                              </Button>
-
-                              <Button
-                                variant="contained"
-                                onClick={handleUpdateRevenue}
-                                disabled={updating || !bookings.length}
-                                className={`bg-primary hover:bg-secondary hover:text-primary text-dark font-medium px-6 py-2 rounded-lg shadow-md transition-colors duration-300 ${
-                                  !bookings.length
-                                    ? "opacity-50 cursor-not-allowed"
-                                    : ""
-                                }`}
+                                onClick={processConfirmedQueue}
+                                disabled={updating || isMultiProcessing}
+                                fullWidth
+                                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium py-2 rounded-lg shadow-md transition-colors duration-300"
                                 sx={{
                                   textTransform: "none",
                                   fontSize: "1rem",
@@ -373,76 +1178,135 @@ const ReportsPage = () => {
                                 }}
                               >
                                 {updating ? (
-                                  <span className="flex items-center">
+                                  <span className="flex items-center justify-center">
                                     <CircularProgress
                                       size={20}
                                       sx={{ color: "#333333", mr: 1 }}
                                     />
-                                    Updating...
+                                    Processing...
                                   </span>
                                 ) : (
-                                  "Update Revenue Sheet"
+                                  "Process Confirmed Updates"
                                 )}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Status and Progress */}
+                        {updateStatus && (
+                          <div
+                            className={`mb-4 p-3 rounded-lg border ${
+                              updateStatus.includes("Error")
+                                ? "border-red-500 bg-red-100"
+                                : "border-primary bg-primary/10"
+                            }`}
+                          >
+                            <p
+                              className={
+                                updateStatus.includes("Error")
+                                  ? "text-red-600"
+                                  : "text-dark"
+                              }
+                            >
+                              {updateStatus}
+                            </p>
+                          </div>
+                        )}
+
+                        <ProcessingProgress />
+
+                        {confirmedQueue.length > 0 && !isMultiProcessing && (
+                          <div className="mb-4 p-4 bg-white/50 rounded-lg border border-primary/30">
+                            <div className="flex justify-between items-center mb-3">
+                              <h3 className="text-lg font-semibold text-dark">
+                                Confirmed Properties ({confirmedQueue.length})
+                              </h3>
+                              <Button
+                                variant="contained"
+                                onClick={processConfirmedQueue}
+                                disabled={updating}
+                                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium py-1 px-4 rounded-lg shadow-md transition-colors duration-300"
+                                sx={{
+                                  textTransform: "none",
+                                  fontSize: "0.9rem",
+                                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                                  "&:hover": {
+                                    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                                  },
+                                }}
+                              >
+                                Process All
                               </Button>
                             </div>
 
-                            {/* Status message in its own section */}
-                            {updateStatus && (
-                              <div
-                                className={`mt-4 p-2 rounded-lg border ${
-                                  updateStatus.includes("Error")
-                                    ? "border-red-500 bg-red-100"
-                                    : "border-primary bg-primary/10"
-                                }`}
-                              >
-                                <p
-                                  className={
-                                    updateStatus.includes("Error")
-                                      ? "text-red-600"
-                                      : "text-dark"
-                                  }
+                            <div className="max-h-60 overflow-y-auto">
+                              {confirmedQueue.map((item, idx) => (
+                                <div
+                                  key={`${item.propertyId}-${idx}`}
+                                  className="bg-white p-3 rounded-lg mb-2 border border-primary/10"
                                 >
-                                  {updateStatus}
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-medium">
+                                      {item.propertyName}
+                                    </span>
+                                    <span className="text-sm bg-yellow-50 text-yellow-700 py-1 px-2 rounded">
+                                      Confirmed
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm mt-1">
+                                    <span>
+                                      {item.month} {item.year}
+                                    </span>
+                                    <span>${item.totalRevenue.toFixed(2)}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right Column - Bookings */}
+                      <div className="lg:col-span-2">
+                        <div className="bg-white/50 rounded-xl shadow-sm border border-primary/10 h-full flex flex-col">
+                          <div className="py-3 px-4 bg-primary/10 rounded-t-xl flex justify-between items-center">
+                            <h3 className="font-semibold text-dark">
+                              Bookings
+                            </h3>
+                            <span className="text-dark">
+                              Total: {bookings.length}
+                            </span>
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto p-4">
+                            {loading ? (
+                              <div className="flex items-center justify-center h-40">
+                                <CircularProgress sx={{ color: "#eccb34" }} />
+                              </div>
+                            ) : bookings.length > 0 ? (
+                              <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
+                                {bookings.map((booking) => (
+                                  <BookingCard
+                                    key={`${booking.bookingCode}-${booking.guestUid}`}
+                                    booking={booking}
+                                  />
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center h-40">
+                                <p className="text-dark text-lg">
+                                  No bookings found
                                 </p>
                               </div>
                             )}
                           </div>
-                        </LocalizationProvider>
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Bookings Section */}
-                    <div className="grid grid-cols-2 py-3 px-4 bg-primary/10 rounded-t-lg text-dark font-semibold">
-                      <span>Bookings</span>
-                      <span className="text-right">
-                        Total: {bookings.length}
-                      </span>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto bg-secondary/80 rounded-b-lg mb-6 border border-primary/10 p-4">
-                      {loading ? (
-                        <div className="flex items-center justify-center h-40">
-                          <CircularProgress sx={{ color: "#eccb34" }} />
-                        </div>
-                      ) : bookings.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                          {bookings.map((booking) => (
-                            <BookingCard
-                              key={`${booking.bookingCode}-${booking.guestUid}`}
-                              booking={booking}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center h-40">
-                          <p className="text-dark text-lg">No bookings found</p>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
 
-                {/* Email Templates Tab */}
                 {activeTab === 1 && (
                   <div className="flex-1 h-full overflow-auto">
                     <EmailTemplates />
@@ -452,70 +1316,167 @@ const ReportsPage = () => {
             </div>
           </div>
         </div>
-
-        {/* Dialogs - keep these outside the tabs */}
-        <Dialog
-          open={confirmDialogOpen}
-          onClose={() => setConfirmDialogOpen(false)}
-          PaperProps={{
-            sx: {
-              backgroundColor: "#fafafa",
-              color: "#333333",
-              borderRadius: "12px",
-              border: "1px solid rgba(236, 203, 52, 0.2)",
-            },
-          }}
-        >
-          <DialogTitle sx={{ color: "#333333" }}>Confirm Update</DialogTitle>
-          <DialogContent>
-            <DialogContentText sx={{ color: "#333333" }}>
-              Are you sure you want to update the revenue sheet?
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button
-              onClick={() => setConfirmDialogOpen(false)}
-              className="text-dark hover:bg-primary/5 transition-colors"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmUpdate}
-              className="bg-primary text-dark hover:bg-primary/80 transition-colors"
-            >
-              Confirm
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        <Dialog
-          open={errorDialogOpen}
-          onClose={() => setErrorDialogOpen(false)}
-          PaperProps={{
-            sx: {
-              backgroundColor: "#fafafa",
-              color: "#333333",
-              borderRadius: "12px",
-              border: "1px solid rgba(236, 203, 52, 0.2)",
-            },
-          }}
-        >
-          <DialogTitle sx={{ color: "#333333" }}>Error</DialogTitle>
-          <DialogContent>
-            <DialogContentText sx={{ color: "#333333" }}>
-              {errorMessage}
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button
-              onClick={() => setErrorDialogOpen(false)}
-              className="bg-primary text-dark hover:bg-primary/80 transition-colors"
-            >
-              Close
-            </Button>
-          </DialogActions>
-        </Dialog>
       </div>
+
+      {/* Dialogs */}
+      <Dialog
+        open={confirmDialogOpen}
+        onClose={() => setConfirmDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
+            maxWidth: "500px",
+            width: "100%",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            color: "#333333",
+            borderBottom: "1px solid #eee",
+            paddingBottom: 1,
+          }}
+        >
+          {revenueSummary?.isMultiProperty
+            ? `Confirm Update for ${revenueSummary.propertyName} (${
+                processingIndex + 1
+              }/${processingTotal})`
+            : "Confirm Revenue Update"}
+        </DialogTitle>
+        <DialogContent>
+          {revenueSummary && (
+            <Box sx={{ mt: 2 }}>
+              <div className="bg-white border border-primary/10 rounded-lg p-4 mb-3">
+                <h3 className="text-lg font-semibold mb-2 text-dark">
+                  Revenue Summary
+                </h3>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div className="text-dark text-sm">Property:</div>
+                  <div className="text-dark font-medium">
+                    {revenueSummary.propertyName}
+                  </div>
+
+                  <div className="text-dark text-sm">Period:</div>
+                  <div className="text-dark font-medium">
+                    {revenueSummary.month} {revenueSummary.year}
+                  </div>
+
+                  <div className="text-dark text-sm">Total Revenue:</div>
+                  <div className="text-dark font-medium">
+                    ${revenueSummary.totalRevenue.toFixed(2)}
+                  </div>
+
+                  <div className="text-dark text-sm">Cleaning Fees:</div>
+                  <div className="text-dark font-medium">
+                    ${revenueSummary.totalCleaning.toFixed(2)}
+                  </div>
+
+                  <div className="text-dark text-sm">Expenses:</div>
+                  <div className="text-dark font-medium">
+                    ${revenueSummary.expenses.toFixed(2)}
+                  </div>
+
+                  <div className="text-dark text-sm">Net Amount:</div>
+                  <div className="text-dark font-medium">
+                    ${revenueSummary.netAmount.toFixed(2)}
+                  </div>
+
+                  <div className="text-dark text-sm">Bookings:</div>
+                  <div className="text-dark font-medium">
+                    {revenueSummary.bookingCount}
+                  </div>
+
+                  {revenueSummary.ownerInfo && (
+                    <>
+                      <div className="text-dark text-sm">Owner:</div>
+                      <div className="text-dark font-medium">
+                        {revenueSummary.ownerInfo.name}
+                      </div>
+
+                      <div className="text-dark text-sm">Ownership %:</div>
+                      <div className="text-dark font-medium">
+                        {revenueSummary.ownershipPercentage}%
+                      </div>
+
+                      <div className="text-dark text-sm">Owner Profit:</div>
+                      <div className="text-dark font-medium font-bold text-green-700">
+                        ${revenueSummary.ownerProfit.toFixed(2)}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <DialogContentText>
+                Are you sure you want to update the revenue sheet and{" "}
+                {revenueSummary.ownerInfo ? "send owner report" : "process"} for
+                this property?
+              </DialogContentText>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setConfirmDialogOpen(false)}
+            color="primary"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmUpdate}
+            color="primary"
+            variant="contained"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+              backgroundColor: "#eccb34",
+              "&:hover": {
+                backgroundColor: "#d4b02a",
+              },
+            }}
+          >
+            Confirm Update
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={errorDialogOpen}
+        onClose={() => setErrorDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
+          },
+        }}
+      >
+        <DialogTitle>Error</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{errorMessage}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setErrorDialogOpen(false)}
+            color="primary"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </AdminProtected>
   );
 };

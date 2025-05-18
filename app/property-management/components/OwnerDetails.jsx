@@ -13,6 +13,10 @@ import {
   Box,
   useTheme,
   useMediaQuery,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import fetchWithAuth from "@/lib/fetchWithAuth";
@@ -26,6 +30,8 @@ const OwnerDetails = ({ ownerId }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [emailTemplates, setEmailTemplates] = useState([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
   useEffect(() => {
     const fetchOwnerDetails = async () => {
@@ -51,6 +57,43 @@ const OwnerDetails = ({ ownerId }) => {
 
     fetchOwnerDetails();
   }, [ownerId]);
+
+  useEffect(() => {
+    // Fetch email templates
+    const fetchEmailTemplates = async () => {
+      try {
+        setTemplatesLoading(true);
+        const response = await fetchWithAuth("/api/email/templates");
+        if (response.ok) {
+          const data = await response.json();
+          setEmailTemplates(data.templates || []);
+
+          // If owner has no template_id set, default to first template
+          if (
+            owner &&
+            !owner.template_id &&
+            data.templates &&
+            data.templates.length > 0
+          ) {
+            setOwner((prev) => ({
+              ...prev,
+              template_id: data.templates[0].id,
+            }));
+          }
+        } else {
+          console.error("Failed to fetch templates");
+        }
+      } catch (error) {
+        console.error("Error loading templates:", error);
+      } finally {
+        setTemplatesLoading(false);
+      }
+    };
+
+    if (!loading && owner) {
+      fetchEmailTemplates();
+    }
+  }, [loading, owner]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -249,6 +292,54 @@ const OwnerDetails = ({ ownerId }) => {
                   },
                 }}
               />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel
+                  id="email-template-label"
+                  sx={{
+                    "&.Mui-focused": {
+                      color: "#eccb34",
+                    },
+                  }}
+                >
+                  Default Email Template
+                </InputLabel>
+                <Select
+                  labelId="email-template-label"
+                  name="template_id"
+                  value={owner.template_id || ""}
+                  onChange={handleInputChange}
+                  disabled={templatesLoading || emailTemplates.length === 0}
+                  sx={{
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "rgba(0, 0, 0, 0.23)",
+                    },
+                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "#eccb34",
+                    },
+                    "& .MuiInputBase-input": {
+                      fontSize: { xs: "0.875rem", sm: "1rem" },
+                    },
+                  }}
+                >
+                  {templatesLoading ? (
+                    <MenuItem value="" disabled>
+                      Loading templates...
+                    </MenuItem>
+                  ) : emailTemplates.length === 0 ? (
+                    <MenuItem value="" disabled>
+                      No templates available
+                    </MenuItem>
+                  ) : (
+                    emailTemplates.map((template) => (
+                      <MenuItem key={template.id} value={template.id}>
+                        {template.name}
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid item xs={12}>
               <TextField

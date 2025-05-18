@@ -258,17 +258,13 @@ export async function PUT(request) {
       }
     }
 
-    // EmailService.sendEmail({
-    //   to: "mason@kyanproperties.com",
-    //   subject: "Test Email",
-    //   message: "This is a test email",
-    //   buttonText: "Click me",
-    //   buttonUrl: "https://kyanhub.com",
-    // });
+    // Get the spreadsheet URL
+    const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
 
     return NextResponse.json({
       success: true,
-      message: `Updated revenue sheet for ${propertyName} - ${monthName} ${year}`,
+      message: "Revenue updated successfully",
+      spreadsheetUrl,
     });
   } catch (error) {
     console.error("Sheet update error:", error.message, {

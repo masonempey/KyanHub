@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/database";
 import { auth } from "@/lib/firebase/admin";
+import OwnerService from "@/lib/services/ownerService";
 
 // Get owner by id
-export async function GET(request, { params }) {
+export async function GET(request, context) {
   try {
     // Verify authentication
     const token = request.headers.get("Authorization")?.split("Bearer ")[1];
@@ -18,26 +18,19 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
-    const { ownerId } = params;
+    const params = await context.params;
+    const ownerId = params.ownerId;
 
-    const client = await pool.connect();
-    try {
-      const result = await client.query(
-        `SELECT * FROM property_owners WHERE id = $1`,
-        [ownerId]
+    const owner = await OwnerService.getOwnerById(ownerId);
+
+    if (!owner) {
+      return NextResponse.json(
+        { success: false, error: "Owner not found" },
+        { status: 404 }
       );
-
-      if (result.rows.length === 0) {
-        return NextResponse.json(
-          { success: false, error: "Owner not found" },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json({ success: true, owner: result.rows[0] });
-    } finally {
-      client.release();
     }
+
+    return NextResponse.json({ success: true, owner });
   } catch (error) {
     console.error("Error fetching owner:", error);
     return NextResponse.json(
@@ -64,8 +57,8 @@ export async function PUT(request, { params }) {
     }
 
     const { ownerId } = params;
-    const { name, email, phone, address, notes, date_added } =
-      await request.json();
+    const ownerData = await request.json();
+    const { name } = ownerData;
 
     // Basic validation
     if (!name) {
@@ -75,28 +68,16 @@ export async function PUT(request, { params }) {
       );
     }
 
-    const client = await pool.connect();
-    try {
-      const result = await client.query(
-        `UPDATE property_owners
-         SET name = $1, email = $2, phone = $3, address = $4, notes = $5, 
-             date_added = $6
-         WHERE id = $7
-         RETURNING *`,
-        [name, email, phone, address, notes, date_added, ownerId]
+    const updatedOwner = await OwnerService.updateOwner(ownerId, ownerData);
+
+    if (!updatedOwner) {
+      return NextResponse.json(
+        { success: false, error: "Owner not found" },
+        { status: 404 }
       );
-
-      if (result.rows.length === 0) {
-        return NextResponse.json(
-          { success: false, error: "Owner not found" },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json({ success: true, owner: result.rows[0] });
-    } finally {
-      client.release();
     }
+
+    return NextResponse.json({ success: true, owner: updatedOwner });
   } catch (error) {
     console.error("Error updating owner:", error);
     return NextResponse.json(
@@ -123,28 +104,19 @@ export async function DELETE(request, { params }) {
     }
 
     const { ownerId } = params;
+    const success = await OwnerService.deleteOwner(ownerId);
 
-    const client = await pool.connect();
-    try {
-      const result = await client.query(
-        `DELETE FROM property_owners WHERE id = $1 RETURNING id`,
-        [ownerId]
+    if (!success) {
+      return NextResponse.json(
+        { success: false, error: "Owner not found" },
+        { status: 404 }
       );
-
-      if (result.rows.length === 0) {
-        return NextResponse.json(
-          { success: false, error: "Owner not found" },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: "Owner deleted successfully",
-      });
-    } finally {
-      client.release();
     }
+
+    return NextResponse.json({
+      success: true,
+      message: "Owner deleted successfully",
+    });
   } catch (error) {
     console.error("Error deleting owner:", error);
     return NextResponse.json(

@@ -15,7 +15,14 @@ const BookingCard = ({ booking }) => {
         <h3 className="font-semibold text-dark">
           {booking.guestName || "Unknown Guest"}
         </h3>
-        <p className="text-sm text-dark/70 capitalize">{booking.platform}</p>
+        <div className="flex justify-between">
+          <p className="text-sm text-dark/70 capitalize">{booking.platform}</p>
+          {booking.propertyName && (
+            <p className="text-sm text-dark/70 font-medium">
+              {booking.propertyName}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Content */}

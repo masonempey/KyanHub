@@ -36,7 +36,6 @@ const OwnerList = ({ onSelectOwner, showAddDialog, onCloseAddDialog }) => {
   const [newOwner, setNewOwner] = useState({
     name: "",
     email: "",
-    phone: "",
     notes: "",
   });
 
@@ -95,7 +94,6 @@ const OwnerList = ({ onSelectOwner, showAddDialog, onCloseAddDialog }) => {
       setNewOwner({
         name: "",
         email: "",
-        phone: "",
         notes: "",
       });
       handleCloseAddDialog();
@@ -160,9 +158,6 @@ const OwnerList = ({ onSelectOwner, showAddDialog, onCloseAddDialog }) => {
                 Email
               </TableCell>
               <TableCell sx={{ fontWeight: "bold", bgcolor: "#eccb34" }}>
-                Phone
-              </TableCell>
-              <TableCell sx={{ fontWeight: "bold", bgcolor: "#eccb34" }}>
                 Date Added
               </TableCell>
               <TableCell sx={{ fontWeight: "bold", bgcolor: "#eccb34" }}>
@@ -186,7 +181,6 @@ const OwnerList = ({ onSelectOwner, showAddDialog, onCloseAddDialog }) => {
                 >
                   <TableCell>{owner.name}</TableCell>
                   <TableCell>{owner.email}</TableCell>
-                  <TableCell>{owner.phone}</TableCell>
                   <TableCell>
                     {new Date(owner.date_added).toLocaleDateString()}
                   </TableCell>
@@ -255,24 +249,6 @@ const OwnerList = ({ onSelectOwner, showAddDialog, onCloseAddDialog }) => {
             type="email"
             fullWidth
             value={newOwner.email}
-            onChange={handleInputChange}
-            sx={{
-              "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
-                {
-                  borderColor: "#eccb34",
-                },
-              "& .MuiInputLabel-root.Mui-focused": {
-                color: "#eccb34",
-              },
-              mb: 2,
-            }}
-          />
-          <TextField
-            margin="dense"
-            name="phone"
-            label="Phone"
-            fullWidth
-            value={newOwner.phone}
             onChange={handleInputChange}
             sx={{
               "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":

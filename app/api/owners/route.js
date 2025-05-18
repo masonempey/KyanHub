@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { pool } from "@/lib/database";
 import { auth } from "@/lib/firebase/admin";
+import OwnerService from "@/lib/services/ownerService";
 
 // Get all owners
 export async function GET(request) {
@@ -18,15 +18,8 @@ export async function GET(request) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
-    const client = await pool.connect();
-    try {
-      const result = await client.query(
-        `SELECT * FROM property_owners ORDER BY name ASC`
-      );
-      return NextResponse.json({ success: true, owners: result.rows });
-    } finally {
-      client.release();
-    }
+    const owners = await OwnerService.getAllOwners();
+    return NextResponse.json({ success: true, owners });
   } catch (error) {
     console.error("Error fetching owners:", error);
     return NextResponse.json(
@@ -36,7 +29,7 @@ export async function GET(request) {
   }
 }
 
-// Create new owner
+// Create a new owner
 export async function POST(request) {
   try {
     // Verify authentication
@@ -52,7 +45,8 @@ export async function POST(request) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
-    const { name, email, phone, address, notes } = await request.json();
+    const ownerData = await request.json();
+    const { name } = ownerData;
 
     // Basic validation
     if (!name) {
@@ -62,23 +56,12 @@ export async function POST(request) {
       );
     }
 
-    const client = await pool.connect();
-    try {
-      const result = await client.query(
-        `INSERT INTO property_owners 
-         (name, email, phone, address, notes)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *`,
-        [name, email, phone, address, notes]
-      );
+    const newOwner = await OwnerService.createOwner(ownerData);
 
-      return NextResponse.json(
-        { success: true, owner: result.rows[0] },
-        { status: 201 }
-      );
-    } finally {
-      client.release();
-    }
+    return NextResponse.json(
+      { success: true, owner: newOwner },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Error creating owner:", error);
     return NextResponse.json(

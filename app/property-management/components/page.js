@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useProperties } from "@/contexts/PropertyContext";
-import MaintenanceSection from "./MaintenanceSection";
-import InventorySection from "./InventorySection";
-import RestockSection from "./RestockSection";
-import ViewStockSection from "./ViewStockSection";
-import CleaningSection from "./CleaningSection";
-import ManagePropertySection from "./ManagePropertySection";
+import MaintenanceSection from "../MaintenanceSection";
+import InventorySection from "../InventorySection";
+import RestockSection from "../RestockSection";
+import ViewStockSection from "../ViewStockSection";
+import CleaningSection from "../CleaningSection";
+import ManagePropertySection from "../ManagePropertySection";
 import { useUser } from "@/contexts/UserContext";
 import CircularProgress from "@mui/material/CircularProgress";
 import AdminProtected from "@/app/components/AdminProtected";
@@ -30,7 +30,7 @@ const PropertyManagementPage = () => {
 
   const [rightActiveTab, setRightActiveTab] = useState(0);
   const [leftActiveTab, setLeftActiveTab] = useState(0);
-  const [mainView, setMainView] = useState("operations"); // "operations" or "management"
+  const [mainView, setMainView] = useState("operations");
 
   const handleRightTabChange = (event, newValue) => {
     setRightActiveTab(newValue);
