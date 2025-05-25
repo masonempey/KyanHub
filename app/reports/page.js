@@ -22,6 +22,7 @@ import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Box from "@mui/material/Box";
 import MultiPropertySelector from "../components/MultiPropertySelector";
+import MonthEndStatus from "../components/MonthEndStatus";
 
 // Define monthNames array
 const monthNames = [
@@ -334,6 +335,37 @@ const ReportsPage = () => {
           console.error("Error fetching owner:", ownerError);
         }
 
+        // Calculate revenue metrics for this property
+        const monthIndex = startDate.month();
+        const monthName = monthNames[monthIndex];
+        const year = startDate.format("YYYY");
+
+        const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
+        const unPaddedMonthNum = (monthIndex + 1).toString();
+
+        const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
+        const monthYearKeyUnpadded = `${year}-${unPaddedMonthNum}`;
+
+        // Calculate totalRevenue from property bookings
+        const totalRevenue = propertyBookings.reduce((sum, booking) => {
+          const revenuePadded =
+            booking.revenueByMonth?.[monthYearKeyPadded] || 0;
+          const revenueUnpadded =
+            booking.revenueByMonth?.[monthYearKeyUnpadded] || 0;
+          const revenue = revenuePadded || revenueUnpadded;
+          return sum + revenue;
+        }, 0);
+
+        // Calculate totalCleaning from property bookings
+        const totalCleaning = propertyBookings.reduce((sum, booking) => {
+          const cleaningMatch =
+            booking.cleaningFeeMonth === monthYearKeyPadded ||
+            booking.cleaningFeeMonth === monthYearKeyUnpadded;
+          const cleaning = cleaningMatch ? booking.cleaningFee : 0;
+          return sum + cleaning;
+        }, 0);
+
+        // Now we can calculate netAmount and ownerProfit
         const netAmount = totalRevenue - totalCleaning - expensesTotal;
         const ownerProfit = (netAmount * ownershipPercentage) / 100;
 
@@ -398,7 +430,7 @@ const ReportsPage = () => {
   };
 
   // Step 1: Prepare data for the current property
-  const preparePropertyData = (index) => {
+  const preparePropertyData = async (index) => {
     // Make sure we have a valid index
     if (index < 0 || index >= selectedProperties.length) {
       setIsMultiProcessing(false);
@@ -447,26 +479,91 @@ const ReportsPage = () => {
     const monthName = monthNames[monthIndex];
     const year = startDate.format("YYYY");
 
-    const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
-    const unPaddedMonthNum = (monthIndex + 1).toString();
-    const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
-    const monthYearKeyUnpadded = `${year}-${unPaddedMonthNum}`;
+    // Check month-end status first
+    try {
+      // Validate if we can update revenue, with auto-inventory enabled
+      const response = await fetchWithAuth(
+        `/api/property-month-end?propertyId=${currentPropertyId}&year=${year}&monthNumber=${
+          monthIndex + 1
+        }&autoInventory=true`,
+        { method: "OPTIONS" }
+      );
 
-    // Calculate revenue and cleaning fees
-    const totalRevenue = propertyBookings.reduce((sum, booking) => {
-      const revenuePadded = booking.revenueByMonth[monthYearKeyPadded] || 0;
-      const revenueUnpadded = booking.revenueByMonth[monthYearKeyUnpadded] || 0;
-      const revenue = revenuePadded || revenueUnpadded;
-      return sum + revenue;
-    }, 0);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to validate update status: ${response.statusText}`
+        );
+      }
 
-    const totalCleaning = propertyBookings.reduce((sum, booking) => {
-      const cleaningMatch =
-        booking.cleaningFeeMonth === monthYearKeyPadded ||
-        booking.cleaningFeeMonth === monthYearKeyUnpadded;
-      const cleaning = cleaningMatch ? booking.cleaningFee : 0;
-      return sum + cleaning;
-    }, 0);
+      const validation = await response.json();
+
+      // If inventory needs to be created automatically
+      if (validation.canUpdate && validation.needsInventory) {
+        console.log(`Auto-generating inventory for ${propertyName}`);
+
+        try {
+          // Call API to auto-generate inventory
+          const inventoryResponse = await fetchWithAuth(
+            `/api/inventory/auto-generate`,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                propertyId: currentPropertyId,
+                propertyName,
+                month: monthName,
+                year,
+                monthNumber: monthIndex + 1,
+              }),
+            }
+          );
+
+          if (!inventoryResponse.ok) {
+            throw new Error(
+              `Failed to auto-generate inventory: ${await inventoryResponse.text()}`
+            );
+          }
+
+          console.log(
+            `Successfully auto-generated inventory for ${propertyName}`
+          );
+        } catch (inventoryError) {
+          console.error(`Error auto-generating inventory: ${inventoryError}`);
+          // Continue anyway - we'll treat this as a non-blocking error
+        }
+      } else if (!validation.canUpdate) {
+        setProcessedProperties((prev) => [
+          ...prev,
+          {
+            propertyId: currentPropertyId,
+            propertyName,
+            success: false,
+            error: validation.message,
+          },
+        ]);
+
+        setProcessingIndex(index + 1);
+        preparePropertyData(index + 1);
+        return;
+      }
+    } catch (error) {
+      console.error(
+        `Error checking month-end status for ${propertyName}:`,
+        error
+      );
+      setProcessedProperties((prev) => [
+        ...prev,
+        {
+          propertyId: currentPropertyId,
+          propertyName,
+          success: false,
+          error: `Failed to check month-end status: ${error.message}`,
+        },
+      ]);
+
+      setProcessingIndex(index + 1);
+      preparePropertyData(index + 1);
+      return;
+    }
 
     // Fetch expenses and owner info
     Promise.all([
@@ -499,7 +596,37 @@ const ReportsPage = () => {
 
         const ownershipPercentage = ownerInfo?.ownership_percentage || 100;
 
-        // Calculate profit
+        // Calculate revenue metrics for this property
+        const monthIndex = startDate.month();
+        const monthName = monthNames[monthIndex];
+        const year = startDate.format("YYYY");
+
+        const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
+        const unPaddedMonthNum = (monthIndex + 1).toString();
+
+        const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
+        const monthYearKeyUnpadded = `${year}-${unPaddedMonthNum}`;
+
+        // Calculate totalRevenue from property bookings
+        const totalRevenue = propertyBookings.reduce((sum, booking) => {
+          const revenuePadded =
+            booking.revenueByMonth?.[monthYearKeyPadded] || 0;
+          const revenueUnpadded =
+            booking.revenueByMonth?.[monthYearKeyUnpadded] || 0;
+          const revenue = revenuePadded || revenueUnpadded;
+          return sum + revenue;
+        }, 0);
+
+        // Calculate totalCleaning from property bookings
+        const totalCleaning = propertyBookings.reduce((sum, booking) => {
+          const cleaningMatch =
+            booking.cleaningFeeMonth === monthYearKeyPadded ||
+            booking.cleaningFeeMonth === monthYearKeyUnpadded;
+          const cleaning = cleaningMatch ? booking.cleaningFee : 0;
+          return sum + cleaning;
+        }, 0);
+
+        // Now we can calculate netAmount and ownerProfit
         const netAmount = totalRevenue - totalCleaning - expensesTotal;
         const ownerProfit = (netAmount * ownershipPercentage) / 100;
 
@@ -647,51 +774,63 @@ const ReportsPage = () => {
 
     // Process the queue one by one
     for (let i = 0; i < localQueue.length; i++) {
+      let currentItem = null; // Define a variable outside the try block
+
       try {
         setProcessingIndex(i);
         setUpdating(true);
 
-        const item = localQueue[i];
+        currentItem = localQueue[i]; // Assign the current item
 
         // Verify we have all required data before proceeding
-        if (!item || !item.propertyId || !item.propertyName) {
-          console.error(`Invalid item at index ${i}:`, item);
+        if (
+          !currentItem ||
+          !currentItem.propertyId ||
+          !currentItem.propertyName
+        ) {
+          console.error(`Invalid item at index ${i}:`, currentItem);
           throw new Error("Invalid property data");
         }
 
-        if (!item.bookings || !Array.isArray(item.bookings)) {
+        if (!currentItem.bookings || !Array.isArray(currentItem.bookings)) {
           console.warn(
-            `No bookings for ${item.propertyName}, using empty array`
+            `No bookings for ${currentItem.propertyName}, using empty array`
           );
-          item.bookings = [];
+          currentItem.bookings = [];
         }
 
         console.log(
           `===== PROCESSING PROPERTY ${i + 1}/${localQueue.length} =====`
         );
-        console.log(`Property: ${item.propertyName} (${item.propertyId})`);
-        console.log(`Has bookings: ${item.bookings.length}`);
-        console.log(`Has owner: ${item.ownerInfo ? "Yes" : "No"}`);
+        console.log(
+          `Property: ${currentItem.propertyName} (${currentItem.propertyId})`
+        );
+        console.log(`Has bookings: ${currentItem.bookings.length}`);
+        console.log(`Has owner: ${currentItem.ownerInfo ? "Yes" : "No"}`);
 
         // Log owner details if available
-        if (item.ownerInfo) {
+        if (currentItem.ownerInfo) {
           console.log(
-            `Owner: ${item.ownerInfo.name} (ID: ${item.ownerInfo.id})`
+            `Owner: ${currentItem.ownerInfo.name} (ID: ${currentItem.ownerInfo.id})`
           );
         }
 
         // Proceed with update and email logic
         // Update revenue sheet
-        console.log(`Updating revenue sheet for ${item.propertyName}`);
+        console.log(`Updating revenue sheet for ${currentItem.propertyName}`);
+        console.log(
+          `Including expenses total: $${currentItem.expenses.toFixed(2)}`
+        );
+
         const response = await fetchWithAuth(`/api/sheets/revenue`, {
           method: "PUT",
           body: JSON.stringify({
-            propertyId: item.propertyId,
-            propertyName: item.propertyName,
-            bookings: item.bookings,
-            year: item.year,
-            monthName: item.month,
-            expensesTotal: item.expenses || 0,
+            propertyId: currentItem.propertyId,
+            propertyName: currentItem.propertyName,
+            bookings: currentItem.bookings,
+            year: currentItem.year,
+            monthName: currentItem.month,
+            expensesTotal: currentItem.expenses || 0, // Make sure expenses are included
           }),
         });
 
@@ -705,23 +844,26 @@ const ReportsPage = () => {
         }
 
         console.log(
-          `✅ Revenue sheet updated successfully for ${item.propertyName}`
+          `✅ Revenue sheet updated successfully for ${currentItem.propertyName}`
         );
 
         // Handle email if there's an owner
         let emailSuccess = true;
         let emailMessage = "";
+        let emailResult = { success: false }; // Initialize with a default value
 
-        if (item.ownerInfo && item.ownerInfo.id) {
+        if (currentItem.ownerInfo && currentItem.ownerInfo.id) {
           try {
             console.log(
-              `Starting email process for ${item.propertyName} to ${item.ownerInfo.name}`
+              `Starting email process for ${currentItem.propertyName} to ${currentItem.ownerInfo.name}`
             );
 
             // Get spreadsheet URL
-            console.log(`Fetching spreadsheet ID for ${item.propertyId}`);
+            console.log(
+              `Fetching spreadsheet ID for ${currentItem.propertyId}`
+            );
             const sheetResponse = await fetchWithAuth(
-              `/api/properties/${item.propertyId}/sheetId`
+              `/api/properties/${currentItem.propertyId}/sheetId`
             );
 
             console.log(
@@ -738,24 +880,24 @@ const ReportsPage = () => {
               : "";
 
             console.log(
-              `Got spreadsheet URL for ${item.propertyName}: ${
+              `Got spreadsheet URL for ${currentItem.propertyName}: ${
                 spreadsheetUrl || "none"
               }`
             );
-            console.log(`SENDING EMAIL NOW for ${item.propertyName}`);
+            console.log(`SENDING EMAIL NOW for ${currentItem.propertyName}`);
 
             // Add additional debugging for email payload
             const emailPayload = {
-              ownerId: item.ownerInfo.id,
-              propertyName: item.propertyName,
-              propertyId: item.propertyId,
-              month: item.month,
-              year: item.year,
-              totalRevenue: item.totalRevenue,
-              totalCleaning: item.totalCleaning,
-              expenses: item.expenses,
-              profit: item.ownerProfit,
-              bookingCount: item.bookingCount,
+              ownerId: currentItem.ownerInfo.id,
+              propertyName: currentItem.propertyName,
+              propertyId: currentItem.propertyId,
+              month: currentItem.month,
+              year: currentItem.year,
+              totalRevenue: currentItem.totalRevenue,
+              totalCleaning: currentItem.totalCleaning,
+              expenses: currentItem.expenses,
+              profit: currentItem.ownerProfit,
+              bookingCount: currentItem.bookingCount,
               spreadsheetUrl,
             };
             console.log(
@@ -782,7 +924,7 @@ const ReportsPage = () => {
               throw new Error(`Email service error: ${errorText}`);
             }
 
-            const emailResult = await emailResponse.json();
+            emailResult = await emailResponse.json(); // Store result in the outer variable
             console.log(`Email result:`, emailResult);
 
             if (!emailResult.success) {
@@ -790,10 +932,12 @@ const ReportsPage = () => {
               throw new Error(emailResult.error || "Unknown email error");
             }
 
-            console.log(`✅ Email sent successfully for ${item.propertyName}`);
+            console.log(
+              `✅ Email sent successfully for ${currentItem.propertyName}`
+            );
           } catch (emailError) {
             console.error(
-              `❌ Email failed for ${item.propertyName}:`,
+              `❌ Email failed for ${currentItem.propertyName}:`,
               emailError
             );
             emailSuccess = false;
@@ -801,45 +945,65 @@ const ReportsPage = () => {
           }
         } else {
           console.log(
-            `Skipping email for ${item.propertyName} - no owner info`
+            `Skipping email for ${currentItem.propertyName} - no owner info`
           );
         }
 
         // Record success
         const resultMessage = emailSuccess
           ? `Revenue updated successfully${
-              item.ownerInfo ? ` and email sent to ${item.ownerInfo.name}` : ""
+              currentItem.ownerInfo
+                ? ` and email sent to ${currentItem.ownerInfo.name}`
+                : ""
             }`
           : `Revenue updated but email failed: ${emailMessage}`;
 
         console.log(
-          `Recording result for ${item.propertyName}: ${resultMessage}`
+          `Recording result for ${currentItem.propertyName}: ${resultMessage}`
         );
 
         setProcessedProperties((prev) => [
           ...prev,
           {
-            propertyId: item.propertyId,
-            propertyName: item.propertyName,
+            propertyId: currentItem.propertyId,
+            propertyName: currentItem.propertyName,
             success: true,
             message: resultMessage,
           },
         ]);
 
-        console.log(
-          `Finished processing ${item.propertyName} (${i + 1}/${
-            localQueue.length
-          })`
-        );
-        console.log(`-----------------------------------------`);
+        // Record the successful revenue update in the month-end tracking
+        await fetchWithAuth(`/api/property-month-end`, {
+          method: "POST",
+          body: JSON.stringify({
+            propertyId: currentItem.propertyId,
+            propertyName: currentItem.propertyName,
+            year: currentItem.year,
+            month: currentItem.month,
+            monthNumber:
+              monthNames.findIndex((m) => m === currentItem.month) + 1,
+            statusType: "revenue",
+            statusData: {
+              revenueAmount: currentItem.totalRevenue,
+              cleaningFeesAmount: currentItem.totalCleaning,
+              expensesAmount: currentItem.expenses, // Make sure expenses are included
+              netAmount: currentItem.netAmount,
+              bookingsCount: currentItem.bookings.length,
+              sheetId: data.spreadsheetUrl,
+            },
+          }),
+        });
       } catch (error) {
         // Record failure
-        console.error(`❌ ERROR processing ${item.propertyName}:`, error);
+        console.error(
+          `❌ ERROR processing ${currentItem.propertyName}:`,
+          error
+        );
         setProcessedProperties((prev) => [
           ...prev,
           {
-            propertyId: item.propertyId,
-            propertyName: item.propertyName,
+            propertyId: currentItem.propertyId,
+            propertyName: currentItem.propertyName,
             success: false,
             error: error.message,
           },
@@ -1191,6 +1355,42 @@ const ReportsPage = () => {
                               </Button>
                             )}
                           </div>
+                        </div>
+
+                        {/* Month-End Status */}
+                        <div className="mb-4">
+                          <h3 className="text-lg font-semibold mb-2 text-dark">
+                            Month-End Status
+                          </h3>
+                          {selectedProperties.length === 1 && startDate && (
+                            <MonthEndStatus
+                              propertyId={selectedProperties[0]}
+                              propertyName={
+                                typeof allProperties[selectedProperties[0]] ===
+                                "object"
+                                  ? allProperties[selectedProperties[0]].name
+                                  : allProperties[selectedProperties[0]]
+                              }
+                              year={startDate.format("YYYY")}
+                              month={monthNames[startDate.month()]}
+                              monthNumber={startDate.month() + 1}
+                              onGenerateInventory={() => {
+                                // Navigate to inventory section or open inventory modal
+                                navigate("/inventory/generate", {
+                                  state: {
+                                    propertyId: selectedProperties[0],
+                                    month: startDate.format("MMMM"),
+                                    year: startDate.format("YYYY"),
+                                  },
+                                });
+                              }}
+                            />
+                          )}
+                          {selectedProperties.length > 1 && (
+                            <p className="text-sm text-gray-500">
+                              Select a single property to view month-end status
+                            </p>
+                          )}
                         </div>
 
                         {/* Status and Progress */}

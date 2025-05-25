@@ -2,24 +2,26 @@
 import { NextResponse } from "next/server";
 import googleService from "@/lib/services/googleService";
 import PropertyService from "@/lib/services/propertyService";
-// import EmailService from "@/lib/services/emailService";
 
 const SHEET_LAYOUTS = {
   "Kyan Owned Properties": {
     revenueColumn: "H",
     cleaningColumn: "E",
+    expensesColumn: "I",
     rightSideStart: "L",
     rightSideEnd: "Q",
   },
   colours_1306: {
     revenueColumn: "B",
     cleaningColumn: "C",
+    expensesColumn: "F",
     rightSideStart: "K",
     rightSideEnd: "P",
   },
   "Windsor Town Homes": {
     revenueColumn: "I",
     cleaningColumn: "F",
+    expensesColumn: "J",
     rightSideStart: "M",
     rightSideEnd: "R",
   },
@@ -32,12 +34,14 @@ const SHEET_LAYOUTS = {
   "Windsor 5119": {
     revenueColumn: "H",
     cleaningColumn: "E",
+    expensesColumn: "I",
     rightSideStart: "L",
     rightSideEnd: "Q",
   },
   default: {
     revenueColumn: "B",
     cleaningColumn: "C",
+    expensesColumn: "E",
     rightSideStart: "J",
     rightSideEnd: "O",
   },
@@ -102,14 +106,21 @@ export async function PUT(request) {
     console.log("Starting revenue update...");
     await googleService.init();
 
-    const { propertyId, propertyName, bookings, year, monthName } =
-      await request.json();
+    const {
+      propertyId,
+      propertyName,
+      bookings,
+      year,
+      monthName,
+      expensesTotal = 0,
+    } = await request.json();
     console.log("Request body:", {
       propertyId,
       propertyName,
       bookings,
       year,
       monthName,
+      expensesTotal, // Log the expenses total
     });
 
     console.log(
@@ -192,10 +203,17 @@ export async function PUT(request) {
     const cleaningTotalFormatted =
       cleaningTotal === 0 ? "" : `$${cleaningTotal}`;
 
+    // Format the expenses total for the sheet
+    const expensesTotalNumber = Number(expensesTotal);
+    const expensesTotalFormatted =
+      expensesTotalNumber === 0 ? "" : `$${expensesTotalNumber.toFixed(2)}`;
+
     console.log("Updating values:", {
       monthTotal: monthTotalFormatted,
       cleaningTotal: cleaningTotalFormatted,
+      expensesTotal: expensesTotalFormatted, // Add expenses
     });
+    // Update to include expenses column
     await googleService.updateSheetValues(sheetId, sheetName, [
       {
         range: `${layout.revenueColumn}${actualRowIndex}`,
@@ -204,6 +222,10 @@ export async function PUT(request) {
       {
         range: `${layout.cleaningColumn}${actualRowIndex}`,
         value: cleaningTotalFormatted,
+      },
+      {
+        range: `${layout.expensesColumn}${actualRowIndex}`,
+        value: expensesTotalFormatted, // Add this line to update expenses
       },
     ]);
 
