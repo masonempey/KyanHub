@@ -2,22 +2,25 @@
 
 import { useState } from "react";
 import { useProperties } from "@/contexts/PropertyContext";
-import MaintenanceSection from "./MaintenanceSection";
-import InventorySection from "./InventorySection";
-import RestockSection from "./RestockSection";
-import ViewStockSection from "./ViewStockSection";
-import CleaningSection from "./CleaningSection";
-import ManagePropertySection from "./ManagePropertySection";
+import MaintenanceSection from "../MaintenanceSection";
+import InventorySection from "../InventorySection";
+import RestockSection from "../RestockSection";
+import ViewStockSection from "../ViewStockSection";
+import CleaningSection from "../CleaningSection";
+import ManagePropertySection from "../ManagePropertySection";
 import { useUser } from "@/contexts/UserContext";
 import CircularProgress from "@mui/material/CircularProgress";
-import AdminProtected from "../components/AdminProtected";
+import AdminProtected from "@/app/components/AdminProtected";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import Button from "@mui/material/Button";
 import SettingsIcon from "@mui/icons-material/Settings";
 import HomeWorkIcon from "@mui/icons-material/HomeWork";
+import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
+import { useRouter } from "next/navigation";
 
-export default function PropertyManagementPage() {
+const PropertyManagementPage = () => {
+  const router = useRouter();
   const { user, loading: userLoading } = useUser();
   const {
     loading: propertiesLoading,
@@ -27,7 +30,7 @@ export default function PropertyManagementPage() {
 
   const [rightActiveTab, setRightActiveTab] = useState(0);
   const [leftActiveTab, setLeftActiveTab] = useState(0);
-  const [mainView, setMainView] = useState("operations"); // "operations" or "management"
+  const [mainView, setMainView] = useState("operations");
 
   const handleRightTabChange = (event, newValue) => {
     setRightActiveTab(newValue);
@@ -98,6 +101,25 @@ export default function PropertyManagementPage() {
               }}
             >
               Property Management
+            </Button>
+            <Button
+              variant="text"
+              onClick={() => router.push("/owner-management")}
+              startIcon={<PeopleAltIcon />}
+              sx={{
+                px: 3,
+                py: 1,
+                mx: 1,
+                textTransform: "none",
+                borderRadius: "8px",
+                bgcolor: "transparent",
+                color: "#333333",
+                "&:hover": {
+                  bgcolor: "rgba(236, 203, 52, 0.1)",
+                },
+              }}
+            >
+              Owner Management
             </Button>
           </div>
         </div>
@@ -177,7 +199,7 @@ export default function PropertyManagementPage() {
             </div>
           </div>
         ) : (
-          // Management View - ManagePropertySection with Owner Management tab
+          // Management View - New ManagePropertySection
           <div className="h-full">
             <ManagePropertySection />
           </div>
@@ -185,4 +207,6 @@ export default function PropertyManagementPage() {
       </div>
     </AdminProtected>
   );
-}
+};
+
+export default PropertyManagementPage;

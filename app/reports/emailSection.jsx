@@ -22,6 +22,57 @@ import Alert from "@mui/material/Alert";
 import Snackbar from "@mui/material/Snackbar";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 
+const initializeGoogleAuth = async () => {
+  try {
+    const response = await fetchWithAuth("/api/google/auth-status", {
+      method: "GET",
+    });
+
+    const data = await response.json();
+
+    if (!data.isAuthorized) {
+      console.log("Google auth required, redirecting...");
+      handleGoogleAuthRedirect(
+        new Error(
+          `Insufficient Permission: Google API authorization required. Please visit ${data.authUrl} to grant permission.`
+        )
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error checking auth status:", error);
+    return true;
+  }
+};
+
+function handleGoogleAuthRedirect(error) {
+  const urlMatch = error.message.match(
+    /Please visit (https:\/\/accounts\.google\.com\S+) to grant/
+  );
+
+  if (urlMatch && urlMatch[1]) {
+    const authUrl = urlMatch[1];
+    console.log("Redirecting to Google auth:", authUrl);
+
+    // Store current page to return after auth
+    localStorage.setItem("authReturnPath", window.location.pathname);
+
+    // Add state parameter to the URL
+    const currentPath = window.location.pathname;
+    const authUrlWithState =
+      authUrl +
+      (authUrl.includes("?") ? "&" : "?") +
+      `state=${encodeURIComponent(currentPath)}`;
+
+    // Redirect to Google auth with state parameter
+    window.location.href = authUrlWithState;
+    return true;
+  }
+  return false;
+}
+
 const EmailTemplates = () => {
   const [emailTemplates, setEmailTemplates] = useState([]);
   const [currentTemplate, setCurrentTemplate] = useState({
@@ -50,6 +101,11 @@ const EmailTemplates = () => {
   });
 
   useEffect(() => {
+    fetchEmailTemplates();
+  }, []);
+
+  useEffect(() => {
+    initializeGoogleAuth();
     fetchEmailTemplates();
   }, []);
 
@@ -150,7 +206,15 @@ const EmailTemplates = () => {
   };
 
   const editTemplate = (template) => {
-    setCurrentTemplate({ ...template });
+    // Ensure all fields have at least empty string values
+    setCurrentTemplate({
+      id: template.id || null,
+      name: template.name || "",
+      subject: template.subject || "",
+      message: template.message || "",
+      buttonText: template.buttonText || "",
+      buttonUrl: template.buttonUrl || "",
+    });
     setSuccess("");
     setError("");
   };
@@ -199,11 +263,21 @@ const EmailTemplates = () => {
       variables:
         '{\n  "property.name": "Sample Property",\n  "property.address": "123 Main St",\n  "booking.guestName": "John Doe"\n}',
     });
-    setCurrentTemplate(template);
+
+    // Ensure all fields have at least empty string values
+    setCurrentTemplate({
+      id: template.id || null,
+      name: template.name || "",
+      subject: template.subject || "",
+      message: template.message || "",
+      buttonText: template.buttonText || "",
+      buttonUrl: template.buttonUrl || "",
+    });
+
     setTestDialogOpen(true);
   };
 
-  // Send test email
+  // Update your sendTestEmail function
   const sendTestEmail = async () => {
     if (!testEmailData.to) {
       showSnackbar("Email recipient is required", "error");
@@ -211,6 +285,7 @@ const EmailTemplates = () => {
     }
 
     setSendingTest(true);
+
     try {
       let variables = {};
       try {
@@ -223,9 +298,7 @@ const EmailTemplates = () => {
 
       const response = await fetchWithAuth("/api/email/send", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: testEmailData.to,
           subject: currentTemplate.subject,
@@ -238,6 +311,27 @@ const EmailTemplates = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
+
+        // Check for 403 Forbidden (Access Denied)
+        if (response.status === 403) {
+          setTestDialogOpen(false);
+          showSnackbar(
+            "Access Denied: Only info@kyanproperties.com may send emails",
+            "error"
+          );
+          return;
+        }
+
+        // Handle authorization required
+        if (
+          response.status === 401 &&
+          errorData.error?.includes("authorization required")
+        ) {
+          if (handleGoogleAuthRedirect(new Error(errorData.error))) {
+            return;
+          }
+        }
+
         throw new Error(errorData.error || "Failed to send test email");
       }
 
@@ -245,7 +339,19 @@ const EmailTemplates = () => {
       showSnackbar("Test email sent successfully!", "success");
     } catch (error) {
       console.error("Error sending test email:", error);
-      showSnackbar(error.message || "Failed to send test email", "error");
+
+      // Check if we need to redirect for auth
+      if (error.message && error.message.includes("authorization required")) {
+        if (handleGoogleAuthRedirect(error)) {
+          return;
+        }
+      }
+
+      setSnackbar({
+        open: true,
+        message: error.message || "Failed to send email",
+        severity: "error",
+      });
     } finally {
       setSendingTest(false);
     }
@@ -544,9 +650,9 @@ const EmailTemplates = () => {
             <div className="text-xs text-gray-500 mt-2">
               <p>Variable examples:</p>
               <ul className="list-disc pl-5">
-                <li>{property.name} - Name of the property</li>
-                <li>{booking.guestName} - Guest name</li>
-                <li>{booking.checkIn} - Check-in date</li>
+                <li>{"{{property.name}}"} - Name of the property</li>
+                <li>{"{{booking.guestName}}"} - Guest name</li>
+                <li>{"{{booking.checkIn}}"} - Check-in date</li>
               </ul>
             </div>
           </div>

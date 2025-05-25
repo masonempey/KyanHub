@@ -14,14 +14,15 @@ import { useRouter } from "next/navigation";
 import NotificationsPanel from "./NotificationsPanel";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 import { useUser } from "@/contexts/UserContext";
+import { useMobileMenu } from "@/contexts/MobileMenuContext";
 
 const SideBar = () => {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
+  const { mobileMenuOpen, setMobileMenuOpen } = useMobileMenu(); // Use context instead of local state
   const [hoveredIcon, setHoveredIcon] = useState(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const notificationsRef = useRef(null);
   const sidebarRef = useRef(null);
 
@@ -125,29 +126,12 @@ const SideBar = () => {
     return classes;
   };
 
-  // Mobile menu toggle button
-  const MobileMenuButton = () => (
-    <div className="fixed top-4 left-4 z-50 md:hidden">
-      <button
-        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        className="bg-primary/90 text-dark p-2 rounded-full shadow-lg"
-        aria-label="Toggle menu"
-      >
-        {mobileMenuOpen ? (
-          <CloseIcon fontSize="medium" />
-        ) : (
-          <MenuIcon fontSize="medium" />
-        )}
-      </button>
-    </div>
-  );
-
   const sidebarClasses = `
     ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} 
-    fixed md:static top-0 left-0 z-40
+    fixed md:static top-0 left-0 z-[60]
     h-full bg-white/80 backdrop-blur-md md:bg-transparent
     transition-transform duration-300 ease-in-out
-    flex flex-col py-6 md:py-6
+    flex flex-col pt-16 md:py-6
     w-64 md:w-20
     shadow-lg md:shadow-none
     px-6 md:px-16
@@ -155,8 +139,6 @@ const SideBar = () => {
 
   return (
     <>
-      <MobileMenuButton />
-
       <div ref={sidebarRef} className={sidebarClasses}>
         {/* Mobile header */}
         <div className="md:hidden flex justify-between items-center mb-8">
@@ -257,10 +239,10 @@ const SideBar = () => {
         />
       </div>
 
-      {/* Overlay when mobile menu is open */}
+      {/* Overlay when mobile menu is open - update z-index */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/30 z-30 md:hidden"
+          className="fixed inset-0 bg-black/30 z-[59] md:hidden"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}

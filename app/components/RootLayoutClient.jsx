@@ -64,6 +64,7 @@ export default function RootLayoutClient({ children }) {
             selectedMonth={currentMonth}
             currentPage={setPageName(pathname)}
             onMonthChange={handleMonthChange}
+            pathname={pathname} // Pass the pathname to TopNav
           />
         )}
         <main

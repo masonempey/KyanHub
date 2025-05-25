@@ -5,6 +5,8 @@ import { Button, IconButton } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import MenuIcon from "@mui/icons-material/Menu";
+import CloseIcon from "@mui/icons-material/Close";
 import { useUser } from "../../contexts/UserContext";
 
 const TopNav = ({
@@ -14,6 +16,9 @@ const TopNav = ({
   selectedMonth,
   currentPage,
   onMonthChange,
+  mobileMenuOpen,
+  setMobileMenuOpen,
+  pathname,
 }) => {
   const { logout, login, user } = useUser();
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState(null);
@@ -26,23 +31,43 @@ const TopNav = ({
     setMobileMenuAnchor(null);
   };
 
+  const hideFilters = pathname === "/reports";
+
   return (
-    <div className="w-full bg-transparent py-3 md:py-6 px-4 md:px-8 flex flex-col md:flex-row md:items-center border-b border-primary/10">
-      {/* Page Title */}
-      <h1 className="text-dark text-2xl md:text-4xl font-bold mb-4 md:mb-0 md:mr-6">
-        {currentPage}
+    <header className="bg-secondary/95 border-b border-primary/10 p-4 flex items-center justify-between sticky top-0 z-10 md:static">
+      {/* Logo and Toggle Button (mobile) */}
+      <div className="md:hidden flex items-center">
+        <IconButton
+          onClick={() =>
+            setMobileMenuOpen && setMobileMenuOpen(!mobileMenuOpen)
+          }
+          className="text-dark mr-2"
+          aria-label="menu"
+        >
+          {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
+        </IconButton>
+        <h1 className="text-xl font-semibold text-dark">
+          {currentPage || "Dashboard"}
+        </h1>
+      </div>
+
+      {/* Page Title (desktop) */}
+      <h1 className="hidden md:block text-xl font-semibold text-dark">
+        {currentPage || "Dashboard"}
       </h1>
 
-      {/* Mobile Menu Button (only visible on small screens) */}
-      <div className="md:hidden flex justify-between items-center">
-        <div className="flex-1">
-          <FilterBar
-            properties={filteredProperties}
-            loading={loading}
-            onPropertySelect={handlePropertyChange}
-            mobile={true}
-          />
-        </div>
+      {/* Mobile Actions */}
+      <div className="md:hidden flex items-center">
+        {!hideFilters && (
+          <div className="w-36">
+            <FilterBar
+              properties={filteredProperties}
+              loading={loading}
+              onPropertySelect={handlePropertyChange}
+              mobile={true}
+            />
+          </div>
+        )}
         <IconButton
           onClick={openMobileMenu}
           className="ml-2 text-dark"
@@ -66,13 +91,15 @@ const TopNav = ({
           },
         }}
       >
-        <MenuItem sx={{ justifyContent: "center", py: 2 }}>
-          <MonthSelection
-            selectedMonth={selectedMonth}
-            onMonthChange={onMonthChange}
-            mobile={true}
-          />
-        </MenuItem>
+        {!hideFilters && (
+          <MenuItem sx={{ justifyContent: "center", py: 2 }}>
+            <MonthSelection
+              selectedMonth={selectedMonth}
+              onMonthChange={onMonthChange}
+              mobile={true}
+            />
+          </MenuItem>
+        )}
         <MenuItem
           onClick={() => {
             user ? logout() : login();
@@ -91,19 +118,23 @@ const TopNav = ({
 
       {/* Desktop Controls (hidden on mobile) */}
       <div className="hidden md:flex items-center gap-6 flex-1">
-        <div className="w-64 ml-6">
-          <FilterBar
-            properties={filteredProperties}
-            loading={loading}
-            onPropertySelect={handlePropertyChange}
-          />
-        </div>
-        <div className="w-48">
-          <MonthSelection
-            selectedMonth={selectedMonth}
-            onMonthChange={onMonthChange}
-          />
-        </div>
+        {!hideFilters && (
+          <>
+            <div className="w-64 ml-6">
+              <FilterBar
+                properties={filteredProperties}
+                loading={loading}
+                onPropertySelect={handlePropertyChange}
+              />
+            </div>
+            <div className="w-48">
+              <MonthSelection
+                selectedMonth={selectedMonth}
+                onMonthChange={onMonthChange}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Login/Logout Button (hidden on mobile) */}
@@ -122,7 +153,7 @@ const TopNav = ({
       >
         {user ? "Logout" : "Login"}
       </Button>
-    </div>
+    </header>
   );
 };
 

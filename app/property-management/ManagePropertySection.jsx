@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useProperties } from "@/contexts/PropertyContext";
 import PropertyList from "./components/PropertyList";
 import PropertyDetails from "./components/PropertyDetails";
+import OwnerManagementSection from "./OwnerManagementSection";
 import { CircularProgress, Tabs, Tab, Box, Button, Alert } from "@mui/material";
 
 const ManagePropertySection = () => {
@@ -25,10 +26,10 @@ const ManagePropertySection = () => {
   // Property selection
   const handlePropertySelect = (id) => {
     setSelectedPropertyId(id);
-    setActiveTab(1); // Switch to details tab
+    setActiveTab(0); // Keep on properties tab
   };
 
-  // Handle notifications (e.g., when new invoice is detected)
+  // Handle notifications
   const handleNotification = (message) => {
     setNotification(message);
     setTimeout(() => setNotification(null), 5000);
@@ -68,6 +69,7 @@ const ManagePropertySection = () => {
           }}
         >
           <Tab label="Properties" />
+          <Tab label="Owner Management" />
         </Tabs>
       </Box>
 
@@ -90,6 +92,7 @@ const ManagePropertySection = () => {
                 }}
               />
             )}
+            {activeTab === 1 && <OwnerManagementSection />}
           </>
         )}
       </div>

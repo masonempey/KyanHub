@@ -2,6 +2,38 @@ import { NextResponse } from "next/server";
 import emailService from "@/lib/services/emailService";
 import { auth } from "@/lib/firebase/admin";
 
+function replaceVariables(template, variables) {
+  if (!template || !variables) return template;
+
+  let result = template;
+
+  // Process all variables with the {{variable.name}} syntax
+  const matches = template.match(/\{\{([^}]+)\}\}/g) || [];
+
+  matches.forEach((match) => {
+    // Extract the variable path (e.g., "property.name" from "{{property.name}}")
+    const path = match.substring(2, match.length - 2).trim();
+
+    // First check if the exact path exists as a key (dot notation format)
+    if (variables[path] !== undefined) {
+      result = result.replace(match, variables[path]);
+      return;
+    }
+
+    // If not found, try the nested object approach
+    let value = variables;
+    for (const key of path.split(".")) {
+      value = value && value[key];
+      if (value === undefined) break;
+    }
+
+    // Replace the placeholder with the value (or empty string if not found)
+    result = result.replace(match, value !== undefined ? value : "");
+  });
+
+  return result;
+}
+
 export async function POST(request) {
   try {
     // Verify authentication
@@ -27,8 +59,17 @@ export async function POST(request) {
       variables,
     } = await request.json();
 
+    // Replace variables in all text content
+    const processedSubject = replaceVariables(subject, variables);
+    const processedMessage = replaceVariables(message, variables);
+    const processedButtonText = buttonText
+      ? replaceVariables(buttonText, variables)
+      : buttonText;
+    const processedButtonUrl = buttonUrl
+      ? replaceVariables(buttonUrl, variables)
+      : buttonUrl;
+
     if (templateId) {
-      // Send email using template
       const result = await emailService.sendTemplateEmail({
         to,
         templateId,
@@ -36,13 +77,23 @@ export async function POST(request) {
       });
 
       if (!result.success) {
-        return NextResponse.json({ error: result.error }, { status: 500 });
+        if (result.error === "ACCESS_DENIED") {
+          return NextResponse.json({ error: result.message }, { status: 403 });
+        }
+        if (result.error === "VERIFICATION_FAILED") {
+          return NextResponse.json({ error: result.message }, { status: 401 });
+        }
+
+        return NextResponse.json(
+          { error: result.error || "Failed to send email" },
+          { status: 500 }
+        );
       }
 
       return NextResponse.json({ success: true, messageId: result.messageId });
     } else {
       // Send direct email
-      if (!to || !subject || !message) {
+      if (!to || !processedSubject || !processedMessage) {
         return NextResponse.json(
           { error: "Recipient, subject and message are required" },
           { status: 400 }
@@ -51,14 +102,25 @@ export async function POST(request) {
 
       const result = await emailService.sendEmail({
         to,
-        subject,
-        message,
-        buttonText,
-        buttonUrl,
+        subject: processedSubject,
+        message: processedMessage,
+        buttonText: processedButtonText,
+        buttonUrl: processedButtonUrl,
+        variables,
       });
 
       if (!result.success) {
-        return NextResponse.json({ error: result.error }, { status: 500 });
+        if (result.error === "ACCESS_DENIED") {
+          return NextResponse.json({ error: result.message }, { status: 403 });
+        }
+        if (result.error === "VERIFICATION_FAILED") {
+          return NextResponse.json({ error: result.message }, { status: 401 });
+        }
+
+        return NextResponse.json(
+          { error: result.error || "Failed to send email" },
+          { status: 500 }
+        );
       }
 
       return NextResponse.json({ success: true, messageId: result.messageId });
