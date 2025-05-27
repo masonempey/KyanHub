@@ -101,31 +101,3 @@ export async function DELETE(request) {
     );
   }
 }
-
-// lib/services/propertyService.js
-static async getAllOwnersForProperty(propertyId) {
-  const client = await pool.connect();
-  try {
-    const result = await client.query(
-      `SELECT op.*, p.name as property_name, o.name as owner_name, o.email, o.id, o.template_id,
-        op.ownership_percentage
-       FROM owner_properties op
-       JOIN properties p ON op.property_uid = p.property_uid
-       JOIN property_owners o ON op.owner_id = o.id
-       WHERE op.property_uid = $1
-       ORDER BY op.ownership_date DESC`,
-      [propertyId]
-    );
-
-    // Map the results to a more usable format
-    return result.rows.map(owner => ({
-      id: owner.id,
-      name: owner.owner_name,
-      email: owner.email,
-      template_id: owner.template_id,
-      ownership_percentage: owner.ownership_percentage
-    }));
-  } finally {
-    client.release();
-  }
-}
