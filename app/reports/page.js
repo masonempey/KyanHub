@@ -71,6 +71,14 @@ const ReportsPage = () => {
   const [confirmedQueue, setConfirmedQueue] = useState([]);
   const [showProcessButton, setShowProcessButton] = useState(false);
 
+  // Add this state variable at the top with other state variables
+  const [summaryReportUrl, setSummaryReportUrl] = useState(null);
+
+  // Add these new state variables at the top
+  const [completedReports, setCompletedReports] = useState([]);
+  const [reportsMonth, setReportsMonth] = useState(dayjs());
+  const [loadingReports, setLoadingReports] = useState(false);
+
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
@@ -211,6 +219,43 @@ const ReportsPage = () => {
       delete newErrors.dateRange;
     }
     setErrors(newErrors);
+  };
+
+  // Updated handleSkipProperty function
+  const handleSkipProperty = () => {
+    setConfirmDialogOpen(false);
+
+    if (!revenueSummary || !revenueSummary.isMultiProperty) {
+      return;
+    }
+
+    const nextIndex = revenueSummary.currentIndex + 1;
+
+    // Log that we're skipping this property
+    console.log(
+      `Skipping property: ${revenueSummary.propertyName} (not added to queue)`
+    );
+
+    // If there are more properties to process
+    if (nextIndex < selectedProperties.length) {
+      // Move to next property for confirmation
+      setProcessingIndex(nextIndex);
+      preparePropertyData(nextIndex);
+    } else {
+      // If this was the last property, process whatever is in the queue
+      if (confirmedQueue.length > 0) {
+        setTimeout(() => {
+          console.log(
+            `Processing queue with ${confirmedQueue.length} confirmed properties`
+          );
+          processConfirmedQueue();
+        }, 500);
+      } else {
+        // If no properties were confirmed, just end the process
+        setIsMultiProcessing(false);
+        console.log("No properties confirmed for processing");
+      }
+    }
   };
 
   const handleUpdateRevenue = () => {
@@ -847,106 +892,131 @@ const ReportsPage = () => {
           `✅ Revenue sheet updated successfully for ${currentItem.propertyName}`
         );
 
-        // Handle email if there's an owner
+        // Handle emails if there are owners
         let emailSuccess = true;
         let emailMessage = "";
-        let emailResult = { success: false }; // Initialize with a default value
 
-        if (currentItem.ownerInfo && currentItem.ownerInfo.id) {
-          try {
-            console.log(
-              `Starting email process for ${currentItem.propertyName} to ${currentItem.ownerInfo.name}`
-            );
-
-            // Get spreadsheet URL
-            console.log(
-              `Fetching spreadsheet ID for ${currentItem.propertyId}`
-            );
-            const sheetResponse = await fetchWithAuth(
-              `/api/properties/${currentItem.propertyId}/sheetId`
-            );
-
-            console.log(
-              `Spreadsheet API response status: ${sheetResponse.status}`
-            );
-
-            const sheetData = sheetResponse.ok
-              ? await sheetResponse.json()
-              : { sheetId: null };
-            const sheetId = sheetData.sheetId;
-
-            const spreadsheetUrl = sheetId
-              ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit`
-              : "";
-
-            console.log(
-              `Got spreadsheet URL for ${currentItem.propertyName}: ${
-                spreadsheetUrl || "none"
-              }`
-            );
-            console.log(`SENDING EMAIL NOW for ${currentItem.propertyName}`);
-
-            // Add additional debugging for email payload
-            const emailPayload = {
-              ownerId: currentItem.ownerInfo.id,
-              propertyName: currentItem.propertyName,
-              propertyId: currentItem.propertyId,
-              month: currentItem.month,
-              year: currentItem.year,
-              totalRevenue: currentItem.totalRevenue,
-              totalCleaning: currentItem.totalCleaning,
-              expenses: currentItem.expenses,
-              profit: currentItem.ownerProfit,
-              bookingCount: currentItem.bookingCount,
-              spreadsheetUrl,
-            };
-            console.log(
-              "Email payload:",
-              JSON.stringify(emailPayload, null, 2)
-            );
-
-            // Send email
-            const emailResponse = await fetchWithAuth(
-              `/api/email/send-owner-report`,
-              {
-                method: "POST",
-                body: JSON.stringify(emailPayload),
-              }
-            );
-
-            console.log(`Email API response status: ${emailResponse.status}`);
-
-            if (!emailResponse.ok) {
-              const errorText = await emailResponse.text();
-              console.error(
-                `Email API error (${emailResponse.status}): ${errorText}`
-              );
-              throw new Error(`Email service error: ${errorText}`);
-            }
-
-            emailResult = await emailResponse.json(); // Store result in the outer variable
-            console.log(`Email result:`, emailResult);
-
-            if (!emailResult.success) {
-              console.error(`Email error: ${emailResult.error || "Unknown"}`);
-              throw new Error(emailResult.error || "Unknown email error");
-            }
-
-            console.log(
-              `✅ Email sent successfully for ${currentItem.propertyName}`
-            );
-          } catch (emailError) {
-            console.error(
-              `❌ Email failed for ${currentItem.propertyName}:`,
-              emailError
-            );
-            emailSuccess = false;
-            emailMessage = emailError.message;
-          }
-        } else {
+        // Get ALL owners for this property
+        try {
           console.log(
-            `Skipping email for ${currentItem.propertyName} - no owner info`
+            `Fetching all owners for property ${currentItem.propertyId}`
           );
+          const ownersResponse = await fetchWithAuth(
+            `/api/properties/${currentItem.propertyId}/owners`
+          );
+
+          if (!ownersResponse.ok) {
+            console.log(
+              `No owners found for property ${currentItem.propertyId}`
+            );
+            // Continue with processing even if no owners found
+          } else {
+            const ownersData = await ownersResponse.json();
+
+            if (
+              ownersData.success &&
+              ownersData.owners &&
+              ownersData.owners.length > 0
+            ) {
+              console.log(
+                `Found ${ownersData.owners.length} owners for property ${currentItem.propertyName}`
+              );
+
+              // Get spreadsheet URL (only need to do this once)
+              console.log(
+                `Fetching spreadsheet ID for ${currentItem.propertyId}`
+              );
+              const sheetResponse = await fetchWithAuth(
+                `/api/properties/${currentItem.propertyId}/sheetId`
+              );
+
+              const sheetData = sheetResponse.ok
+                ? await sheetResponse.json()
+                : { sheetId: null };
+              const sheetId = sheetData.sheetId;
+
+              const spreadsheetUrl = sheetId
+                ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit`
+                : "";
+
+              // Send email to EACH owner
+              for (const owner of ownersData.owners) {
+                try {
+                  console.log(
+                    `Sending email to owner: ${owner.name} (${owner.email})`
+                  );
+
+                  // Calculate this owner's profit based on their ownership percentage
+                  const ownerProfit =
+                    (currentItem.netAmount * owner.ownership_percentage) / 100;
+
+                  const emailPayload = {
+                    ownerId: owner.id,
+                    propertyName: currentItem.propertyName,
+                    propertyId: currentItem.propertyId,
+                    month: currentItem.month,
+                    year: currentItem.year,
+                    totalRevenue: currentItem.totalRevenue,
+                    totalCleaning: currentItem.totalCleaning,
+                    expenses: currentItem.expenses,
+                    profit: ownerProfit,
+                    ownershipPercentage: owner.ownership_percentage,
+                    bookingCount: currentItem.bookingCount,
+                    spreadsheetUrl,
+                  };
+
+                  console.log(
+                    `Email payload for ${owner.name}:`,
+                    JSON.stringify(emailPayload, null, 2)
+                  );
+
+                  const emailResponse = await fetchWithAuth(
+                    `/api/email/send-owner-report`,
+                    {
+                      method: "POST",
+                      body: JSON.stringify(emailPayload),
+                    }
+                  );
+
+                  if (!emailResponse.ok) {
+                    throw new Error(
+                      `Email service error: ${await emailResponse.text()}`
+                    );
+                  }
+
+                  const emailResult = await emailResponse.json();
+
+                  if (!emailResult.success) {
+                    throw new Error(
+                      emailResult.error ||
+                        `Failed to send email to ${owner.name}`
+                    );
+                  }
+
+                  console.log(`✅ Email sent successfully to ${owner.name}`);
+                } catch (ownerEmailError) {
+                  console.error(
+                    `❌ Failed to send email to ${owner.name}:`,
+                    ownerEmailError
+                  );
+                  // Continue with other owners even if one fails
+                  emailSuccess = false;
+                  emailMessage += `Failed to email ${owner.name}: ${ownerEmailError.message}. `;
+                }
+              }
+            } else {
+              console.log(
+                `No owners returned from API for ${currentItem.propertyName}`
+              );
+            }
+          }
+        } catch (emailError) {
+          console.error(
+            `❌ Email process failed for ${currentItem.propertyName}:`,
+            emailError
+          );
+          emailSuccess = false;
+          emailMessage = emailError.message;
         }
 
         // Record success
@@ -986,10 +1056,11 @@ const ReportsPage = () => {
             statusData: {
               revenueAmount: currentItem.totalRevenue,
               cleaningFeesAmount: currentItem.totalCleaning,
-              expensesAmount: currentItem.expenses, // Make sure expenses are included
+              expensesAmount: currentItem.expenses,
               netAmount: currentItem.netAmount,
               bookingsCount: currentItem.bookings.length,
               sheetId: data.spreadsheetUrl,
+              ownerPercentage: currentItem.ownershipPercentage || 100,
             },
           }),
         });
@@ -1026,6 +1097,102 @@ const ReportsPage = () => {
     setShowProcessButton(false);
     setIsMultiProcessing(false);
   };
+
+  // Add this function to generate the summary PDF
+  const generateSummaryReport = async (properties) => {
+    try {
+      console.log("Generating summary report for processed properties");
+
+      const response = await fetchWithAuth("/api/reports/summary-pdf", {
+        method: "POST",
+        body: JSON.stringify({
+          properties: properties.map((prop) => ({
+            propertyName: prop.propertyName,
+            ownerProfit: prop.ownerProfit || 0,
+            success: prop.success,
+          })),
+          month: startDate.format("MMMM"),
+          year: startDate.format("YYYY"),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to generate summary report: ${await response.text()}`
+        );
+      }
+
+      const data = await response.json();
+      return data.fileUrl;
+    } catch (error) {
+      console.error("Error generating summary report:", error);
+      return null;
+    }
+  };
+
+  // Add this function to fetch completed month-end reports
+  const fetchCompletedReports = async (month, year) => {
+    setLoadingReports(true);
+    try {
+      const response = await fetchWithAuth(
+        `/api/property-month-end/completed?month=${month}&year=${year}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch reports: ${await response.text()}`);
+      }
+
+      const data = await response.json();
+      setCompletedReports(data.reports || []);
+    } catch (error) {
+      console.error("Error fetching completed reports:", error);
+      setErrorMessage("Failed to load completed reports");
+      setErrorDialogOpen(true);
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  // Add this function to download reports as CSV
+  const downloadReportsSpreadsheet = () => {
+    if (!completedReports.length) return;
+
+    // Create CSV content
+    let csvContent = "Property Name,Owner Payment\n";
+
+    completedReports.forEach((report) => {
+      csvContent += `"${report.property_name}",${report.owner_profit || 0}\n`;
+    });
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `owner-payments-${reportsMonth.format("MMMM-YYYY")}.csv`
+    );
+    document.body.appendChild(link);
+
+    // Download it
+    link.click();
+
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+  };
+
+  // Add this effect to load reports when the tab or month changes
+  useEffect(() => {
+    if (activeTab === 2 && reportsMonth) {
+      const month = reportsMonth.format("MMMM");
+      const year = reportsMonth.format("YYYY");
+      fetchCompletedReports(month, year);
+    }
+  }, [activeTab, reportsMonth]);
 
   const ProcessingProgress = () => {
     if (!isMultiProcessing) return null;
@@ -1165,6 +1332,7 @@ const ReportsPage = () => {
                 >
                   <Tab label="Booking Reports" />
                   <Tab label="Email Templates" />
+                  <Tab label="Month-End Reports" />
                 </Tabs>
               </div>
 
@@ -1512,6 +1680,140 @@ const ReportsPage = () => {
                     <EmailTemplates />
                   </div>
                 )}
+
+                {activeTab === 2 && (
+                  <div className="flex-1 h-full overflow-auto p-4">
+                    <div className="bg-white/50 rounded-xl shadow-sm border border-primary/10 p-6">
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-xl font-semibold text-dark">
+                          Month-End Reports
+                        </h3>
+
+                        <div className="flex gap-4 items-center">
+                          <LocalizationProvider dateAdapter={AdapterDayjs}>
+                            <DatePicker
+                              value={reportsMonth}
+                              onChange={setReportsMonth}
+                              views={["month", "year"]}
+                              className="bg-white rounded-lg border border-primary/30"
+                              slotProps={{
+                                textField: {
+                                  size: "small",
+                                  sx: {
+                                    "& .MuiOutlinedInput-root": {
+                                      borderColor: "#eccb34",
+                                    },
+                                  },
+                                },
+                              }}
+                            />
+                          </LocalizationProvider>
+
+                          <Button
+                            variant="contained"
+                            onClick={downloadReportsSpreadsheet}
+                            disabled={!completedReports.length}
+                            className="bg-primary hover:bg-secondary hover:text-primary text-dark"
+                            sx={{
+                              textTransform: "none",
+                              backgroundColor: "#eccb34",
+                              "&:hover": {
+                                backgroundColor: "#d4b02a",
+                              },
+                            }}
+                          >
+                            Download Spreadsheet
+                          </Button>
+                        </div>
+                      </div>
+
+                      {loadingReports ? (
+                        <div className="flex justify-center py-8">
+                          <CircularProgress sx={{ color: "#eccb34" }} />
+                        </div>
+                      ) : completedReports.length > 0 ? (
+                        <div className="overflow-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-primary/10">
+                              <tr>
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
+                                  Property
+                                </th>
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
+                                  Revenue
+                                </th>
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
+                                  Net Amount
+                                </th>
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
+                                  Owner %
+                                </th>
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
+                                  Owner Payment
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {completedReports.map((report) => (
+                                <tr
+                                  key={report.property_id}
+                                  className="hover:bg-gray-50"
+                                >
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="font-medium text-gray-900">
+                                      {report.property_name}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    $
+                                    {parseFloat(
+                                      report.revenue_amount || 0
+                                    ).toFixed(2)}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    $
+                                    {parseFloat(report.net_amount || 0).toFixed(
+                                      2
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    {report.owner_percentage || 100}%
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap font-medium text-green-600">
+                                    $
+                                    {parseFloat(
+                                      report.owner_profit || 0
+                                    ).toFixed(2)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          No completed month-end reports found for{" "}
+                          {reportsMonth.format("MMMM YYYY")}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1621,14 +1923,14 @@ const ReportsPage = () => {
         </DialogContent>
         <DialogActions>
           <Button
-            onClick={() => setConfirmDialogOpen(false)}
+            onClick={handleSkipProperty}
             color="primary"
             sx={{
               textTransform: "none",
               fontSize: "1rem",
             }}
           >
-            Cancel
+            {revenueSummary?.isMultiProperty ? "Skip" : "Cancel"}
           </Button>
           <Button
             onClick={handleConfirmUpdate}

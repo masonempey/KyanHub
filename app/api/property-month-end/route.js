@@ -89,7 +89,8 @@ export async function POST(request) {
           statusData.expensesAmount,
           statusData.netAmount,
           statusData.bookingsCount,
-          statusData.sheetId
+          statusData.sheetId,
+          statusData.ownerPercentage || 100 // Add this parameter
         );
         break;
       case "email":
