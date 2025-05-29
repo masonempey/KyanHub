@@ -482,11 +482,19 @@ const ReportsPage = () => {
   const preparePropertyData = async (index) => {
     // Make sure we have a valid index
     if (index < 0 || index >= selectedProperties.length) {
-      // When done collecting all property data, show the summary dialog
-      if (consolidatedSummary.length > 0) {
-        setSummaryDialogOpen(true);
-      }
-      setIsMultiProcessing(false);
+      console.log("Finished collecting data for all properties");
+      // When done collecting all property data, force show the summary dialog
+      setTimeout(() => {
+        if (consolidatedSummary.length > 0) {
+          console.log(
+            `Showing summary dialog with ${consolidatedSummary.length} properties`
+          );
+          setSummaryDialogOpen(true);
+        } else {
+          console.log("No properties in summary to show");
+        }
+        setIsMultiProcessing(false);
+      }, 100); // Small delay to ensure all state updates are processed
       return;
     }
 
