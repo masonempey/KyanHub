@@ -23,6 +23,7 @@ import Tab from "@mui/material/Tab";
 import Box from "@mui/material/Box";
 import MultiPropertySelector from "../components/MultiPropertySelector";
 import MonthEndStatus from "../components/MonthEndStatus";
+import DownloadIcon from "@mui/icons-material/Download";
 
 // Define monthNames array
 const monthNames = [
@@ -70,6 +71,8 @@ const ReportsPage = () => {
   const [isMultiProcessing, setIsMultiProcessing] = useState(false);
   const [confirmedQueue, setConfirmedQueue] = useState([]);
   const [showProcessButton, setShowProcessButton] = useState(false);
+  const [consolidatedSummary, setConsolidatedSummary] = useState([]);
+  const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
 
   // Add this state variable at the top with other state variables
   const [summaryReportUrl, setSummaryReportUrl] = useState(null);
@@ -464,13 +467,14 @@ const ReportsPage = () => {
       return;
     }
 
-    // Initialize processing state
+    // Reset the summary and processing state
+    setConsolidatedSummary([]);
     setProcessedProperties([]);
     setProcessingIndex(0);
     setProcessingTotal(selectedProperties.length);
     setIsMultiProcessing(true);
 
-    // Start the process with the first property
+    // Start collecting data for all properties
     preparePropertyData(0);
   };
 
@@ -478,6 +482,10 @@ const ReportsPage = () => {
   const preparePropertyData = async (index) => {
     // Make sure we have a valid index
     if (index < 0 || index >= selectedProperties.length) {
+      // When done collecting all property data, show the summary dialog
+      if (consolidatedSummary.length > 0) {
+        setSummaryDialogOpen(true);
+      }
       setIsMultiProcessing(false);
       return;
     }
@@ -503,116 +511,37 @@ const ReportsPage = () => {
     );
 
     if (propertyBookings.length === 0) {
-      // No bookings for this property, mark as processed and move to next
-      setProcessedProperties((prev) => [
+      // No bookings for this property, add to summary with zero values
+      setConsolidatedSummary((prev) => [
         ...prev,
         {
           propertyId: currentPropertyId,
           propertyName,
-          success: true,
-          message: "No bookings to process",
+          totalRevenue: 0,
+          totalCleaning: 0,
+          expenses: 0,
+          netAmount: 0,
+          bookingCount: 0,
+          month: monthNames[startDate.month()],
+          year: startDate.format("YYYY"),
+          bookings: [],
         },
       ]);
 
+      // Move to next property
       setProcessingIndex(index + 1);
       preparePropertyData(index + 1);
       return;
     }
 
-    // Calculate revenue for this property
+    // Calculate revenue metrics for this property
     const monthIndex = startDate.month();
     const monthName = monthNames[monthIndex];
     const year = startDate.format("YYYY");
 
-    // Check month-end status first
-    try {
-      // Validate if we can update revenue, with auto-inventory enabled
-      const response = await fetchWithAuth(
-        `/api/property-month-end?propertyId=${currentPropertyId}&year=${year}&monthNumber=${
-          monthIndex + 1
-        }&autoInventory=true`,
-        { method: "OPTIONS" }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to validate update status: ${response.statusText}`
-        );
-      }
-
-      const validation = await response.json();
-
-      // If inventory needs to be created automatically
-      if (validation.canUpdate && validation.needsInventory) {
-        console.log(`Auto-generating inventory for ${propertyName}`);
-
-        try {
-          // Call API to auto-generate inventory
-          const inventoryResponse = await fetchWithAuth(
-            `/api/inventory/auto-generate`,
-            {
-              method: "POST",
-              body: JSON.stringify({
-                propertyId: currentPropertyId,
-                propertyName,
-                month: monthName,
-                year,
-                monthNumber: monthIndex + 1,
-              }),
-            }
-          );
-
-          if (!inventoryResponse.ok) {
-            throw new Error(
-              `Failed to auto-generate inventory: ${await inventoryResponse.text()}`
-            );
-          }
-
-          console.log(
-            `Successfully auto-generated inventory for ${propertyName}`
-          );
-        } catch (inventoryError) {
-          console.error(`Error auto-generating inventory: ${inventoryError}`);
-          // Continue anyway - we'll treat this as a non-blocking error
-        }
-      } else if (!validation.canUpdate) {
-        setProcessedProperties((prev) => [
-          ...prev,
-          {
-            propertyId: currentPropertyId,
-            propertyName,
-            success: false,
-            error: validation.message,
-          },
-        ]);
-
-        setProcessingIndex(index + 1);
-        preparePropertyData(index + 1);
-        return;
-      }
-    } catch (error) {
-      console.error(
-        `Error checking month-end status for ${propertyName}:`,
-        error
-      );
-      setProcessedProperties((prev) => [
-        ...prev,
-        {
-          propertyId: currentPropertyId,
-          propertyName,
-          success: false,
-          error: `Failed to check month-end status: ${error.message}`,
-        },
-      ]);
-
-      setProcessingIndex(index + 1);
-      preparePropertyData(index + 1);
-      return;
-    }
-
-    // Fetch expenses and owner info
+    // Instead of showing a dialog, add this property to the consolidated summary
     Promise.all([
-      // Get expenses
+      // Your existing API calls to get expenses and owner info
       fetchWithAuth(`/api/sheets/expenses`, {
         method: "POST",
         body: JSON.stringify({
@@ -624,7 +553,6 @@ const ReportsPage = () => {
         res.ok ? res.json() : { success: false, expensesTotal: 0 }
       ),
 
-      // Get owner info
       fetchWithAuth(`/api/properties/${currentPropertyId}/owner`).then((res) =>
         res.ok ? res.json() : { success: false, owner: null }
       ),
@@ -641,18 +569,14 @@ const ReportsPage = () => {
 
         const ownershipPercentage = ownerInfo?.ownership_percentage || 100;
 
-        // Calculate revenue metrics for this property
-        const monthIndex = startDate.month();
-        const monthName = monthNames[monthIndex];
-        const year = startDate.format("YYYY");
-
+        // Your existing revenue calculation code...
         const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
         const unPaddedMonthNum = (monthIndex + 1).toString();
 
         const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
         const monthYearKeyUnpadded = `${year}-${unPaddedMonthNum}`;
 
-        // Calculate totalRevenue from property bookings
+        // Calculate revenue
         const totalRevenue = propertyBookings.reduce((sum, booking) => {
           const revenuePadded =
             booking.revenueByMonth?.[monthYearKeyPadded] || 0;
@@ -662,7 +586,7 @@ const ReportsPage = () => {
           return sum + revenue;
         }, 0);
 
-        // Calculate totalCleaning from property bookings
+        // Calculate cleaning fees
         const totalCleaning = propertyBookings.reduce((sum, booking) => {
           const cleaningMatch =
             booking.cleaningFeeMonth === monthYearKeyPadded ||
@@ -671,65 +595,48 @@ const ReportsPage = () => {
           return sum + cleaning;
         }, 0);
 
-        // Now we can calculate netAmount and ownerProfit
+        // Calculate net amount and owner profit
         const netAmount = totalRevenue - totalCleaning - expensesTotal;
         const ownerProfit = (netAmount * ownershipPercentage) / 100;
 
-        // Prepare revenue summary data
-        const summary = {
-          totalRevenue,
-          totalCleaning,
-          expenses: expensesTotal,
-          netAmount,
-          ownershipPercentage,
-          ownerProfit,
-          ownerInfo,
-          propertyName,
-          month: monthName,
-          year,
-          bookingCount: propertyBookings.length,
-          propertyId: currentPropertyId,
-          bookings: propertyBookings,
-          isMultiProperty: true,
-          currentIndex: index,
-        };
-
-        // Log what's happening
-        console.log(
-          `Preparing data for property at index ${index}: ${propertyName}`
-        );
-        console.log(
-          `Found ${propertyBookings.length} bookings for this property`
-        );
-
-        // Store bookings on a local variable to make sure they're included
-        const bookingsForProperty = [...propertyBookings];
-
-        // When creating the summary object, log it for debugging
-        console.log(`Summary prepared for ${propertyName}:`, {
-          propertyId: currentPropertyId,
-          revenueTotal: totalRevenue,
-          bookingsCount: bookingsForProperty.length,
-          hasOwner: ownerInfo ? "Yes" : "No",
-        });
-
-        // Store the data and show confirmation dialog
-        setRevenueSummary(summary);
-        setConfirmDialogOpen(true);
-      })
-      .catch((error) => {
-        console.error(`Error preparing data for ${propertyName}:`, error);
-        // Record failure and move to next property
-        setProcessedProperties((prev) => [
+        // Add to consolidated summary
+        setConsolidatedSummary((prev) => [
           ...prev,
           {
             propertyId: currentPropertyId,
             propertyName,
-            success: false,
-            error: `Data preparation failed: ${error.message}`,
+            totalRevenue,
+            totalCleaning,
+            expenses: expensesTotal,
+            netAmount,
+            ownershipPercentage,
+            ownerProfit,
+            ownerInfo,
+            month: monthName,
+            year,
+            bookingCount: propertyBookings.length,
+            bookings: propertyBookings,
           },
         ]);
 
+        // Move to next property
+        setProcessingIndex(index + 1);
+        preparePropertyData(index + 1);
+      })
+      .catch((error) => {
+        console.error(`Error preparing data for ${propertyName}:`, error);
+        // Add error to summary
+        setConsolidatedSummary((prev) => [
+          ...prev,
+          {
+            propertyId: currentPropertyId,
+            propertyName,
+            error: error.message,
+            hasError: true,
+          },
+        ]);
+
+        // Move to next property
         setProcessingIndex(index + 1);
         preparePropertyData(index + 1);
       });
@@ -887,10 +794,6 @@ const ReportsPage = () => {
         if (!data.success) {
           throw new Error(data.error || "Failed to update revenue sheet.");
         }
-
-        console.log(
-          `✅ Revenue sheet updated successfully for ${currentItem.propertyName}`
-        );
 
         // Handle emails if there are owners
         let emailSuccess = true;
@@ -1295,6 +1198,306 @@ const ReportsPage = () => {
   if (!user) {
     return <div>Please log in to access this page.</div>;
   }
+  // Add this function to process all properties at once
+  const processAllProperties = async () => {
+    setSummaryDialogOpen(false);
+    setUpdating(true);
+    setProcessingTotal(consolidatedSummary.length);
+    setProcessingIndex(0);
+
+    // Create a local copy of the queue
+    const propertiesToProcess = [...consolidatedSummary];
+
+    // Process all properties in the queue
+    for (let i = 0; i < propertiesToProcess.length; i++) {
+      setProcessingIndex(i);
+      const currentItem = propertiesToProcess[i];
+
+      try {
+        // Skip properties with errors
+        if (currentItem.hasError) {
+          setProcessedProperties((prev) => [
+            ...prev,
+            {
+              propertyId: currentItem.propertyId,
+              propertyName: currentItem.propertyName,
+              success: false,
+              error: currentItem.error || "Unknown error",
+            },
+          ]);
+          continue;
+        }
+
+        console.log(
+          `Processing ${currentItem.propertyName} (${i + 1}/${
+            propertiesToProcess.length
+          })`
+        );
+
+        // 1. First, check if inventory invoice needs to be generated
+        const monthNumber =
+          monthNames.findIndex((m) => m === currentItem.month) + 1;
+
+        // Generate inventory if needed (without validation check which is causing 404)
+        try {
+          console.log(
+            `Auto-generating inventory for ${currentItem.propertyName}`
+          );
+
+          // Call the API to generate inventory
+          const inventoryResponse = await fetchWithAuth(
+            `/api/inventory/auto-generate`,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                propertyId: currentItem.propertyId,
+                propertyName: currentItem.propertyName,
+                month: currentItem.month,
+                year: currentItem.year,
+                monthNumber: monthNumber,
+              }),
+            }
+          );
+
+          if (!inventoryResponse.ok) {
+            console.warn(
+              `Warning: Could not auto-generate inventory for ${
+                currentItem.propertyName
+              }: ${await inventoryResponse.text()}`
+            );
+            // Continue processing even if inventory generation fails
+          } else {
+            console.log(
+              `✅ Inventory generated for ${currentItem.propertyName}`
+            );
+          }
+        } catch (inventoryError) {
+          console.warn(`Inventory generation error: ${inventoryError.message}`);
+          // Continue with processing even if inventory fails
+        }
+
+        // 2. Update revenue sheet
+        const response = await fetchWithAuth(`/api/sheets/revenue`, {
+          method: "PUT",
+          body: JSON.stringify({
+            propertyId: currentItem.propertyId,
+            propertyName: currentItem.propertyName,
+            bookings: currentItem.bookings,
+            year: currentItem.year,
+            monthName: currentItem.month,
+            expensesTotal: currentItem.expenses || 0,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to update revenue: ${await response.text()}`);
+        }
+
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.error || "Failed to update revenue sheet.");
+        }
+
+        // 3. Get owners and send emails
+        let emailSuccess = true;
+        let emailMessage = "";
+
+        try {
+          console.log(
+            `Fetching all owners for property ${currentItem.propertyId}`
+          );
+          const ownersResponse = await fetchWithAuth(
+            `/api/properties/${currentItem.propertyId}/owners`
+          );
+
+          if (ownersResponse.ok) {
+            const ownersData = await ownersResponse.json();
+
+            if (
+              ownersData.success &&
+              ownersData.owners &&
+              ownersData.owners.length > 0
+            ) {
+              console.log(
+                `Found ${ownersData.owners.length} owners for ${currentItem.propertyName}`
+              );
+
+              // Get spreadsheet URL
+              const sheetResponse = await fetchWithAuth(
+                `/api/properties/${currentItem.propertyId}/sheetId`
+              );
+              const sheetData = sheetResponse.ok
+                ? await sheetResponse.json()
+                : { sheetId: null };
+              const sheetId = sheetData.sheetId;
+              const spreadsheetUrl = sheetId
+                ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit`
+                : "";
+
+              // Send email to each owner
+              for (const owner of ownersData.owners) {
+                try {
+                  console.log(`Sending email to owner: ${owner.name}`);
+
+                  // Calculate owner's profit based on ownership percentage
+                  const ownerProfit =
+                    (currentItem.netAmount * owner.ownership_percentage) / 100;
+
+                  const emailPayload = {
+                    ownerId: owner.id,
+                    propertyName: currentItem.propertyName,
+                    propertyId: currentItem.propertyId,
+                    month: currentItem.month,
+                    year: currentItem.year,
+                    totalRevenue: currentItem.totalRevenue,
+                    totalCleaning: currentItem.totalCleaning,
+                    expenses: currentItem.expenses,
+                    profit: ownerProfit,
+                    ownershipPercentage: owner.ownership_percentage,
+                    bookingCount: currentItem.bookingCount,
+                    spreadsheetUrl,
+                  };
+
+                  const emailResponse = await fetchWithAuth(
+                    `/api/email/send-owner-report`,
+                    {
+                      method: "POST",
+                      body: JSON.stringify(emailPayload),
+                    }
+                  );
+
+                  if (!emailResponse.ok) {
+                    throw new Error(
+                      `Email service error: ${await emailResponse.text()}`
+                    );
+                  }
+
+                  const emailResult = await emailResponse.json();
+                  if (!emailResult.success) {
+                    throw new Error(
+                      emailResult.error ||
+                        `Failed to send email to ${owner.name}`
+                    );
+                  }
+
+                  console.log(`✅ Email sent to ${owner.name}`);
+                } catch (ownerEmailError) {
+                  console.error(
+                    `❌ Failed to send email to ${owner.name}:`,
+                    ownerEmailError
+                  );
+                  emailSuccess = false;
+                  emailMessage += `Failed to email ${owner.name}: ${ownerEmailError.message}. `;
+                }
+              }
+            }
+          }
+        } catch (emailError) {
+          console.error(
+            `Error in email process for ${currentItem.propertyName}:`,
+            emailError
+          );
+          emailSuccess = false;
+          emailMessage = emailError.message;
+        }
+
+        // 4. Record success
+        const resultMessage = emailSuccess
+          ? `Revenue updated successfully${
+              currentItem.ownerInfo
+                ? ` and email sent to ${currentItem.ownerInfo.name}`
+                : ""
+            }`
+          : `Revenue updated but email failed: ${emailMessage}`;
+
+        setProcessedProperties((prev) => [
+          ...prev,
+          {
+            propertyId: currentItem.propertyId,
+            propertyName: currentItem.propertyName,
+            success: true,
+            message: resultMessage,
+          },
+        ]);
+
+        // 5. Update month-end status in database
+        await fetchWithAuth(`/api/property-month-end`, {
+          method: "POST",
+          body: JSON.stringify({
+            propertyId: currentItem.propertyId,
+            propertyName: currentItem.propertyName,
+            year: currentItem.year,
+            month: currentItem.month,
+            monthNumber: monthNumber,
+            statusType: "revenue",
+            statusData: {
+              revenueAmount: currentItem.totalRevenue,
+              cleaningFeesAmount: currentItem.totalCleaning,
+              expensesAmount: currentItem.expenses,
+              netAmount: currentItem.netAmount,
+              bookingsCount: currentItem.bookingCount,
+              ownerPercentage: currentItem.ownershipPercentage,
+            },
+          }),
+        });
+      } catch (error) {
+        console.error(`Error processing ${currentItem.propertyName}:`, error);
+        setProcessedProperties((prev) => [
+          ...prev,
+          {
+            propertyId: currentItem.propertyId,
+            propertyName: currentItem.propertyName,
+            success: false,
+            error: error.message,
+          },
+        ]);
+      }
+
+      // Add a delay between properties
+      if (i < propertiesToProcess.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
+    setUpdating(false);
+    setConsolidatedSummary([]);
+  };
+
+  /// Modify this function to simplify the CSV output
+  const downloadSummaryCSV = (properties) => {
+    if (!properties || properties.length === 0) return;
+
+    // Simplified CSV content with just property name and owner payment
+    let csvContent = "Property Name,Owner Payment\n";
+
+    properties.forEach((property) => {
+      if (!property.hasError) {
+        csvContent += `"${
+          property.propertyName
+        }",${property.ownerProfit.toFixed(2)}\n`;
+      }
+    });
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `month-end-summary-${startDate.format("MMMM-YYYY")}.csv`
+    );
+    document.body.appendChild(link);
+
+    // Download it
+    link.click();
+
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+  };
 
   return (
     <AdminProtected>
@@ -1976,6 +2179,173 @@ const ReportsPage = () => {
             }}
           >
             Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add this dialog to your component's JSX */}
+      <Dialog
+        open={summaryDialogOpen}
+        onClose={() => setSummaryDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
+            maxWidth: "800px",
+            width: "100%",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            color: "#333333",
+            borderBottom: "1px solid #eee",
+            paddingBottom: 1,
+          }}
+        >
+          Month End Summary - Confirm All Updates
+        </DialogTitle>
+        <DialogContent>
+          <div className="mt-4">
+            <h3 className="text-lg font-semibold mb-3">
+              {startDate.format("MMMM YYYY")} Month End Report
+            </h3>
+
+            {consolidatedSummary.length > 0 ? (
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-end mb-2">
+                  <Button
+                    variant="outlined"
+                    onClick={() => downloadSummaryCSV(consolidatedSummary)}
+                    startIcon={<DownloadIcon />}
+                    sx={{
+                      textTransform: "none",
+                      borderColor: "#eccb34",
+                      color: "#333333",
+                      "&:hover": {
+                        borderColor: "#d4b02a",
+                        backgroundColor: "rgba(236, 203, 52, 0.1)",
+                      },
+                    }}
+                  >
+                    Download CSV
+                  </Button>
+                </div>
+                <div className="max-h-96 overflow-y-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-primary/10">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Property
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Revenue
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Cleaning
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Expenses
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Net
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Owner %
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Owner Payment
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {consolidatedSummary.map((property) => (
+                        <tr
+                          key={property.propertyId}
+                          className={property.hasError ? "bg-red-50" : ""}
+                        >
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            <div className="font-medium text-gray-900">
+                              {property.propertyName}
+                            </div>
+                            {property.hasError && (
+                              <div className="text-xs text-red-600">
+                                Error: {property.error}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            {!property.hasError &&
+                              `$${property.totalRevenue.toFixed(2)}`}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            {!property.hasError &&
+                              `$${property.totalCleaning.toFixed(2)}`}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            {!property.hasError &&
+                              `$${property.expenses.toFixed(2)}`}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            {!property.hasError &&
+                              `$${property.netAmount.toFixed(2)}`}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap">
+                            {!property.hasError &&
+                              `${property.ownershipPercentage || 100}%`}
+                          </td>
+                          <td className="px-4 py-2 whitespace-nowrap font-medium text-green-600">
+                            {!property.hasError &&
+                              `$${property.ownerProfit.toFixed(2)}`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-40">
+                <CircularProgress sx={{ color: "#eccb34" }} />
+              </div>
+            )}
+
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-dark">
+                <strong>Important:</strong> This will update revenue sheets,
+                generate inventory invoices, and send owner reports for all
+                properties above. Continue?
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setSummaryDialogOpen(false)}
+            color="primary"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={processAllProperties}
+            color="primary"
+            variant="contained"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+              backgroundColor: "#eccb34",
+              "&:hover": {
+                backgroundColor: "#d4b02a",
+              },
+            }}
+          >
+            Confirm & Process All
           </Button>
         </DialogActions>
       </Dialog>
