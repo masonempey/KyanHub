@@ -24,6 +24,7 @@ import Box from "@mui/material/Box";
 import MultiPropertySelector from "../components/MultiPropertySelector";
 import MonthEndStatus from "../components/MonthEndStatus";
 import DownloadIcon from "@mui/icons-material/Download";
+import SendIcon from "@mui/icons-material/Send";
 
 // Define monthNames array
 const monthNames = [
@@ -74,13 +75,19 @@ const ReportsPage = () => {
   const [consolidatedSummary, setConsolidatedSummary] = useState([]);
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
 
-  // Add this state variable at the top with other state variables
-  const [summaryReportUrl, setSummaryReportUrl] = useState(null);
+  const [currentBatch, setCurrentBatch] = useState(1);
+  const [totalBatches, setTotalBatches] = useState(1);
+  const [originalSummary, setOriginalSummary] = useState([]);
+  const [showNextBatchButton, setShowNextBatchButton] = useState(false);
+  const [nextBatchDialogOpen, setNextBatchDialogOpen] = useState(false);
 
   // Add these new state variables at the top
   const [completedReports, setCompletedReports] = useState([]);
   const [reportsMonth, setReportsMonth] = useState(dayjs());
   const [loadingReports, setLoadingReports] = useState(false);
+
+  // Add this to your state variables
+  const [processedSummary, setProcessedSummary] = useState([]);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -261,189 +268,6 @@ const ReportsPage = () => {
     }
   };
 
-  const handleUpdateRevenue = () => {
-    if (!bookings.length) {
-      setErrorMessage("No bookings available to update.");
-      setErrorDialogOpen(true);
-      return;
-    }
-
-    // Important: For single property updates, ensure we're not using
-    // the multi-property flow
-    const monthIndex = startDate.month();
-    const monthName = monthNames[monthIndex];
-    const year = startDate.format("YYYY");
-
-    const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
-    const unPaddedMonthNum = (monthIndex + 1).toString();
-
-    const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
-    const monthYearKeyUnpadded = `${year}-${unPaddedMonthNum}`;
-
-    console.log("Calculating revenue for:", {
-      monthName,
-      year,
-      paddedKey: monthYearKeyPadded,
-      unPaddedKey: monthYearKeyUnpadded,
-    });
-
-    // Calculate for a SINGLE property, not multi-property
-    // Important: filter bookings by the current property ID
-    const propertyBookings = propertyId
-      ? bookings.filter((b) => !b._propertyId || b._propertyId === propertyId)
-      : bookings;
-
-    const totalRevenue = propertyBookings.reduce((sum, booking) => {
-      const revenuePadded = booking.revenueByMonth[monthYearKeyPadded] || 0;
-      const revenueUnpadded = booking.revenueByMonth[monthYearKeyUnpadded] || 0;
-      const revenue = revenuePadded || revenueUnpadded;
-      return sum + revenue;
-    }, 0);
-
-    const totalCleaning = propertyBookings.reduce((sum, booking) => {
-      const cleaningMatch =
-        booking.cleaningFeeMonth === monthYearKeyPadded ||
-        booking.cleaningFeeMonth === monthYearKeyUnpadded;
-      const cleaning = cleaningMatch ? booking.cleaningFee : 0;
-      return sum + cleaning;
-    }, 0);
-
-    console.log("Calculated totals:", {
-      totalRevenue,
-      totalCleaning,
-    });
-
-    setIsLoading(true);
-
-    const fetchOwnerAndExpenses = async () => {
-      try {
-        let expensesTotal = 0;
-        let expensesMessage = "";
-        try {
-          const expensesResponse = await fetchWithAuth(`/api/sheets/expenses`, {
-            method: "POST",
-            body: JSON.stringify({
-              propertyId,
-              year,
-              monthName,
-            }),
-          });
-
-          if (expensesResponse.ok) {
-            const expensesData = await expensesResponse.json();
-            if (expensesData.success) {
-              expensesTotal = parseFloat(expensesData.expensesTotal) || 0;
-              expensesMessage = expensesData.message || "";
-            } else {
-              console.warn(
-                "Expenses fetch returned error:",
-                expensesData.error
-              );
-              expensesMessage = expensesData.error || "Unknown error occurred";
-            }
-          } else {
-            console.warn(`Expenses API returned ${expensesResponse.status}`);
-            expensesMessage = `API error (${expensesResponse.status})`;
-          }
-        } catch (expenseError) {
-          console.error("Error fetching expenses:", expenseError);
-          expensesMessage = `Failed to fetch expenses: ${expenseError.message}`;
-        }
-
-        let ownerInfo = null;
-        let ownershipPercentage = 100;
-
-        try {
-          console.log(`Fetching owner for property ${propertyId}`);
-          const ownerResponse = await fetchWithAuth(
-            `/api/properties/${propertyId}/owner`
-          );
-          console.log(`Owner API response status: ${ownerResponse.status}`);
-
-          if (ownerResponse.ok) {
-            const ownerData = await ownerResponse.json();
-            console.log("Owner data:", ownerData);
-
-            if (ownerData.success && ownerData.owner) {
-              ownerInfo = ownerData.owner;
-              ownershipPercentage = ownerData.owner.ownership_percentage || 100;
-              console.log(
-                `Found owner: ${ownerInfo.name} with ${ownershipPercentage}% ownership`
-              );
-            } else {
-              console.warn(
-                "No owner found:",
-                ownerData.error || "Unknown reason"
-              );
-            }
-          } else {
-            console.warn(`Owner API error: ${ownerResponse.status}`);
-          }
-        } catch (ownerError) {
-          console.error("Error fetching owner:", ownerError);
-        }
-
-        // Calculate revenue metrics for this property
-        const monthIndex = startDate.month();
-        const monthName = monthNames[monthIndex];
-        const year = startDate.format("YYYY");
-
-        const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
-        const unPaddedMonthNum = (monthIndex + 1).toString();
-
-        const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
-        const monthYearKeyUnpadded = `${year}-${unPaddedMonthNum}`;
-
-        // Calculate totalRevenue from property bookings
-        const totalRevenue = propertyBookings.reduce((sum, booking) => {
-          const revenuePadded =
-            booking.revenueByMonth?.[monthYearKeyPadded] || 0;
-          const revenueUnpadded =
-            booking.revenueByMonth?.[monthYearKeyUnpadded] || 0;
-          const revenue = revenuePadded || revenueUnpadded;
-          return sum + revenue;
-        }, 0);
-
-        // Calculate totalCleaning from property bookings
-        const totalCleaning = propertyBookings.reduce((sum, booking) => {
-          const cleaningMatch =
-            booking.cleaningFeeMonth === monthYearKeyPadded ||
-            booking.cleaningFeeMonth === monthYearKeyUnpadded;
-          const cleaning = cleaningMatch ? booking.cleaningFee : 0;
-          return sum + cleaning;
-        }, 0);
-
-        // Now we can calculate netAmount and ownerProfit
-        const netAmount = totalRevenue - totalCleaning - expensesTotal;
-        const ownerProfit = (netAmount * ownershipPercentage) / 100;
-
-        setRevenueSummary({
-          totalRevenue,
-          totalCleaning,
-          expenses: expensesTotal,
-          netAmount,
-          ownershipPercentage,
-          ownerProfit,
-          ownerInfo,
-          propertyName: selectedPropertyName,
-          month: monthName,
-          year,
-          bookingCount: bookings.length,
-        });
-
-        setConfirmDialogOpen(true);
-      } catch (error) {
-        console.error("Error preparing revenue data:", error);
-        setErrorMessage(`Failed to prepare revenue data: ${error.message}`);
-        setErrorDialogOpen(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchOwnerAndExpenses();
-  };
-
   const handleSearchBookings = () => {
     if (startDate && endDate && !endDate.isBefore(startDate)) {
       fetchBookingsForMultipleProperties();
@@ -454,6 +278,7 @@ const ReportsPage = () => {
     }
   };
 
+  // Fix the handleMultiPropertyUpdate function to ensure proper state reset
   const handleMultiPropertyUpdate = () => {
     if (!selectedProperties.length) {
       setErrorMessage("Please select at least one property.");
@@ -467,15 +292,217 @@ const ReportsPage = () => {
       return;
     }
 
-    // Reset the summary and processing state
+    console.log("Starting property data collection...");
+
+    // IMPORTANT: Reset ALL state variables completely before starting a new run
     setConsolidatedSummary([]);
     setProcessedProperties([]);
+    setOriginalSummary([]);
+
+    // Reset summary data with a direct state update (not a function update)
+    setProcessedSummary([]);
+
+    // Close any open dialogs
+    setSummaryDialogOpen(false);
+    setNextBatchDialogOpen(false);
+
+    // Reset batch counters
+    setCurrentBatch(1);
+    setTotalBatches(Math.ceil(selectedProperties.length / 10));
+
+    // Only prepare and process the first 10 properties
+    const firstBatchProperties = selectedProperties.slice(0, 10);
     setProcessingIndex(0);
-    setProcessingTotal(selectedProperties.length);
+    setProcessingTotal(firstBatchProperties.length);
     setIsMultiProcessing(true);
 
-    // Start collecting data for all properties
-    preparePropertyData(0);
+    // Add a small delay to ensure state is updated before processing
+    setTimeout(() => {
+      console.log("States reset, starting batch processing...");
+      prepareAndProcessBatch(firstBatchProperties, 1);
+    }, 300);
+  };
+
+  // Replace the prepareAndProcessBatch function with this improved version
+  const prepareAndProcessBatch = async (propertiesToProcess, batchNumber) => {
+    // Store data for all properties in this batch
+    const batchData = [];
+
+    // Reset only processed properties, NOT processedSummary
+    setProcessedProperties([]);
+
+    console.log(`Starting to prepare data for batch ${batchNumber}`);
+
+    // Prepare data for each property
+    for (let i = 0; i < propertiesToProcess.length; i++) {
+      const propertyId = propertiesToProcess[i];
+      setProcessingIndex(i);
+
+      try {
+        // Prepare property data
+        const propertyData = await preparePropertyDataForBatch(propertyId);
+        batchData.push(propertyData);
+      } catch (error) {
+        console.error(
+          `Error preparing data for property ${propertyId}:`,
+          error
+        );
+        batchData.push({
+          propertyId,
+          propertyName:
+            typeof allProperties[propertyId] === "object"
+              ? allProperties[propertyId].name
+              : allProperties[propertyId] || "Unknown Property",
+          error: error.message,
+          hasError: true,
+        });
+      }
+    }
+
+    // Set this batch's data for processing
+    setConsolidatedSummary(batchData);
+
+    // IMPORTANT: Don't process immediately - show dialog first
+    // REMOVE THIS LINE: await processAllProperties();
+
+    // After preparing data, show the summary dialog
+    setTimeout(() => {
+      setSummaryDialogOpen(true);
+    }, 500);
+
+    // After processing, if there are more properties, show dialog to process next batch
+    const nextBatchStart = batchNumber * 10;
+    if (nextBatchStart < selectedProperties.length) {
+      // Show dialog asking to process next batch, BUT DON'T show summary yet
+      setShowNextBatchButton(true);
+    } else {
+      // All batches are prepared - don't process yet
+      setProcessedProperties((prev) => [
+        ...prev,
+        {
+          propertyId: "complete",
+          propertyName: "✅ ALL BATCHES READY ✅",
+          success: true,
+          message:
+            "All properties have been prepared. Click 'Confirm & Process All' to update.",
+        },
+      ]);
+
+      // Reset the processing state
+      setIsMultiProcessing(false);
+    }
+  };
+
+  // Helper function to prepare data for a single property
+  const preparePropertyDataForBatch = async (propertyId) => {
+    const propertyName =
+      typeof allProperties[propertyId] === "object"
+        ? allProperties[propertyId].name
+        : allProperties[propertyId] || "Unknown Property";
+
+    // Filter bookings for current property
+    const propertyBookings = bookings.filter(
+      (booking) => booking._propertyId === propertyId
+    );
+
+    if (propertyBookings.length === 0) {
+      // No bookings for this property, return with zero values
+      return {
+        propertyId: propertyId,
+        propertyName,
+        totalRevenue: 0,
+        totalCleaning: 0,
+        expenses: 0,
+        netAmount: 0,
+        bookingCount: 0,
+        month: monthNames[startDate.month()],
+        year: startDate.format("YYYY"),
+        bookings: [],
+      };
+    }
+
+    // Calculate revenue metrics for this property
+    const monthIndex = startDate.month();
+    const monthName = monthNames[monthIndex];
+    const year = startDate.format("YYYY");
+
+    // API calls to get expenses and owner info
+    const [expensesResponse, ownerResponse] = await Promise.all([
+      fetchWithAuth(`/api/sheets/expenses`, {
+        method: "POST",
+        body: JSON.stringify({
+          propertyId: propertyId,
+          year,
+          monthName,
+        }),
+      }),
+      fetchWithAuth(`/api/properties/${propertyId}/owner`),
+    ]);
+
+    // Extract expense data
+    const expensesData = await expensesResponse.json();
+    const expensesTotal =
+      expensesResponse.ok && expensesData.success
+        ? parseFloat(expensesData.expensesTotal) || 0
+        : 0;
+
+    // Extract owner data
+    const ownerData = await ownerResponse.json();
+    let ownerInfo = null;
+    let ownershipPercentage = 100;
+
+    if (ownerResponse.ok && ownerData.success) {
+      ownerInfo = ownerData.owner;
+      if (ownerInfo) {
+        ownershipPercentage = ownerInfo.ownership_percentage || 100;
+      }
+    }
+
+    // Revenue calculation
+    const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
+    const unPadedMonthNum = (monthIndex + 1).toString();
+
+    const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
+    const monthYearKeyUnpadded = `${year}-${unPadedMonthNum}`;
+
+    // Calculate revenue
+    const totalRevenue = propertyBookings.reduce((sum, booking) => {
+      const revenuePadded = booking.revenueByMonth?.[monthYearKeyPadded] || 0;
+      const revenueUnpadded =
+        booking.revenueByMonth?.[monthYearKeyUnpadded] || 0;
+      const revenue = revenuePadded || revenueUnpadded;
+      return sum + revenue;
+    }, 0);
+
+    // Calculate cleaning fees
+    const totalCleaning = propertyBookings.reduce((sum, booking) => {
+      const cleaningMatch =
+        booking.cleaningFeeMonth === monthYearKeyPadded ||
+        booking.cleaningFeeMonth === monthYearKeyUnpadded;
+      const cleaning = cleaningMatch ? booking.cleaningFee : 0;
+      return sum + cleaning;
+    }, 0);
+
+    // Calculate net amount and owner profit
+    const netAmount = totalRevenue - totalCleaning - expensesTotal;
+    const ownerProfit = (netAmount * ownershipPercentage) / 100;
+
+    // Return the prepared data
+    return {
+      propertyId,
+      propertyName,
+      totalRevenue,
+      totalCleaning,
+      expenses: expensesTotal,
+      netAmount,
+      ownershipPercentage,
+      ownerProfit,
+      ownerInfo,
+      month: monthName,
+      year,
+      bookingCount: propertyBookings.length,
+      bookings: propertyBookings,
+    };
   };
 
   // Step 1: Prepare data for the current property
@@ -483,18 +510,27 @@ const ReportsPage = () => {
     // Make sure we have a valid index
     if (index < 0 || index >= selectedProperties.length) {
       console.log("Finished collecting data for all properties");
-      // When done collecting all property data, force show the summary dialog
-      setTimeout(() => {
-        if (consolidatedSummary.length > 0) {
-          console.log(
-            `Showing summary dialog with ${consolidatedSummary.length} properties`
-          );
+
+      // Ensure there's a clear completion state
+      setIsMultiProcessing(false);
+
+      // Use a more reliable way to show the dialog
+      if (consolidatedSummary.length > 0) {
+        console.log(
+          `Showing summary dialog with ${consolidatedSummary.length} properties`
+        );
+        // Store the original full list
+        setOriginalSummary([...consolidatedSummary]);
+        // Calculate total batches
+        const batches = Math.ceil(consolidatedSummary.length / 10);
+        setTotalBatches(batches);
+        setCurrentBatch(1);
+        setTimeout(() => {
           setSummaryDialogOpen(true);
-        } else {
-          console.log("No properties in summary to show");
-        }
-        setIsMultiProcessing(false);
-      }, 100); // Small delay to ensure all state updates are processed
+        }, 500);
+      } else {
+        console.log("No properties in summary to show");
+      }
       return;
     }
 
@@ -571,18 +607,31 @@ const ReportsPage = () => {
           ? parseFloat(expensesData.expensesTotal) || 0
           : 0;
 
-        // Extract owner data
-        const ownerInfo =
-          ownerData.success && ownerData.owner ? ownerData.owner : null;
+        // Extract owner data (with better error handling)
+        let ownerInfo = null;
+        let ownershipPercentage = 100;
 
-        const ownershipPercentage = ownerInfo?.ownership_percentage || 100;
+        if (ownerData && ownerData.success) {
+          ownerInfo = ownerData.owner;
+          if (ownerInfo) {
+            ownershipPercentage = ownerInfo.ownership_percentage || 100;
+          } else {
+            console.log(
+              `No owner found for property ${currentPropertyId}, using default 100% ownership`
+            );
+          }
+        } else {
+          console.log(
+            `Error fetching owner for property ${currentPropertyId}, using default 100% ownership`
+          );
+        }
 
         // Your existing revenue calculation code...
         const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
-        const unPaddedMonthNum = (monthIndex + 1).toString();
+        const unPadedMonthNum = (monthIndex + 1).toString();
 
         const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
-        const monthYearKeyUnpadded = `${year}-${unPaddedMonthNum}`;
+        const monthYearKeyUnpadded = `${year}-${unPadedMonthNum}`;
 
         // Calculate revenue
         const totalRevenue = propertyBookings.reduce((sum, booking) => {
@@ -706,7 +755,7 @@ const ReportsPage = () => {
     }
   };
 
-  // Add a new function to process all confirmed properties
+  // 1. First, remove email-related code from processConfirmedQueue function
   const processConfirmedQueue = async (queueToProcess = null) => {
     // Use the passed queue or the state queue
     const queue = queueToProcess || confirmedQueue;
@@ -752,13 +801,6 @@ const ReportsPage = () => {
           throw new Error("Invalid property data");
         }
 
-        if (!currentItem.bookings || !Array.isArray(currentItem.bookings)) {
-          console.warn(
-            `No bookings for ${currentItem.propertyName}, using empty array`
-          );
-          currentItem.bookings = [];
-        }
-
         console.log(
           `===== PROCESSING PROPERTY ${i + 1}/${localQueue.length} =====`
         );
@@ -775,11 +817,10 @@ const ReportsPage = () => {
           );
         }
 
-        // Proceed with update and email logic
-        // Update revenue sheet
+        // Update revenue sheet only - no email
         console.log(`Updating revenue sheet for ${currentItem.propertyName}`);
         console.log(
-          `Including expenses total: $${currentItem.expenses.toFixed(2)}`
+          `Including expenses total: $${(currentItem.expenses || 0).toFixed(2)}`
         );
 
         const response = await fetchWithAuth(`/api/sheets/revenue`, {
@@ -787,169 +828,35 @@ const ReportsPage = () => {
           body: JSON.stringify({
             propertyId: currentItem.propertyId,
             propertyName: currentItem.propertyName,
-            bookings: currentItem.bookings,
+            bookings: currentItem.bookings || [],
             year: currentItem.year,
             monthName: currentItem.month,
-            expensesTotal: currentItem.expenses || 0, // Make sure expenses are included
+            expensesTotal: currentItem.expenses || 0,
           }),
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to update revenue: ${await response.text()}`);
+          const errorText = await response.text();
+          throw new Error(`Failed to update revenue: ${errorText}`);
         }
 
-        const data = await response.json();
-        if (!data.success) {
-          throw new Error(data.error || "Failed to update revenue sheet.");
+        const revenueResult = await response.json();
+        if (!revenueResult.success) {
+          throw new Error(
+            revenueResult.error || "Failed to update revenue sheet."
+          );
         }
 
-        // Handle emails if there are owners
-        let emailSuccess = true;
-        let emailMessage = "";
+        console.log(`✅ Revenue sheet updated for ${currentItem.propertyName}`);
 
-        // Get ALL owners for this property
-        try {
-          console.log(
-            `Fetching all owners for property ${currentItem.propertyId}`
-          );
-          const ownersResponse = await fetchWithAuth(
-            `/api/properties/${currentItem.propertyId}/owners`
-          );
-
-          if (!ownersResponse.ok) {
-            console.log(
-              `No owners found for property ${currentItem.propertyId}`
-            );
-            // Continue with processing even if no owners found
-          } else {
-            const ownersData = await ownersResponse.json();
-
-            if (
-              ownersData.success &&
-              ownersData.owners &&
-              ownersData.owners.length > 0
-            ) {
-              console.log(
-                `Found ${ownersData.owners.length} owners for property ${currentItem.propertyName}`
-              );
-
-              // Get spreadsheet URL (only need to do this once)
-              console.log(
-                `Fetching spreadsheet ID for ${currentItem.propertyId}`
-              );
-              const sheetResponse = await fetchWithAuth(
-                `/api/properties/${currentItem.propertyId}/sheetId`
-              );
-
-              const sheetData = sheetResponse.ok
-                ? await sheetResponse.json()
-                : { sheetId: null };
-              const sheetId = sheetData.sheetId;
-
-              const spreadsheetUrl = sheetId
-                ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit`
-                : "";
-
-              // Send email to EACH owner
-              for (const owner of ownersData.owners) {
-                try {
-                  console.log(
-                    `Sending email to owner: ${owner.name} (${owner.email})`
-                  );
-
-                  // Calculate this owner's profit based on their ownership percentage
-                  const ownerProfit =
-                    (currentItem.netAmount * owner.ownership_percentage) / 100;
-
-                  const emailPayload = {
-                    ownerId: owner.id,
-                    propertyName: currentItem.propertyName,
-                    propertyId: currentItem.propertyId,
-                    month: currentItem.month,
-                    year: currentItem.year,
-                    totalRevenue: currentItem.totalRevenue,
-                    totalCleaning: currentItem.totalCleaning,
-                    expenses: currentItem.expenses,
-                    profit: ownerProfit,
-                    ownershipPercentage: owner.ownership_percentage,
-                    bookingCount: currentItem.bookingCount,
-                    spreadsheetUrl,
-                  };
-
-                  console.log(
-                    `Email payload for ${owner.name}:`,
-                    JSON.stringify(emailPayload, null, 2)
-                  );
-
-                  const emailResponse = await fetchWithAuth(
-                    `/api/email/send-owner-report`,
-                    {
-                      method: "POST",
-                      body: JSON.stringify(emailPayload),
-                    }
-                  );
-
-                  if (!emailResponse.ok) {
-                    throw new Error(
-                      `Email service error: ${await emailResponse.text()}`
-                    );
-                  }
-
-                  const emailResult = await emailResponse.json();
-
-                  if (!emailResult.success) {
-                    throw new Error(
-                      emailResult.error ||
-                        `Failed to send email to ${owner.name}`
-                    );
-                  }
-
-                  console.log(`✅ Email sent successfully to ${owner.name}`);
-                } catch (ownerEmailError) {
-                  console.error(
-                    `❌ Failed to send email to ${owner.name}:`,
-                    ownerEmailError
-                  );
-                  // Continue with other owners even if one fails
-                  emailSuccess = false;
-                  emailMessage += `Failed to email ${owner.name}: ${ownerEmailError.message}. `;
-                }
-              }
-            } else {
-              console.log(
-                `No owners returned from API for ${currentItem.propertyName}`
-              );
-            }
-          }
-        } catch (emailError) {
-          console.error(
-            `❌ Email process failed for ${currentItem.propertyName}:`,
-            emailError
-          );
-          emailSuccess = false;
-          emailMessage = emailError.message;
-        }
-
-        // Record success
-        const resultMessage = emailSuccess
-          ? `Revenue updated successfully${
-              currentItem.ownerInfo
-                ? ` and email sent to ${currentItem.ownerInfo.name}`
-                : ""
-            }`
-          : `Revenue updated but email failed: ${emailMessage}`;
-
-        console.log(
-          `Recording result for ${currentItem.propertyName}: ${resultMessage}`
-        );
-
+        // Record success - simplified message without email references
         setProcessedProperties((prev) => [
           ...prev,
           {
             propertyId: currentItem.propertyId,
             propertyName: currentItem.propertyName,
             success: true,
-            message: resultMessage,
+            message: "Revenue updated successfully",
           },
         ]);
 
@@ -957,21 +864,23 @@ const ReportsPage = () => {
         await fetchWithAuth(`/api/property-month-end`, {
           method: "POST",
           body: JSON.stringify({
-            propertyId: currentItem.propertyId,
-            propertyName: currentItem.propertyName,
-            year: currentItem.year,
-            month: currentItem.month,
-            monthNumber:
-              monthNames.findIndex((m) => m === currentItem.month) + 1,
+            propertyId: property.propertyId,
+            propertyName: property.propertyName,
+            year: property.year,
+            month: property.month,
+            monthNumber: monthNames.findIndex((m) => m === property.month) + 1,
             statusType: "revenue",
             statusData: {
-              revenueAmount: currentItem.totalRevenue,
-              cleaningFeesAmount: currentItem.totalCleaning,
-              expensesAmount: currentItem.expenses,
-              netAmount: currentItem.netAmount,
-              bookingsCount: currentItem.bookings.length,
-              sheetId: data.spreadsheetUrl,
-              ownerPercentage: currentItem.ownershipPercentage || 100,
+              revenueAmount: property.totalRevenue || 0,
+              cleaningFeesAmount: property.totalCleaning || 0,
+              expensesAmount: property.expenses || 0,
+              netAmount: property.netAmount || 0,
+              bookingsCount: property.bookings?.length || 0,
+              sheetId: result?.spreadsheetUrl || "",
+              ownerPercentage: property.ownershipPercentage || 100,
+              // Add these lines to include owner info
+              ownerId: property.ownerInfo?.id || null,
+              ownerName: property.ownerInfo?.name || null,
             },
           }),
         });
@@ -1003,472 +912,286 @@ const ReportsPage = () => {
 
     console.log(`All ${localQueue.length} properties have been processed.`);
 
-    // Reset the queue after processing
-    setConfirmedQueue([]);
-    setShowProcessButton(false);
-    setIsMultiProcessing(false);
-  };
+    setUpdating(false);
 
-  // Add this function to generate the summary PDF
-  const generateSummaryReport = async (properties) => {
-    try {
-      console.log("Generating summary report for processed properties");
+    // Show completion message - removed email references
+    setProcessedProperties((prev) => [
+      ...prev,
+      {
+        propertyId: "complete",
+        propertyName: `✅ BATCH ${currentBatch} of ${totalBatches} COMPLETE`,
+        success: true,
+        message:
+          currentBatch < totalBatches
+            ? "Ready for next batch."
+            : "All revenue sheets updated.",
+      },
+    ]);
 
-      const response = await fetchWithAuth("/api/reports/summary-pdf", {
-        method: "POST",
-        body: JSON.stringify({
-          properties: properties.map((prop) => ({
-            propertyName: prop.propertyName,
-            ownerProfit: prop.ownerProfit || 0,
-            success: prop.success,
-          })),
-          month: startDate.format("MMMM"),
-          year: startDate.format("YYYY"),
-        }),
+    // IMPORTANT: Only modify processedSummary with unique items from consolidatedSummary
+    // Use a keyed approach to avoid duplicates
+    setProcessedSummary((prevSummary) => {
+      // Create a map of existing items by propertyId
+      const existingMap = new Map();
+      prevSummary.forEach((item) => {
+        if (item.propertyId) {
+          existingMap.set(item.propertyId, true);
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to generate summary report: ${await response.text()}`
-        );
-      }
+      // Only add items that aren't already in the summary
+      const newItems = consolidatedSummary.filter(
+        (item) => !existingMap.has(item.propertyId)
+      );
 
-      const data = await response.json();
-      return data.fileUrl;
-    } catch (error) {
-      console.error("Error generating summary report:", error);
-      return null;
+      console.log(`Adding ${newItems.length} new items to summary`);
+      console.log(`Current summary has ${prevSummary.length} items`);
+
+      return [...prevSummary, ...newItems];
+    });
+
+    // If there are more batches, prepare to show the next batch dialog
+    if (currentBatch < totalBatches) {
+      setNextBatchDialogOpen(true);
+    } else if (currentBatch >= totalBatches) {
+      // All batches are complete - show the final summary
+      setTimeout(() => {
+        console.log(`Showing final summary dialog`);
+        setSummaryDialogOpen(true);
+      }, 500);
     }
   };
 
-  // Add this function to fetch completed month-end reports
+  // Add this function to process all properties at once
+  const processAllProperties = async () => {
+    setSummaryDialogOpen(false); // Close summary dialog if it's open
+    setUpdating(true);
+
+    try {
+      // IMPORTANT: Log exactly what we're working with
+      console.log("CONSOLIDATED SUMMARY DATA:", consolidatedSummary);
+
+      // If consolidatedSummary is empty but we have some in processedSummary, use that instead
+      const sourceData =
+        consolidatedSummary.length > 0 ? consolidatedSummary : processedSummary;
+
+      console.log(
+        `Using ${sourceData.length} properties from ${
+          consolidatedSummary.length > 0 ? "current batch" : "processed summary"
+        }`
+      );
+
+      // Filter valid properties (no errors)
+      const propertiesToProcess = sourceData.filter((prop) => !prop.hasError);
+      console.log(
+        `Found ${propertiesToProcess.length} valid properties to process`
+      );
+
+      const successfullyProcessed = [];
+
+      // CHANGE: Instead of throwing error, just show message and return
+      if (propertiesToProcess.length === 0) {
+        console.log("WARNING: No valid properties to process");
+        setErrorMessage(
+          "No valid properties to process. Please try selecting different properties."
+        );
+        setErrorDialogOpen(true);
+        setUpdating(false);
+        return; // Just return instead of throwing
+      }
+
+      // Process each property
+      for (let i = 0; i < propertiesToProcess.length; i++) {
+        const property = propertiesToProcess[i];
+        setProcessingIndex(i);
+
+        try {
+          console.log(`Processing property: ${property.propertyName}`);
+
+          // Update revenue sheet
+          const response = await fetchWithAuth(`/api/sheets/revenue`, {
+            method: "PUT",
+            body: JSON.stringify({
+              propertyId: property.propertyId,
+              propertyName: property.propertyName,
+              bookings: property.bookings || [],
+              year: property.year,
+              monthName: property.month,
+              expensesTotal: property.expenses || 0,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              `Failed to update revenue sheet: ${await response.text()}`
+            );
+          }
+
+          const result = await response.json();
+          if (!result.success) {
+            throw new Error(result.error || "Failed to update revenue sheet");
+          }
+
+          // Record the successful update in the month-end tracking
+          await fetchWithAuth(`/api/property-month-end`, {
+            method: "POST",
+            body: JSON.stringify({
+              propertyId: property.propertyId,
+              propertyName: property.propertyName,
+              year: property.year,
+              month: property.month,
+              monthNumber:
+                monthNames.findIndex((m) => m === property.month) + 1,
+              statusType: "revenue",
+              statusData: {
+                revenueAmount: property.totalRevenue || 0,
+                cleaningFeesAmount: property.totalCleaning || 0,
+                expensesAmount: property.expenses || 0,
+                netAmount: property.netAmount || 0,
+                bookingsCount: property.bookings?.length || 0,
+                sheetId: result?.spreadsheetUrl || "",
+                ownerPercentage: property.ownershipPercentage || 100,
+              },
+            }),
+          });
+
+          // Add this property to our successfully processed list
+          successfullyProcessed.push(property);
+
+          // Update processing status
+          setProcessedProperties((prev) => [
+            ...prev,
+            {
+              propertyId: property.propertyId,
+              propertyName: property.propertyName,
+              success: true,
+              message: "Revenue updated successfully",
+            },
+          ]);
+        } catch (error) {
+          console.error(`Error processing ${property.propertyName}:`, error);
+          setProcessedProperties((prev) => [
+            ...prev,
+            {
+              propertyId: property.propertyId,
+              propertyName: property.propertyName,
+              success: false,
+              error: error.message,
+            },
+          ]);
+        }
+
+        // Small delay between processing properties
+        if (i < propertiesToProcess.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+
+      // Show completion message
+      setProcessedProperties((prev) => [
+        ...prev,
+        {
+          propertyId: "complete",
+          propertyName: "✅ ALL PROPERTIES PROCESSED ✅",
+          success: true,
+          message: "All properties have been processed successfully.",
+        },
+      ]);
+
+      // IMPORTANT: Now update processedSummary directly with successful properties
+      // This ensures the summary dialog has the data it needs
+      setProcessedSummary((prevSummary) => {
+        // Create a map of existing items to avoid duplicates
+        const existingMap = new Map();
+        prevSummary.forEach((item) => {
+          if (item.propertyId) {
+            existingMap.set(item.propertyId, true);
+          }
+        });
+
+        // Filter out duplicates
+        const newItems = successfullyProcessed.filter(
+          (item) => !existingMap.has(item.propertyId)
+        );
+
+        console.log(
+          `Adding ${newItems.length} new items to summary, now total: ${
+            prevSummary.length + newItems.length
+          }`
+        );
+
+        // Return combined unique items
+        return [...prevSummary, ...newItems];
+      });
+    } catch (error) {
+      console.error("Error in processAllProperties:", error);
+      setErrorMessage(`Error: ${error.message}`);
+      setErrorDialogOpen(true);
+    } finally {
+      setUpdating(false);
+      setIsMultiProcessing(false);
+    }
+  };
+
+  // Move fetchCompletedReports outside the useEffect to make it available throughout the component
   const fetchCompletedReports = async (month, year) => {
     setLoadingReports(true);
     try {
+      console.log(`Fetching reports for ${month} ${year}`);
+
+      // Use the /completed endpoint
       const response = await fetchWithAuth(
-        `/api/property-month-end/completed?month=${month}&year=${year}`
+        `/api/property-month-end/completed?month=${encodeURIComponent(
+          month
+        )}&year=${encodeURIComponent(year)}`
       );
 
+      console.log(`Response status: ${response.status}`);
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch reports: ${await response.text()}`);
+        const errorText = await response.text();
+        console.error("API Error Response:", errorText);
+        throw new Error(`Failed to fetch reports (${response.status})`);
       }
 
       const data = await response.json();
+      console.log(`Successfully fetched ${data.reports?.length || 0} reports`);
       setCompletedReports(data.reports || []);
     } catch (error) {
-      console.error("Error fetching completed reports:", error);
-      setErrorMessage("Failed to load completed reports");
+      console.error("Failed to fetch completed reports:", error);
+      setErrorMessage(error.message || "Failed to fetch reports.");
       setErrorDialogOpen(true);
+      setCompletedReports([]); // Set empty array on error
     } finally {
       setLoadingReports(false);
     }
   };
 
-  // Add this function to download reports as CSV
-  const downloadReportsSpreadsheet = () => {
-    if (!completedReports.length) return;
-
-    // Create CSV content
-    let csvContent = "Property Name,Owner Payment\n";
-
-    completedReports.forEach((report) => {
-      csvContent += `"${report.property_name}",${report.owner_profit || 0}\n`;
-    });
-
-    // Create download link
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `owner-payments-${reportsMonth.format("MMMM-YYYY")}.csv`
-    );
-    document.body.appendChild(link);
-
-    // Download it
-    link.click();
-
-    // Clean up
-    setTimeout(() => {
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }, 100);
-  };
-
-  // Add this effect to load reports when the tab or month changes
+  // Then modify the useEffect to use this function
   useEffect(() => {
-    if (activeTab === 2 && reportsMonth) {
+    if (activeTab === 2) {
       const month = reportsMonth.format("MMMM");
       const year = reportsMonth.format("YYYY");
       fetchCompletedReports(month, year);
     }
   }, [activeTab, reportsMonth]);
 
-  const ProcessingProgress = () => {
-    if (!isMultiProcessing) return null;
-
-    // Calculate progress
-    const progress = Math.min(
-      Math.round((processingIndex / processingTotal) * 100),
-      100
-    );
-
-    // Current property name
-    let currentPropertyName = "Processing complete";
-    if (
-      processingIndex < processingTotal &&
-      processingIndex < selectedProperties.length
-    ) {
-      const propertyId = selectedProperties[processingIndex];
-      if (propertyId && allProperties[propertyId]) {
-        currentPropertyName =
-          typeof allProperties[propertyId] === "object"
-            ? allProperties[propertyId].name
-            : allProperties[propertyId];
-      }
-    }
-
-    return (
-      <div className="mt-4 p-4 bg-secondary/80 rounded-lg border border-primary/10">
-        <h3 className="text-lg font-semibold mb-2">Processing Properties</h3>
-
-        <div className="mb-3">
-          <div className="flex justify-between mb-1">
-            <span>{`Property ${
-              processingIndex + 1
-            } of ${processingTotal}`}</span>
-            <span>{`${progress}%`}</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
-            <div
-              className="bg-primary h-2.5 rounded-full"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
-        </div>
-
-        {processingIndex < processingTotal && (
-          <p className="text-dark">
-            Currently processing: <strong>{currentPropertyName}</strong>
-          </p>
-        )}
-
-        {processedProperties.length > 0 && (
-          <div className="mt-3">
-            <h4 className="font-medium mb-1">Processed Properties:</h4>
-            <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
-              {processedProperties.map((result, idx) => (
-                <div
-                  key={idx}
-                  className={`p-2 border-b border-gray-100 ${
-                    result.success ? "bg-green-50" : "bg-red-50"
-                  } ${
-                    idx === processedProperties.length - 1 ? "rounded-b-lg" : ""
-                  }`}
-                >
-                  <div className="flex justify-between">
-                    <span className="font-medium">{result.propertyName}</span>
-                    <span
-                      className={
-                        result.success ? "text-green-600" : "text-red-600"
-                      }
-                    >
-                      {result.success ? "✓ Success" : "✗ Error"}
-                    </span>
-                  </div>
-                  {!result.success && result.error && (
-                    <p className="text-sm text-red-600 mt-1">{result.error}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {processingIndex >= processingTotal && (
-          <div className="mt-3 p-2 bg-green-100 rounded-lg text-center">
-            <p className="text-green-800 font-medium">Processing complete</p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  if (userLoading || propertiesLoading || isLoading) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <CircularProgress sx={{ color: "#eccb34" }} />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <div>Please log in to access this page.</div>;
-  }
-  // Add this function to process all properties at once
-  const processAllProperties = async () => {
+  const handleSummaryDialogClose = () => {
+    // Close the summary dialog
     setSummaryDialogOpen(false);
-    setUpdating(true);
-    setProcessingTotal(consolidatedSummary.length);
-    setProcessingIndex(0);
 
-    // Create a local copy of the queue
-    const propertiesToProcess = [...consolidatedSummary];
+    // Always reset next batch dialog
+    setNextBatchDialogOpen(false);
 
-    // Process all properties in the queue
-    for (let i = 0; i < propertiesToProcess.length; i++) {
-      setProcessingIndex(i);
-      const currentItem = propertiesToProcess[i];
+    // If this was the final batch, fully reset ALL processing states
+    if (currentBatch >= totalBatches) {
+      setIsMultiProcessing(false);
+      setShowNextBatchButton(false);
+      setProcessedProperties([]);
 
-      try {
-        // Skip properties with errors
-        if (currentItem.hasError) {
-          setProcessedProperties((prev) => [
-            ...prev,
-            {
-              propertyId: currentItem.propertyId,
-              propertyName: currentItem.propertyName,
-              success: false,
-              error: currentItem.error || "Unknown error",
-            },
-          ]);
-          continue;
-        }
-
-        console.log(
-          `Processing ${currentItem.propertyName} (${i + 1}/${
-            propertiesToProcess.length
-          })`
-        );
-
-        // 1. First, check if inventory invoice needs to be generated
-        const monthNumber =
-          monthNames.findIndex((m) => m === currentItem.month) + 1;
-
-        // Generate inventory if needed (without validation check which is causing 404)
-        try {
-          console.log(
-            `Auto-generating inventory for ${currentItem.propertyName}`
-          );
-
-          // Call the API to generate inventory
-          const inventoryResponse = await fetchWithAuth(
-            `/api/inventory/auto-generate`,
-            {
-              method: "POST",
-              body: JSON.stringify({
-                propertyId: currentItem.propertyId,
-                propertyName: currentItem.propertyName,
-                month: currentItem.month,
-                year: currentItem.year,
-                monthNumber: monthNumber,
-              }),
-            }
-          );
-
-          if (!inventoryResponse.ok) {
-            console.warn(
-              `Warning: Could not auto-generate inventory for ${
-                currentItem.propertyName
-              }: ${await inventoryResponse.text()}`
-            );
-            // Continue processing even if inventory generation fails
-          } else {
-            console.log(
-              `✅ Inventory generated for ${currentItem.propertyName}`
-            );
-          }
-        } catch (inventoryError) {
-          console.warn(`Inventory generation error: ${inventoryError.message}`);
-          // Continue with processing even if inventory fails
-        }
-
-        // 2. Update revenue sheet
-        const response = await fetchWithAuth(`/api/sheets/revenue`, {
-          method: "PUT",
-          body: JSON.stringify({
-            propertyId: currentItem.propertyId,
-            propertyName: currentItem.propertyName,
-            bookings: currentItem.bookings,
-            year: currentItem.year,
-            monthName: currentItem.month,
-            expensesTotal: currentItem.expenses || 0,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update revenue: ${await response.text()}`);
-        }
-
-        const data = await response.json();
-        if (!data.success) {
-          throw new Error(data.error || "Failed to update revenue sheet.");
-        }
-
-        // 3. Get owners and send emails
-        let emailSuccess = true;
-        let emailMessage = "";
-
-        try {
-          console.log(
-            `Fetching all owners for property ${currentItem.propertyId}`
-          );
-          const ownersResponse = await fetchWithAuth(
-            `/api/properties/${currentItem.propertyId}/owners`
-          );
-
-          if (ownersResponse.ok) {
-            const ownersData = await ownersResponse.json();
-
-            if (
-              ownersData.success &&
-              ownersData.owners &&
-              ownersData.owners.length > 0
-            ) {
-              console.log(
-                `Found ${ownersData.owners.length} owners for ${currentItem.propertyName}`
-              );
-
-              // Get spreadsheet URL
-              const sheetResponse = await fetchWithAuth(
-                `/api/properties/${currentItem.propertyId}/sheetId`
-              );
-              const sheetData = sheetResponse.ok
-                ? await sheetResponse.json()
-                : { sheetId: null };
-              const sheetId = sheetData.sheetId;
-              const spreadsheetUrl = sheetId
-                ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit`
-                : "";
-
-              // Send email to each owner
-              for (const owner of ownersData.owners) {
-                try {
-                  console.log(`Sending email to owner: ${owner.name}`);
-
-                  // Calculate owner's profit based on ownership percentage
-                  const ownerProfit =
-                    (currentItem.netAmount * owner.ownership_percentage) / 100;
-
-                  const emailPayload = {
-                    ownerId: owner.id,
-                    propertyName: currentItem.propertyName,
-                    propertyId: currentItem.propertyId,
-                    month: currentItem.month,
-                    year: currentItem.year,
-                    totalRevenue: currentItem.totalRevenue,
-                    totalCleaning: currentItem.totalCleaning,
-                    expenses: currentItem.expenses,
-                    profit: ownerProfit,
-                    ownershipPercentage: owner.ownership_percentage,
-                    bookingCount: currentItem.bookingCount,
-                    spreadsheetUrl,
-                  };
-
-                  const emailResponse = await fetchWithAuth(
-                    `/api/email/send-owner-report`,
-                    {
-                      method: "POST",
-                      body: JSON.stringify(emailPayload),
-                    }
-                  );
-
-                  if (!emailResponse.ok) {
-                    throw new Error(
-                      `Email service error: ${await emailResponse.text()}`
-                    );
-                  }
-
-                  const emailResult = await emailResponse.json();
-                  if (!emailResult.success) {
-                    throw new Error(
-                      emailResult.error ||
-                        `Failed to send email to ${owner.name}`
-                    );
-                  }
-
-                  console.log(`✅ Email sent to ${owner.name}`);
-                } catch (ownerEmailError) {
-                  console.error(
-                    `❌ Failed to send email to ${owner.name}:`,
-                    ownerEmailError
-                  );
-                  emailSuccess = false;
-                  emailMessage += `Failed to email ${owner.name}: ${ownerEmailError.message}. `;
-                }
-              }
-            }
-          }
-        } catch (emailError) {
-          console.error(
-            `Error in email process for ${currentItem.propertyName}:`,
-            emailError
-          );
-          emailSuccess = false;
-          emailMessage = emailError.message;
-        }
-
-        // 4. Record success
-        const resultMessage = emailSuccess
-          ? `Revenue updated successfully${
-              currentItem.ownerInfo
-                ? ` and email sent to ${currentItem.ownerInfo.name}`
-                : ""
-            }`
-          : `Revenue updated but email failed: ${emailMessage}`;
-
-        setProcessedProperties((prev) => [
-          ...prev,
-          {
-            propertyId: currentItem.propertyId,
-            propertyName: currentItem.propertyName,
-            success: true,
-            message: resultMessage,
-          },
-        ]);
-
-        // 5. Update month-end status in database
-        await fetchWithAuth(`/api/property-month-end`, {
-          method: "POST",
-          body: JSON.stringify({
-            propertyId: currentItem.propertyId,
-            propertyName: currentItem.propertyName,
-            year: currentItem.year,
-            month: currentItem.month,
-            monthNumber: monthNumber,
-            statusType: "revenue",
-            statusData: {
-              revenueAmount: currentItem.totalRevenue,
-              cleaningFeesAmount: currentItem.totalCleaning,
-              expensesAmount: currentItem.expenses,
-              netAmount: currentItem.netAmount,
-              bookingsCount: currentItem.bookingCount,
-              ownerPercentage: currentItem.ownershipPercentage,
-            },
-          }),
-        });
-      } catch (error) {
-        console.error(`Error processing ${currentItem.propertyName}:`, error);
-        setProcessedProperties((prev) => [
-          ...prev,
-          {
-            propertyId: currentItem.propertyId,
-            propertyName: currentItem.propertyName,
-            success: false,
-            error: error.message,
-          },
-        ]);
-      }
-
-      // Add a delay between properties
-      if (i < propertiesToProcess.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
+      // Don't reset processedSummary here - we want to keep it until a new run starts
+      console.log("Final batch complete, all processing states reset");
     }
-
-    setUpdating(false);
-    setConsolidatedSummary([]);
   };
 
   /// Modify this function to simplify the CSV output
@@ -1480,9 +1203,9 @@ const ReportsPage = () => {
 
     properties.forEach((property) => {
       if (!property.hasError) {
-        csvContent += `"${
-          property.propertyName
-        }",${property.ownerProfit.toFixed(2)}\n`;
+        csvContent += `"${property.propertyName}",${(
+          property.ownerProfit || 0
+        ).toFixed(2)}\n`;
       }
     });
 
@@ -1505,6 +1228,288 @@ const ReportsPage = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     }, 100);
+  };
+
+  // 2. Add email functionality to the Month End Tab
+  const sendOwnerEmails = async () => {
+    if (!completedReports.length) return;
+
+    setUpdating(true);
+    let successCount = 0;
+    let errorCount = 0;
+    let noOwnerCount = 0;
+    let ownerMap = new Map(); // Cache for looked-up owners
+
+    try {
+      for (const report of completedReports) {
+        try {
+          // Skip already sent emails
+          if (report.owner_email_sent) {
+            continue;
+          }
+
+          // Try to get owner ID from report or look it up
+          let ownerId = report.owner_id;
+
+          if (!ownerId) {
+            // Try to fetch the owner directly if not cached
+            if (!ownerMap.has(report.property_id)) {
+              try {
+                const ownerResponse = await fetchWithAuth(
+                  `/api/properties/${report.property_id}/owner`
+                );
+                if (ownerResponse.ok) {
+                  const ownerData = await ownerResponse.json();
+                  if (
+                    ownerData.success &&
+                    ownerData.owner &&
+                    ownerData.owner.id
+                  ) {
+                    ownerMap.set(report.property_id, ownerData.owner.id);
+                    ownerId = ownerData.owner.id;
+                    console.log(
+                      `Found owner ID ${ownerId} for property ${report.property_name}`
+                    );
+                  } else {
+                    ownerMap.set(report.property_id, null);
+                  }
+                }
+              } catch (lookupError) {
+                console.error("Failed to lookup owner:", lookupError);
+              }
+            } else {
+              ownerId = ownerMap.get(report.property_id);
+            }
+          }
+
+          if (!ownerId) {
+            console.warn(`No owner ID for property: ${report.property_name}`);
+            noOwnerCount++;
+            continue;
+          }
+
+          console.log(
+            `Sending email for property: ${report.property_name}, owner ID: ${ownerId}`
+          );
+
+          const response = await fetchWithAuth(`/api/email/send-owner-report`, {
+            method: "POST",
+            body: JSON.stringify({
+              ownerId: ownerId,
+              propertyId: report.property_id,
+              propertyName: report.property_name,
+              month: report.month,
+              year: report.year,
+              totalRevenue: parseFloat(report.revenue_amount || 0),
+              totalCleaning: parseFloat(report.cleaning_fees_amount || 0),
+              expenses: parseFloat(report.expenses_amount || 0),
+              profit: parseFloat(report.owner_profit || 0),
+              bookingCount: report.bookings_count || 0,
+              spreadsheetUrl: report.sheet_id
+                ? `https://docs.google.com/spreadsheets/d/${report.sheet_id}/edit`
+                : "",
+            }),
+          });
+
+          if (response.ok) {
+            successCount++;
+            // Update owner_email_sent status
+            await fetchWithAuth(`/api/property-month-end`, {
+              method: "POST",
+              body: JSON.stringify({
+                propertyId: report.property_id,
+                year: report.year,
+                monthNumber: report.month_number,
+                statusType: "email",
+                statusData: {
+                  ownerName: report.owner_name,
+                  ownerProfit: report.owner_profit,
+                },
+              }),
+            });
+          } else {
+            errorCount++;
+            console.error(`Failed to send email for ${report.property_name}`);
+          }
+        } catch (err) {
+          errorCount++;
+          console.error(
+            `Error sending email for ${report.property_name}:`,
+            err
+          );
+        }
+      }
+
+      // Updated result message to include properties with no owner
+      setErrorMessage(
+        `Email sending complete. Success: ${successCount}, Failed: ${errorCount}${
+          noOwnerCount > 0 ? `, Properties with no owner: ${noOwnerCount}` : ""
+        }`
+      );
+      setErrorDialogOpen(true);
+
+      // Refresh reports
+      const month = reportsMonth.format("MMMM");
+      const year = reportsMonth.format("YYYY");
+      fetchCompletedReports(month, year);
+    } catch (error) {
+      console.error("Error sending owner emails:", error);
+      setErrorMessage("Failed to send owner emails: " + error.message);
+      setErrorDialogOpen(true);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Add this function at the top of your file with the other useEffect hooks
+  useEffect(() => {
+    if (activeTab === 2) {
+      const month = reportsMonth.format("MMMM");
+      const year = reportsMonth.format("YYYY");
+      fetchCompletedReports(month, year);
+    }
+  }, [activeTab, reportsMonth]);
+
+  // Also add the missing downloadReportsSpreadsheet function
+  const downloadReportsSpreadsheet = () => {
+    if (!completedReports.length) return;
+
+    // Create CSV content
+    let csvContent =
+      "Property Name,Revenue,Cleaning Fees,Expenses,Net Amount,Owner %,Owner Payment\n";
+
+    completedReports.forEach((report) => {
+      csvContent += `"${report.property_name}",${parseFloat(
+        report.revenue_amount || 0
+      ).toFixed(2)},${parseFloat(report.cleaning_fees_amount || 0).toFixed(
+        2
+      )},${parseFloat(report.expenses_amount || 0).toFixed(2)},${parseFloat(
+        report.net_amount || 0
+      ).toFixed(2)},${report.owner_percentage || 100},${parseFloat(
+        report.owner_profit || 0
+      ).toFixed(2)}\n`;
+    });
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `month-end-reports-${reportsMonth.format("MMMM-YYYY")}.csv`
+    );
+    document.body.appendChild(link);
+
+    // Download it
+    link.click();
+
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+  };
+
+  // Update the table in the Month-End tab to include email buttons for each property
+
+  // First, add this function to send email for a single property
+  const sendSingleOwnerEmail = async (report) => {
+    try {
+      setUpdating(true);
+
+      // If no owner_id exists, try to fetch it directly
+      let ownerId = report.owner_id;
+
+      if (!ownerId) {
+        console.log(
+          `No owner ID in report for ${report.property_name}, trying to fetch directly...`
+        );
+
+        // Try to fetch the owner directly from the property
+        try {
+          const ownerResponse = await fetchWithAuth(
+            `/api/properties/${report.property_id}/owner`
+          );
+          if (ownerResponse.ok) {
+            const ownerData = await ownerResponse.json();
+            if (ownerData.success && ownerData.owner && ownerData.owner.id) {
+              ownerId = ownerData.owner.id;
+              console.log(
+                `Found owner ID ${ownerId} for property ${report.property_name}`
+              );
+            }
+          }
+        } catch (lookupError) {
+          console.error("Failed to lookup owner:", lookupError);
+        }
+      }
+
+      if (!ownerId) {
+        setErrorMessage(
+          `Cannot send email: No owner assigned to ${report.property_name}`
+        );
+        setErrorDialogOpen(true);
+        return;
+      }
+
+      console.log(
+        `Sending email for property: ${report.property_name}, owner ID: ${ownerId}`
+      );
+
+      const response = await fetchWithAuth(`/api/email/send-owner-report`, {
+        method: "POST",
+        body: JSON.stringify({
+          ownerId: ownerId, // Use the looked-up owner ID
+          propertyId: report.property_id,
+          propertyName: report.property_name,
+          month: report.month,
+          year: report.year,
+          totalRevenue: parseFloat(report.revenue_amount || 0),
+          totalCleaning: parseFloat(report.cleaning_fees_amount || 0),
+          expenses: parseFloat(report.expenses_amount || 0),
+          profit: parseFloat(report.owner_profit || 0),
+          bookingCount: report.bookings_count || 0,
+          spreadsheetUrl: report.sheet_id
+            ? `https://docs.google.com/spreadsheets/d/${report.sheet_id}/edit`
+            : "",
+        }),
+      });
+
+      if (response.ok) {
+        // Update the owner_email_sent status in the database
+        await fetchWithAuth(`/api/property-month-end`, {
+          method: "POST",
+          body: JSON.stringify({
+            propertyId: report.property_id,
+            year: report.year,
+            monthNumber: report.month_number,
+            statusType: "email",
+            statusData: {
+              ownerName: report.owner_name,
+              ownerProfit: report.owner_profit,
+            },
+          }),
+        });
+
+        // Show success message
+        setErrorMessage(`Email sent successfully for ${report.property_name}`);
+        setErrorDialogOpen(true);
+
+        // Refresh the reports to show updated email status
+        const month = reportsMonth.format("MMMM");
+        const year = reportsMonth.format("YYYY");
+        fetchCompletedReports(month, year);
+      } else {
+        throw new Error(`Failed to send email: ${await response.text()}`);
+      }
+    } catch (error) {
+      console.error(`Error sending email for ${report.property_name}:`, error);
+      setErrorMessage(`Failed to send email: ${error.message}`);
+      setErrorDialogOpen(true);
+    } finally {
+      setUpdating(false);
+    }
   };
 
   return (
@@ -1700,7 +1705,7 @@ const ReportsPage = () => {
                                   Updating...
                                 </span>
                               ) : (
-                                "Update Revenue Sheets"
+                                "Calculate Month End"
                               )}
                             </Button>
 
@@ -1792,8 +1797,6 @@ const ReportsPage = () => {
                             </p>
                           </div>
                         )}
-
-                        <ProcessingProgress />
 
                         {confirmedQueue.length > 0 && !isMultiProcessing && (
                           <div className="mb-4 p-4 bg-white/50 rounded-lg border border-primary/30">
@@ -1935,6 +1938,25 @@ const ReportsPage = () => {
                           >
                             Download Spreadsheet
                           </Button>
+
+                          {/* New Email Button */}
+                          <Button
+                            variant="contained"
+                            onClick={sendOwnerEmails}
+                            disabled={!completedReports.length}
+                            startIcon={<SendIcon />}
+                            className="bg-primary hover:bg-secondary hover:text-primary text-dark"
+                            sx={{
+                              textTransform: "none",
+                              backgroundColor: "#3f51b5",
+                              color: "white",
+                              "&:hover": {
+                                backgroundColor: "#303f9f",
+                              },
+                            }}
+                          >
+                            Send Owner Emails
+                          </Button>
                         </div>
                       </div>
 
@@ -1977,6 +1999,12 @@ const ReportsPage = () => {
                                 >
                                   Owner Payment
                                 </th>
+                                <th
+                                  scope="col"
+                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                >
+                                  Actions
+                                </th>
                               </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
@@ -2010,6 +2038,38 @@ const ReportsPage = () => {
                                     {parseFloat(
                                       report.owner_profit || 0
                                     ).toFixed(2)}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <Button
+                                      variant="contained"
+                                      onClick={() =>
+                                        sendSingleOwnerEmail(report)
+                                      }
+                                      disabled={
+                                        updating || report.owner_email_sent
+                                      }
+                                      startIcon={<SendIcon />}
+                                      size="small"
+                                      sx={{
+                                        textTransform: "none",
+                                        backgroundColor: report.owner_email_sent
+                                          ? "#cccccc"
+                                          : "#3f51b5",
+                                        color: "white",
+                                        "&:hover": {
+                                          backgroundColor:
+                                            report.owner_email_sent
+                                              ? "#cccccc"
+                                              : "#303f9f",
+                                        },
+                                        fontSize: "0.75rem",
+                                        padding: "2px 8px",
+                                      }}
+                                    >
+                                      {report.owner_email_sent
+                                        ? "Sent"
+                                        : "Email"}
+                                    </Button>
                                   </td>
                                 </tr>
                               ))}
@@ -2081,16 +2141,6 @@ const ReportsPage = () => {
                   <div className="text-dark text-sm">Total Revenue:</div>
                   <div className="text-dark font-medium">
                     ${revenueSummary.totalRevenue.toFixed(2)}
-                  </div>
-
-                  <div className="text-dark text-sm">Cleaning Fees:</div>
-                  <div className="text-dark font-medium">
-                    ${revenueSummary.totalCleaning.toFixed(2)}
-                  </div>
-
-                  <div className="text-dark text-sm">Expenses:</div>
-                  <div className="text-dark font-medium">
-                    ${revenueSummary.expenses.toFixed(2)}
                   </div>
 
                   <div className="text-dark text-sm">Net Amount:</div>
@@ -2191,10 +2241,10 @@ const ReportsPage = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Add this dialog to your component's JSX */}
+      {/* Month End Summary Dialog */}
       <Dialog
         open={summaryDialogOpen}
-        onClose={() => setSummaryDialogOpen(false)}
+        onClose={handleSummaryDialogClose} // Use the new handler
         PaperProps={{
           sx: {
             backgroundColor: "#fafafa",
@@ -2218,15 +2268,22 @@ const ReportsPage = () => {
         <DialogContent>
           <div className="mt-4">
             <h3 className="text-lg font-semibold mb-3">
-              {startDate.format("MMMM YYYY")} Month End Report
+              {startDate.format("MMMM YYYY")} Month End Summary
             </h3>
 
-            {consolidatedSummary.length > 0 ? (
+            {/* Fix: Check consolidatedSummary if processedSummary is empty */}
+            {processedSummary.length > 0 || consolidatedSummary.length > 0 ? (
               <div className="flex flex-col gap-4">
                 <div className="flex justify-end mb-2">
                   <Button
                     variant="outlined"
-                    onClick={() => downloadSummaryCSV(consolidatedSummary)}
+                    onClick={() =>
+                      downloadSummaryCSV(
+                        processedSummary.length > 0
+                          ? processedSummary
+                          : consolidatedSummary
+                      )
+                    }
                     startIcon={<DownloadIcon />}
                     sx={{
                       textTransform: "none",
@@ -2269,9 +2326,13 @@ const ReportsPage = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {consolidatedSummary.map((property) => (
+                      {/* Use whichever data source has content */}
+                      {(processedSummary.length > 0
+                        ? processedSummary
+                        : consolidatedSummary
+                      ).map((property, index) => (
                         <tr
-                          key={property.propertyId}
+                          key={`${property.propertyId || "unknown"}-${index}`}
                           className={property.hasError ? "bg-red-50" : ""}
                         >
                           <td className="px-4 py-2 whitespace-nowrap">
@@ -2306,7 +2367,7 @@ const ReportsPage = () => {
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap font-medium text-green-600">
                             {!property.hasError &&
-                              `$${property.ownerProfit.toFixed(2)}`}
+                              `$${(property.ownerProfit || 0).toFixed(2)}`}
                           </td>
                         </tr>
                       ))}
@@ -2315,8 +2376,9 @@ const ReportsPage = () => {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-40">
+              <div className="flex flex-col items-center justify-center h-40">
                 <CircularProgress sx={{ color: "#eccb34" }} />
+                <p className="mt-4 text-gray-500">Loading summary data...</p>
               </div>
             )}
 
@@ -2331,14 +2393,14 @@ const ReportsPage = () => {
         </DialogContent>
         <DialogActions>
           <Button
-            onClick={() => setSummaryDialogOpen(false)}
+            onClick={handleSummaryDialogClose}
             color="primary"
             sx={{
               textTransform: "none",
               fontSize: "1rem",
             }}
           >
-            Cancel
+            Close
           </Button>
           <Button
             onClick={processAllProperties}
@@ -2354,6 +2416,118 @@ const ReportsPage = () => {
             }}
           >
             Confirm & Process All
+          </Button>
+
+          {showNextBatchButton && currentBatch < totalBatches && (
+            <Button
+              // Update the onClick handler in the nextBatchDialog
+              onClick={() => {
+                setNextBatchDialogOpen(false);
+
+                // Process next batch
+                const nextBatch = currentBatch + 1;
+                setCurrentBatch(nextBatch);
+
+                // Clear only consolidated summary and processed properties, NOT processedSummary
+                setConsolidatedSummary([]);
+                setProcessedProperties([]);
+
+                const nextBatchStart = (nextBatch - 1) * 10;
+                const nextBatchEnd = Math.min(
+                  nextBatchStart + 10,
+                  selectedProperties.length
+                );
+                const nextBatchProperties = selectedProperties.slice(
+                  nextBatchStart,
+                  nextBatchEnd
+                );
+
+                console.log(
+                  `Processing next batch of ${nextBatchProperties.length} properties`
+                );
+                prepareAndProcessBatch(nextBatchProperties, nextBatch);
+              }}
+              variant="contained"
+              sx={{
+                textTransform: "none",
+                fontSize: "1rem",
+                backgroundColor: "#eccb34",
+                "&:hover": { backgroundColor: "#d4b02a" },
+              }}
+            >
+              Process Next Batch
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog for asking about the next batch */}
+      <Dialog
+        open={nextBatchDialogOpen}
+        onClose={() => setNextBatchDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
+            maxWidth: "500px",
+          },
+        }}
+      >
+        <DialogTitle>Process Next Batch?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Batch {currentBatch} of {totalBatches} completed successfully. Would
+            you like to process the next batch of properties?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setNextBatchDialogOpen(false);
+              setIsMultiProcessing(false);
+            }}
+            sx={{ textTransform: "none", fontSize: "1rem" }}
+          >
+            Stop Here
+          </Button>
+          <Button
+            onClick={() => {
+              setNextBatchDialogOpen(false);
+
+              // Process next batch
+              const nextBatch = currentBatch + 1;
+              setCurrentBatch(nextBatch);
+
+              // Clear any previous data
+              setConsolidatedSummary([]);
+              setProcessedProperties([]);
+
+              const nextBatchStart = (nextBatch - 1) * 10;
+              const nextBatchEnd = Math.min(
+                nextBatchStart + 10,
+                selectedProperties.length
+              );
+              const nextBatchProperties = selectedProperties.slice(
+                nextBatchStart,
+                nextBatchEnd
+              );
+
+              console.log(
+                `Processing next batch of ${nextBatchProperties.length} properties`
+              );
+              prepareAndProcessBatch(nextBatchProperties, nextBatch);
+            }}
+            variant="contained"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+              backgroundColor: "#eccb34",
+              "&:hover": { backgroundColor: "#d4b02a" },
+            }}
+          >
+            Process Next Batch
           </Button>
         </DialogActions>
       </Dialog>
