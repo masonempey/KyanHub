@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import EmailService from "@/lib/services/emailService";
+import emailService from "@/lib/services/emailService"; // Import as default export
 import OwnerService from "@/lib/services/ownerService";
 import EmailTemplateService from "@/lib/services/emailTemplateService";
+import googleService from "@/lib/services/googleService";
 
 export async function POST(request) {
   try {
@@ -16,11 +17,10 @@ export async function POST(request) {
       expenses,
       profit,
       bookingCount,
-      spreadsheetUrl, // Add this to extract it from the request
+      spreadsheetUrl,
     } = await request.json();
 
     console.log(`Attempting to send report email to owner ID: ${ownerId}`);
-    console.log(`Spreadsheet URL: ${spreadsheetUrl || "Not provided"}`);
 
     // Get the owner details
     let owner;
@@ -33,73 +33,108 @@ export async function POST(request) {
           { status: 404 }
         );
       }
-      console.log(`Found owner: ${owner.name}, email: ${owner.email}`);
     } catch (ownerError) {
-      console.error("Error retrieving owner:", ownerError);
+      console.error("Error fetching owner:", ownerError);
       return NextResponse.json(
-        {
-          success: false,
-          error: `Error retrieving owner: ${ownerError.message}`,
-        },
+        { success: false, error: "Failed to fetch owner" },
         { status: 500 }
       );
     }
 
-    // Validate owner has email address
-    if (!owner.email) {
-      console.error(`Owner ${owner.name} has no email address`);
-      return NextResponse.json(
-        { success: false, error: "Owner has no email address" },
-        { status: 400 }
-      );
-    }
+    // Format values for display
+    const formattedRevenue = parseFloat(totalRevenue).toFixed(2);
+    const formattedCleaning = parseFloat(totalCleaning).toFixed(2);
+    const formattedExpenses = parseFloat(expenses).toFixed(2);
+    const formattedProfit = parseFloat(profit).toFixed(2);
 
-    // Get the template ID from the owner record
-    const templateId = owner.template_id;
-    console.log(`Owner template ID: ${templateId || "none"}`);
+    // Extract the spreadsheet ID from the URL
+    let sheetId = "";
+    let attachment = null;
 
-    // If no template set for owner, use a default template
-    let template;
-    try {
-      if (templateId) {
-        template = await EmailTemplateService.getTemplateById(templateId);
-        console.log(
-          `Found owner's template: ${template ? template.name : "none"}`
-        );
+    if (spreadsheetUrl) {
+      console.log(`Original URL: ${spreadsheetUrl}`);
+
+      // Clean the URL if it contains duplicated URL structure
+      let cleanUrl = spreadsheetUrl;
+      if (
+        spreadsheetUrl.indexOf("https://") !==
+        spreadsheetUrl.lastIndexOf("https://")
+      ) {
+        // Extract just the last valid URL if there are duplicates
+        cleanUrl = "https://" + spreadsheetUrl.split("https://").pop();
+        console.log(`Cleaned URL: ${cleanUrl}`);
       }
 
-      if (!template) {
-        // Get the first template as default if owner doesn't have one
-        const templates = await EmailTemplateService.getAllTemplates();
-        template = templates.length > 0 ? templates[0] : null;
-        console.log(
-          `Using default template: ${template ? template.name : "none"}`
-        );
+      // Try multiple regex patterns to extract the ID
+      const patterns = [
+        /\/d\/([a-zA-Z0-9-_]{20,44})/, // Standard format /d/ID with length constraint
+        /spreadsheets\/d\/([a-zA-Z0-9-_]{20,44})/, // Full URL format
+        /id=([a-zA-Z0-9-_]{20,44})/, // URL parameter format id=ID
+        /^([a-zA-Z0-9-_]{20,44})$/, // Direct ID only
+      ];
 
-        if (!template) {
-          console.error("No email templates available");
-          return NextResponse.json(
-            { success: false, error: "No email templates available" },
-            { status: 400 }
-          );
+      for (const pattern of patterns) {
+        const matches = cleanUrl.match(pattern);
+        if (matches && matches[1]) {
+          sheetId = matches[1];
+          console.log(`Found sheet ID: ${sheetId} from cleaned URL`);
+          break;
         }
       }
-    } catch (templateError) {
-      console.error("Error retrieving email template:", templateError);
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Error retrieving email template: ${templateError.message}`,
-        },
-        { status: 500 }
-      );
-    }
 
-    // Format the numbers for display
-    const formattedRevenue = totalRevenue.toFixed(2);
-    const formattedCleaning = totalCleaning.toFixed(2);
-    const formattedExpenses = expenses.toFixed(2);
-    const formattedProfit = profit.toFixed(2);
+      // Verify the sheet ID looks valid (not containing http, https or other URL parts)
+      if (
+        sheetId &&
+        sheetId.length >= 20 &&
+        !sheetId.includes("/") &&
+        !sheetId.includes("\\")
+      ) {
+        try {
+          // Initialize Google service
+          await googleService.init();
+          console.log("Google service initialized");
+
+          // First verify the sheet exists
+          try {
+            const sheetMetadata = await googleService.sheets.spreadsheets.get({
+              spreadsheetId: sheetId,
+            });
+            console.log(
+              `Sheet verified: ${sheetMetadata.data.properties.title}`
+            );
+
+            // Export the sheet as Excel
+            const excelFile = await googleService.exportSheetAsExcel(
+              sheetId,
+              propertyName,
+              month,
+              year
+            );
+
+            // Create attachment object
+            attachment = {
+              filename: excelFile.fileName,
+              content: excelFile.content,
+              type: excelFile.mimeType,
+              disposition: "attachment",
+            };
+
+            console.log(
+              `Attachment object created with size: ${attachment.content.length} bytes`
+            );
+          } catch (verifyError) {
+            console.error(`Error verifying sheet existence:`, verifyError);
+            // If verification fails, the sheet doesn't exist or is inaccessible
+          }
+        } catch (sheetError) {
+          console.error("Error exporting spreadsheet:", sheetError);
+        }
+      } else {
+        console.error(
+          `Invalid sheet ID extracted: "${sheetId}" from URL: ${spreadsheetUrl}`
+        );
+      }
+    }
 
     // Create variables to replace in the email template
     const variables = {
@@ -112,49 +147,27 @@ export async function POST(request) {
       EXPENSES: formattedExpenses,
       PROFIT: formattedProfit,
       BOOKING_COUNT: bookingCount.toString(),
-      SPREADSHEET_URL: spreadsheetUrl || "", // This will now work correctly
-      REPORT_LINK: `${
-        process.env.NEXT_PUBLIC_BASE_URL || "https://www.kyanhub.com"
-      }/property-management/properties/${propertyId}`,
+      // Remove SPREADSHEET_URL from variables since we're attaching the file
     };
 
-    console.log(
-      `Sending email to ${owner.email} with template ID ${template.id}`
-    );
+    // Send the email with attachment
+    const emailResult = await emailService.sendTemplateEmail({
+      to: owner.email,
+      templateId: owner.template_id,
+      variables: variables,
+      attachments: attachment ? [attachment] : [],
+    });
 
-    // Send the email
-    try {
-      const emailResult = await EmailService.sendTemplateEmail({
-        to: owner.email,
-        templateId: template.id,
-        variables,
-      });
-
-      if (!emailResult.success) {
-        console.error("Failed to send email:", emailResult.error);
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Failed to send email: ${emailResult.error}`,
-          },
-          { status: 500 }
-        );
-      }
-
-      console.log(`Email sent successfully to ${owner.email}`);
-      return NextResponse.json({
-        success: true,
-        message: `Revenue report email sent to ${owner.email}`,
-      });
-    } catch (emailError) {
-      console.error("Error sending email:", emailError);
+    if (!emailResult.success) {
       return NextResponse.json(
-        { success: false, error: `Error sending email: ${emailError.message}` },
+        { success: false, error: emailResult.error },
         { status: 500 }
       );
     }
+
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Unhandled error in send-owner-report API:", error);
+    console.error("Error sending owner report:", error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
