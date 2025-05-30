@@ -1411,9 +1411,6 @@ const ReportsPage = () => {
     }, 100);
   };
 
-  // Update the table in the Month-End tab to include email buttons for each property
-
-  // First, add this function to send email for a single property
   const sendSingleOwnerEmail = async (report) => {
     try {
       setUpdating(true);
@@ -1422,10 +1419,6 @@ const ReportsPage = () => {
       let ownerId = report.owner_id;
 
       if (!ownerId) {
-        console.log(
-          `No owner ID in report for ${report.property_name}, trying to fetch directly...`
-        );
-
         // Try to fetch the owner directly from the property
         try {
           const ownerResponse = await fetchWithAuth(
@@ -1457,10 +1450,42 @@ const ReportsPage = () => {
         `Sending email for property: ${report.property_name}, owner ID: ${ownerId}`
       );
 
+      // Create a static copy of the spreadsheet for this report
+      let spreadsheetUrl = "";
+      if (report.sheet_id) {
+        try {
+          // Call the API to create a static copy
+          const response = await fetchWithAuth(
+            "/api/sheets/create-static-copy",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                sourceSheetId: report.sheet_id,
+                propertyName: report.property_name,
+                month: report.month,
+                year: report.year,
+              }),
+            }
+          );
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.sheetUrl) {
+              spreadsheetUrl = result.sheetUrl;
+              console.log(`Created static sheet copy: ${spreadsheetUrl}`);
+            }
+          }
+        } catch (error) {
+          console.error("Error creating static sheet copy:", error);
+          // Fall back to original sheet if copy fails
+          spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${report.sheet_id}/edit?usp=sharing`;
+        }
+      }
+
       const response = await fetchWithAuth(`/api/email/send-owner-report`, {
         method: "POST",
         body: JSON.stringify({
-          ownerId: ownerId, // Use the looked-up owner ID
+          ownerId: ownerId,
           propertyId: report.property_id,
           propertyName: report.property_name,
           month: report.month,
@@ -1470,9 +1495,9 @@ const ReportsPage = () => {
           expenses: parseFloat(report.expenses_amount || 0),
           profit: parseFloat(report.owner_profit || 0),
           bookingCount: report.bookings_count || 0,
-          spreadsheetUrl: report.sheet_id
-            ? `https://docs.google.com/spreadsheets/d/${report.sheet_id}/edit`
-            : "",
+          spreadsheetUrl:
+            spreadsheetUrl ||
+            `https://docs.google.com/spreadsheets/d/${report.sheet_id}/edit?usp=sharing`,
         }),
       });
 
