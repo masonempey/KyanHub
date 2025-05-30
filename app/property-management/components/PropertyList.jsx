@@ -25,6 +25,9 @@ import EditIcon from "@mui/icons-material/Edit";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 import { useProperties } from "@/contexts/PropertyContext";
 
+const ITEM_HEIGHT = 48;
+const ITEM_PADDING_TOP = 8;
+
 const PropertyList = ({
   properties = {},
   propertyDetails: propDetails,
@@ -180,6 +183,47 @@ const PropertyList = ({
     setDisplayCount(event.target.value);
   };
 
+  // Update MenuProps to prevent auto-closing on clicks within the menu
+  const MenuProps = {
+    PaperProps: {
+      style: {
+        maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
+        width: 250,
+        backgroundColor: "#fafafa",
+        color: "#333333",
+        boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+        border: "1px solid rgba(236, 203, 52, 0.3)",
+        borderRadius: "8px",
+      },
+    },
+    // This will help prevent menu closing when clicking buttons
+    anchorOrigin: {
+      vertical: "bottom",
+      horizontal: "left",
+    },
+    transformOrigin: {
+      vertical: "top",
+      horizontal: "left",
+    },
+    getContentAnchorEl: null,
+  };
+
+  // Update the button click handlers to prevent propagation
+  const handleSelectAll = (event) => {
+    event.stopPropagation(); // Prevent dropdown from closing
+    if (onChange) {
+      const allPropertyIds = propertyArray.map((property) => property.id);
+      onChange(allPropertyIds);
+    }
+  };
+
+  const handleClearAll = (event) => {
+    event.stopPropagation(); // Prevent dropdown from closing
+    if (onChange) {
+      onChange([]);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Controls for pagination/display */}
@@ -197,6 +241,7 @@ const PropertyList = ({
             renderValue={(value) =>
               `Show: ${value === totalProperties ? "All" : value}`
             }
+            MenuProps={MenuProps}
             sx={{
               height: "40px",
               ".MuiOutlinedInput-notchedOutline": {

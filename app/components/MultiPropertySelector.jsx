@@ -11,6 +11,8 @@ import {
   Select,
   Box,
   Chip,
+  Button,
+  Divider,
 } from "@mui/material";
 
 const ITEM_HEIGHT = 48;
@@ -47,6 +49,28 @@ const MultiPropertySelector = ({
     const { value } = event.target;
     if (onChange) {
       onChange(value);
+    }
+  };
+
+  // Add select all functionality
+  const handleSelectAll = (event) => {
+    if (event) {
+      event.stopPropagation(); // Prevent dropdown from closing
+    }
+    if (onChange) {
+      // Get all property IDs
+      const allPropertyIds = propertyArray.map((property) => property.id);
+      onChange(allPropertyIds);
+    }
+  };
+
+  // Add clear all functionality
+  const handleClearAll = (event) => {
+    if (event) {
+      event.stopPropagation(); // Prevent dropdown from closing
+    }
+    if (onChange) {
+      onChange([]);
     }
   };
 
@@ -110,6 +134,47 @@ const MultiPropertySelector = ({
             },
           }}
         >
+          {/* Add Select All/Clear All buttons at the top of the dropdown */}
+          <MenuItem
+            key="buttons-container"
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              p: 1,
+              borderBottom: "1px solid rgba(0,0,0,0.1)",
+              "&:hover": {
+                backgroundColor: "transparent",
+              },
+            }}
+            disableRipple
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Button
+              size="small"
+              onClick={handleSelectAll}
+              sx={{
+                color: "#eccb34",
+                textTransform: "none",
+                "&:hover": { bgcolor: "rgba(236, 203, 52, 0.1)" },
+              }}
+            >
+              Select All
+            </Button>
+            <Button
+              size="small"
+              onClick={handleClearAll}
+              sx={{
+                color: "#eccb34",
+                textTransform: "none",
+                "&:hover": { bgcolor: "rgba(236, 203, 52, 0.1)" },
+              }}
+            >
+              Clear All
+            </Button>
+          </MenuItem>
+          <Divider />
+
+          {/* Original property items */}
           {propertyArray.map((property) => (
             <MenuItem key={property.id} value={property.id}>
               <Checkbox
