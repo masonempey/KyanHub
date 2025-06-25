@@ -25,6 +25,7 @@ import MultiPropertySelector from "../components/MultiPropertySelector";
 import MonthEndStatus from "../components/MonthEndStatus";
 import DownloadIcon from "@mui/icons-material/Download";
 import SendIcon from "@mui/icons-material/Send";
+import ClientOnly from "@/app/components/ClientOnly";
 
 // Define monthNames array
 const monthNames = [
@@ -88,6 +89,13 @@ const ReportsPage = () => {
 
   // Add this to your state variables
   const [processedSummary, setProcessedSummary] = useState([]);
+
+  // New state for invoice generation
+  const [invoiceMonth, setInvoiceMonth] = useState(dayjs());
+  const [selectedPropertyForInvoice, setSelectedPropertyForInvoice] =
+    useState(null);
+  const [invoiceResult, setInvoiceResult] = useState(null);
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -1537,6 +1545,82 @@ const ReportsPage = () => {
     }
   };
 
+  // Add this function to generate an inventory invoice
+  const generateInventoryInvoice = async () => {
+    if (!selectedPropertyForInvoice) {
+      setErrorMessage("Please select a property.");
+      setErrorDialogOpen(true);
+      return;
+    }
+
+    const propertyName =
+      typeof allProperties[selectedPropertyForInvoice] === "object"
+        ? allProperties[selectedPropertyForInvoice].name
+        : allProperties[selectedPropertyForInvoice] || "Unknown Property";
+
+    const month = invoiceMonth.format("MMMM");
+    const year = invoiceMonth.format("YYYY");
+    const monthNumber = invoiceMonth.month() + 1;
+
+    setGeneratingInvoice(true);
+    setInvoiceResult(null);
+
+    try {
+      const response = await fetchWithAuth("/api/inventory/auto-generate", {
+        method: "POST",
+        body: JSON.stringify({
+          propertyId: selectedPropertyForInvoice,
+          propertyName,
+          month,
+          year,
+          monthNumber,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to generate invoice: ${await response.text()}`);
+      }
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to generate inventory invoice");
+      }
+
+      // Set the result for display
+      setInvoiceResult({
+        propertyId: selectedPropertyForInvoice,
+        propertyName,
+        month,
+        year,
+        totalAmount: result.data?.totalAmount || 0,
+        noItemsFound: result.data?.noItemsFound || false,
+      });
+
+      // Update the month-end status for this property
+      await fetchWithAuth(`/api/property-month-end`, {
+        method: "POST",
+        body: JSON.stringify({
+          propertyId: selectedPropertyForInvoice,
+          year,
+          month,
+          monthNumber,
+          statusType: "inventory",
+          statusData: {
+            totalAmount: result.data?.totalAmount || 0,
+            noItemsFound: result.data?.noItemsFound || false,
+          },
+        }),
+      });
+    } catch (error) {
+      console.error("Error generating inventory invoice:", error);
+      setErrorMessage(`Failed to generate inventory invoice: ${error.message}`);
+      setErrorDialogOpen(true);
+    } finally {
+      setGeneratingInvoice(false);
+    }
+  };
+
   return (
     <AdminProtected>
       <div className="flex flex-col h-full w-full p-6 bg-transparent">
@@ -1574,6 +1658,7 @@ const ReportsPage = () => {
                   <Tab label="Booking Reports" />
                   <Tab label="Email Templates" />
                   <Tab label="Month-End Reports" />
+                  <Tab label="Inventory Invoices" />
                 </Tabs>
               </div>
 
@@ -1916,198 +2001,404 @@ const ReportsPage = () => {
 
                 {activeTab === 1 && (
                   <div className="flex-1 h-full overflow-auto">
-                    <EmailTemplates />
+                    <ClientOnly
+                      fallback={
+                        <div className="p-4">Loading email templates...</div>
+                      }
+                    >
+                      <EmailTemplates />
+                    </ClientOnly>
                   </div>
                 )}
 
                 {activeTab === 2 && (
                   <div className="flex-1 h-full overflow-auto p-4">
-                    <div className="bg-white/50 rounded-xl shadow-sm border border-primary/10 p-6">
-                      <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-semibold text-dark">
-                          Month-End Reports
-                        </h3>
+                    <ClientOnly
+                      fallback={
+                        <div className="p-4">Loading month-end reports...</div>
+                      }
+                    >
+                      <div className="bg-white/50 rounded-xl shadow-sm border border-primary/10 p-6">
+                        <div className="flex justify-between items-center mb-6">
+                          <h3 className="text-xl font-semibold text-dark">
+                            Month-End Reports
+                          </h3>
 
-                        <div className="flex gap-4 items-center">
-                          <LocalizationProvider dateAdapter={AdapterDayjs}>
-                            <DatePicker
-                              value={reportsMonth}
-                              onChange={setReportsMonth}
-                              views={["month", "year"]}
-                              className="bg-white rounded-lg border border-primary/30"
-                              slotProps={{
-                                textField: {
-                                  size: "small",
-                                  sx: {
-                                    "& .MuiOutlinedInput-root": {
-                                      borderColor: "#eccb34",
+                          <div className="flex gap-4 items-center">
+                            <LocalizationProvider dateAdapter={AdapterDayjs}>
+                              <DatePicker
+                                value={reportsMonth}
+                                onChange={setReportsMonth}
+                                views={["month", "year"]}
+                                className="bg-white rounded-lg border border-primary/30"
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    sx: {
+                                      "& .MuiOutlinedInput-root": {
+                                        borderColor: "#eccb34",
+                                      },
                                     },
                                   },
+                                }}
+                              />
+                            </LocalizationProvider>
+
+                            <Button
+                              variant="contained"
+                              onClick={downloadReportsSpreadsheet}
+                              disabled={!completedReports.length}
+                              className="bg-primary hover:bg-secondary hover:text-primary text-dark"
+                              sx={{
+                                textTransform: "none",
+                                backgroundColor: "#eccb34",
+                                "&:hover": {
+                                  backgroundColor: "#d4b02a",
                                 },
                               }}
-                            />
-                          </LocalizationProvider>
+                            >
+                              Download Spreadsheet
+                            </Button>
 
-                          <Button
-                            variant="contained"
-                            onClick={downloadReportsSpreadsheet}
-                            disabled={!completedReports.length}
-                            className="bg-primary hover:bg-secondary hover:text-primary text-dark"
-                            sx={{
-                              textTransform: "none",
-                              backgroundColor: "#eccb34",
-                              "&:hover": {
-                                backgroundColor: "#d4b02a",
-                              },
-                            }}
-                          >
-                            Download Spreadsheet
-                          </Button>
-
-                          {/* New Email Button */}
-                          <Button
-                            variant="contained"
-                            onClick={sendOwnerEmails}
-                            disabled={!completedReports.length}
-                            startIcon={<SendIcon />}
-                            className="bg-primary hover:bg-secondary hover:text-primary text-dark"
-                            sx={{
-                              textTransform: "none",
-                              backgroundColor: "#3f51b5",
-                              color: "white",
-                              "&:hover": {
-                                backgroundColor: "#303f9f",
-                              },
-                            }}
-                          >
-                            Send Owner Emails
-                          </Button>
+                            {/* New Email Button */}
+                            <Button
+                              variant="contained"
+                              onClick={sendOwnerEmails}
+                              disabled={!completedReports.length}
+                              startIcon={<SendIcon />}
+                              className="bg-primary hover:bg-secondary hover:text-primary text-dark"
+                              sx={{
+                                textTransform: "none",
+                                backgroundColor: "#3f51b5",
+                                color: "white",
+                                "&:hover": {
+                                  backgroundColor: "#303f9f",
+                                },
+                              }}
+                            >
+                              Send Owner Emails
+                            </Button>
+                          </div>
                         </div>
-                      </div>
 
-                      {loadingReports ? (
-                        <div className="flex justify-center py-8">
-                          <CircularProgress sx={{ color: "#eccb34" }} />
-                        </div>
-                      ) : completedReports.length > 0 ? (
-                        <div className="overflow-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-primary/10">
-                              <tr>
-                                <th
-                                  scope="col"
-                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                >
-                                  Property
-                                </th>
-                                <th
-                                  scope="col"
-                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                >
-                                  Revenue
-                                </th>
-                                <th
-                                  scope="col"
-                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                >
-                                  Net Amount
-                                </th>
-                                <th
-                                  scope="col"
-                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                >
-                                  Owner %
-                                </th>
-                                <th
-                                  scope="col"
-                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                >
-                                  Owner Payment
-                                </th>
-                                <th
-                                  scope="col"
-                                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                >
-                                  Actions
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {completedReports.map((report) => (
-                                <tr
-                                  key={report.property_id}
-                                  className="hover:bg-gray-50"
-                                >
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="font-medium text-gray-900">
-                                      {report.property_name}
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    $
-                                    {parseFloat(
-                                      report.revenue_amount || 0
-                                    ).toFixed(2)}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    $
-                                    {parseFloat(report.net_amount || 0).toFixed(
-                                      2
-                                    )}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    {report.owner_percentage || 100}%
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap font-medium text-green-600">
-                                    $
-                                    {parseFloat(
-                                      report.owner_profit || 0
-                                    ).toFixed(2)}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <Button
-                                      variant="contained"
-                                      onClick={() =>
-                                        sendSingleOwnerEmail(report)
-                                      }
-                                      disabled={
-                                        updating || report.owner_email_sent
-                                      }
-                                      startIcon={<SendIcon />}
-                                      size="small"
-                                      sx={{
-                                        textTransform: "none",
-                                        backgroundColor: report.owner_email_sent
-                                          ? "#cccccc"
-                                          : "#3f51b5",
-                                        color: "white",
-                                        "&:hover": {
+                        {loadingReports ? (
+                          <div className="flex justify-center py-8">
+                            <CircularProgress sx={{ color: "#eccb34" }} />
+                          </div>
+                        ) : completedReports.length > 0 ? (
+                          <div className="overflow-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-primary/10">
+                                <tr>
+                                  <th
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
+                                    Property
+                                  </th>
+                                  <th
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
+                                    Revenue
+                                  </th>
+                                  <th
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
+                                    Net Amount
+                                  </th>
+                                  <th
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
+                                    Owner %
+                                  </th>
+                                  <th
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
+                                    Owner Payment
+                                  </th>
+                                  <th
+                                    scope="col"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                  >
+                                    Actions
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {completedReports.map((report) => (
+                                  <tr
+                                    key={report.property_id}
+                                    className="hover:bg-gray-50"
+                                  >
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <div className="font-medium text-gray-900">
+                                        {report.property_name}
+                                      </div>
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      $
+                                      {parseFloat(
+                                        report.revenue_amount || 0
+                                      ).toFixed(2)}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      $
+                                      {parseFloat(
+                                        report.net_amount || 0
+                                      ).toFixed(2)}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      {report.owner_percentage || 100}%
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap font-medium text-green-600">
+                                      $
+                                      {parseFloat(
+                                        report.owner_profit || 0
+                                      ).toFixed(2)}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                      <Button
+                                        variant="contained"
+                                        onClick={() =>
+                                          sendSingleOwnerEmail(report)
+                                        }
+                                        disabled={
+                                          updating || report.owner_email_sent
+                                        }
+                                        startIcon={<SendIcon />}
+                                        size="small"
+                                        sx={{
+                                          textTransform: "none",
                                           backgroundColor:
                                             report.owner_email_sent
                                               ? "#cccccc"
-                                              : "#303f9f",
-                                        },
-                                        fontSize: "0.75rem",
-                                        padding: "2px 8px",
-                                      }}
-                                    >
-                                      {report.owner_email_sent
-                                        ? "Sent"
-                                        : "Email"}
-                                    </Button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                                              : "#3f51b5",
+                                          color: "white",
+                                          "&:hover": {
+                                            backgroundColor:
+                                              report.owner_email_sent
+                                                ? "#cccccc"
+                                                : "#303f9f",
+                                          },
+                                          fontSize: "0.75rem",
+                                          padding: "2px 8px",
+                                        }}
+                                      >
+                                        {report.owner_email_sent
+                                          ? "Sent"
+                                          : "Email"}
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            No completed month-end reports found for{" "}
+                            {reportsMonth.format("MMMM YYYY")}
+                          </div>
+                        )}
+                      </div>
+                    </ClientOnly>
+                  </div>
+                )}
+
+                {activeTab === 3 && (
+                  <div className="flex-1 h-full overflow-auto p-4">
+                    <ClientOnly
+                      fallback={
+                        <div className="p-4">Loading inventory invoices...</div>
+                      }
+                    >
+                      <div className="bg-white/50 rounded-xl shadow-sm border border-primary/10 p-6">
+                        <div className="flex justify-between items-center mb-6">
+                          <h3 className="text-xl font-semibold text-dark">
+                            Inventory Invoices
+                          </h3>
+
+                          <div className="flex gap-4 items-center">
+                            <LocalizationProvider dateAdapter={AdapterDayjs}>
+                              <DatePicker
+                                value={invoiceMonth}
+                                onChange={setInvoiceMonth}
+                                views={["month", "year"]}
+                                className="bg-white rounded-lg border border-primary/30"
+                                slotProps={{
+                                  textField: {
+                                    size: "small",
+                                    sx: {
+                                      "& .MuiOutlinedInput-root": {
+                                        borderColor: "#eccb34",
+                                      },
+                                    },
+                                  },
+                                }}
+                              />
+                            </LocalizationProvider>
+                          </div>
                         </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-500">
-                          No completed month-end reports found for{" "}
-                          {reportsMonth.format("MMMM YYYY")}
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                          {/* Property Selection Column */}
+                          <div className="lg:col-span-1">
+                            <div className="bg-white/80 rounded-xl shadow-sm border border-primary/10 p-4">
+                              <h4 className="text-lg font-semibold mb-3 text-dark">
+                                Select Property
+                              </h4>
+
+                              <div className="mb-4">
+                                <MultiPropertySelector
+                                  properties={allProperties}
+                                  selectedProperties={
+                                    selectedPropertyForInvoice
+                                      ? [selectedPropertyForInvoice]
+                                      : []
+                                  }
+                                  onChange={(ids) =>
+                                    setSelectedPropertyForInvoice(
+                                      ids.length > 0 ? ids[0] : null
+                                    )
+                                  }
+                                  loading={loading || propertiesLoading}
+                                  label="Select Property"
+                                  singleSelection={true}
+                                />
+                              </div>
+
+                              <Button
+                                variant="contained"
+                                onClick={generateInventoryInvoice}
+                                disabled={
+                                  !selectedPropertyForInvoice ||
+                                  generatingInvoice
+                                }
+                                fullWidth
+                                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium py-2 rounded-lg shadow-md transition-colors duration-300"
+                                sx={{
+                                  textTransform: "none",
+                                  fontSize: "1rem",
+                                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                                  "&:hover": {
+                                    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                                  },
+                                }}
+                              >
+                                {generatingInvoice ? (
+                                  <span className="flex items-center justify-center">
+                                    <CircularProgress
+                                      size={20}
+                                      sx={{ color: "#333333", mr: 1 }}
+                                    />
+                                    Generating...
+                                  </span>
+                                ) : (
+                                  "Generate Inventory Invoice"
+                                )}
+                              </Button>
+                            </div>
+
+                            {/* Month End Status for Selected Property */}
+                            {selectedPropertyForInvoice && (
+                              <div className="mt-4">
+                                <MonthEndStatus
+                                  propertyId={selectedPropertyForInvoice}
+                                  propertyName={
+                                    typeof allProperties[
+                                      selectedPropertyForInvoice
+                                    ] === "object"
+                                      ? allProperties[
+                                          selectedPropertyForInvoice
+                                        ].name
+                                      : allProperties[
+                                          selectedPropertyForInvoice
+                                        ]
+                                  }
+                                  year={invoiceMonth.format("YYYY")}
+                                  month={invoiceMonth.format("MMMM")}
+                                  monthNumber={invoiceMonth.month() + 1}
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Invoice Results Column */}
+                          <div className="lg:col-span-2">
+                            <div className="bg-white/80 rounded-xl shadow-sm border border-primary/10 p-4 h-full">
+                              <h4 className="text-lg font-semibold mb-3 text-dark">
+                                Invoice Result
+                              </h4>
+
+                              {invoiceResult ? (
+                                <div className="p-4 rounded-lg border border-primary/20 bg-primary/5">
+                                  <div className="flex items-center mb-3">
+                                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center mr-3">
+                                      <span className="text-primary font-bold">
+                                        ✓
+                                      </span>
+                                    </div>
+                                    <h5 className="text-lg font-semibold text-dark">
+                                      Invoice Generated Successfully
+                                    </h5>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-4 mt-4">
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Property
+                                      </p>
+                                      <p className="font-medium">
+                                        {invoiceResult.propertyName}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Period
+                                      </p>
+                                      <p className="font-medium">
+                                        {invoiceResult.month}{" "}
+                                        {invoiceResult.year}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Status
+                                      </p>
+                                      <p className="font-medium">
+                                        {invoiceResult.noItemsFound
+                                          ? "No Items Found"
+                                          : "Invoice Created"}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-sm text-gray-500">
+                                        Total Amount
+                                      </p>
+                                      <p className="font-medium">
+                                        $
+                                        {parseFloat(
+                                          invoiceResult.totalAmount || 0
+                                        ).toFixed(2)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center justify-center h-[300px] text-gray-500">
+                                  Select a property and click &quot;Generate
+                                  Inventory Invoice&quot; to create an invoice
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    </ClientOnly>
                   </div>
                 )}
               </div>
