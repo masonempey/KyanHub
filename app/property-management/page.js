@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useProperties } from "@/contexts/PropertyContext";
 import MaintenanceSection from "./MaintenanceSection";
 import InventorySection from "./InventorySection";
@@ -16,6 +16,7 @@ import Tab from "@mui/material/Tab";
 import Button from "@mui/material/Button";
 import SettingsIcon from "@mui/icons-material/Settings";
 import HomeWorkIcon from "@mui/icons-material/HomeWork";
+import fetchWithAuth from "@/lib/fetchWithAuth";
 
 export default function PropertyManagementPage() {
   const { user, loading: userLoading } = useUser();
@@ -27,7 +28,14 @@ export default function PropertyManagementPage() {
 
   const [rightActiveTab, setRightActiveTab] = useState(0);
   const [leftActiveTab, setLeftActiveTab] = useState(0);
-  const [mainView, setMainView] = useState("operations"); // "operations" or "management"
+  const [mainView, setMainView] = useState("operations");
+  const [activeTab, setActiveTab] = useState(0);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+  const [properties, setProperties] = useState({});
+  const [loadingProperties, setLoadingProperties] = useState(true);
 
   const handleRightTabChange = (event, newValue) => {
     setRightActiveTab(newValue);
@@ -40,6 +48,30 @@ export default function PropertyManagementPage() {
   const handleMainViewChange = (view) => {
     setMainView(view);
   };
+
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
+  useEffect(() => {
+    const fetchProperties = async () => {
+      setLoadingProperties(true);
+      try {
+        const response = await fetchWithAuth("/api/properties");
+        if (!response.ok) {
+          throw new Error("Failed to fetch properties");
+        }
+        const data = await response.json();
+        setProperties(data.properties || {});
+      } catch (error) {
+        console.error("Error fetching properties:", error);
+      } finally {
+        setLoadingProperties(false);
+      }
+    };
+
+    fetchProperties();
+  }, []);
 
   if (userLoading || propertiesLoading) {
     return (

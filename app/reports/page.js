@@ -71,16 +71,9 @@ const ReportsPage = () => {
   const [processingTotal, setProcessingTotal] = useState(0);
   const [processedProperties, setProcessedProperties] = useState([]);
   const [isMultiProcessing, setIsMultiProcessing] = useState(false);
-  const [confirmedQueue, setConfirmedQueue] = useState([]);
   const [showProcessButton, setShowProcessButton] = useState(false);
   const [consolidatedSummary, setConsolidatedSummary] = useState([]);
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
-
-  const [currentBatch, setCurrentBatch] = useState(1);
-  const [totalBatches, setTotalBatches] = useState(1);
-  const [originalSummary, setOriginalSummary] = useState([]);
-  const [showNextBatchButton, setShowNextBatchButton] = useState(false);
-  const [nextBatchDialogOpen, setNextBatchDialogOpen] = useState(false);
 
   // Add these new state variables at the top
   const [completedReports, setCompletedReports] = useState([]);
@@ -96,6 +89,9 @@ const ReportsPage = () => {
     useState(null);
   const [invoiceResult, setInvoiceResult] = useState(null);
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
+
+  // Add this state at the top with your other state variables
+  const [isDryRun, setIsDryRun] = useState(false);
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -239,43 +235,6 @@ const ReportsPage = () => {
     setErrors(newErrors);
   };
 
-  // Updated handleSkipProperty function
-  const handleSkipProperty = () => {
-    setConfirmDialogOpen(false);
-
-    if (!revenueSummary || !revenueSummary.isMultiProperty) {
-      return;
-    }
-
-    const nextIndex = revenueSummary.currentIndex + 1;
-
-    // Log that we're skipping this property
-    console.log(
-      `Skipping property: ${revenueSummary.propertyName} (not added to queue)`
-    );
-
-    // If there are more properties to process
-    if (nextIndex < selectedProperties.length) {
-      // Move to next property for confirmation
-      setProcessingIndex(nextIndex);
-      preparePropertyData(nextIndex);
-    } else {
-      // If this was the last property, process whatever is in the queue
-      if (confirmedQueue.length > 0) {
-        setTimeout(() => {
-          console.log(
-            `Processing queue with ${confirmedQueue.length} confirmed properties`
-          );
-          processConfirmedQueue();
-        }, 500);
-      } else {
-        // If no properties were confirmed, just end the process
-        setIsMultiProcessing(false);
-        console.log("No properties confirmed for processing");
-      }
-    }
-  };
-
   const handleSearchBookings = () => {
     if (startDate && endDate && !endDate.isBefore(startDate)) {
       fetchBookingsForMultipleProperties();
@@ -286,8 +245,8 @@ const ReportsPage = () => {
     }
   };
 
-  // Fix the handleMultiPropertyUpdate function to ensure proper state reset
-  const handleMultiPropertyUpdate = () => {
+  // Modified handleMultiPropertyUpdate function - replaces existing version
+  const handleMultiPropertyUpdate = async () => {
     if (!selectedProperties.length) {
       setErrorMessage("Please select at least one property.");
       setErrorDialogOpen(true);
@@ -302,107 +261,69 @@ const ReportsPage = () => {
 
     console.log("Starting property data collection...");
 
-    // IMPORTANT: Reset ALL state variables completely before starting a new run
+    // Reset processing state
     setConsolidatedSummary([]);
     setProcessedProperties([]);
-    setOriginalSummary([]);
-
-    // Reset summary data with a direct state update (not a function update)
     setProcessedSummary([]);
-
-    // Close any open dialogs
     setSummaryDialogOpen(false);
-    setNextBatchDialogOpen(false);
-
-    // Reset batch counters
-    setCurrentBatch(1);
-    setTotalBatches(Math.ceil(selectedProperties.length / 10));
-
-    // Only prepare and process the first 10 properties
-    const firstBatchProperties = selectedProperties.slice(0, 10);
-    setProcessingIndex(0);
-    setProcessingTotal(firstBatchProperties.length);
     setIsMultiProcessing(true);
+    setProcessingTotal(selectedProperties.length);
+    setProcessingIndex(0);
 
-    // Add a small delay to ensure state is updated before processing
-    setTimeout(() => {
-      console.log("States reset, starting batch processing...");
-      prepareAndProcessBatch(firstBatchProperties, 1);
-    }, 300);
-  };
+    try {
+      // Prepare data for all properties at once
+      const allPropertyData = [];
+      let index = 0;
 
-  // Replace the prepareAndProcessBatch function with this improved version
-  const prepareAndProcessBatch = async (propertiesToProcess, batchNumber) => {
-    // Store data for all properties in this batch
-    const batchData = [];
+      for (const propertyId of selectedProperties) {
+        setProcessingIndex(index++);
 
-    // Reset only processed properties, NOT processedSummary
-    setProcessedProperties([]);
+        try {
+          const propertyData = await preparePropertyDataForProcessing(
+            propertyId
+          );
+          allPropertyData.push(propertyData);
 
-    console.log(`Starting to prepare data for batch ${batchNumber}`);
+          // Update the consolidated summary as we go
+          setConsolidatedSummary((prev) => [...prev, propertyData]);
+        } catch (error) {
+          console.error(
+            `Error preparing data for property ${propertyId}:`,
+            error
+          );
 
-    // Prepare data for each property
-    for (let i = 0; i < propertiesToProcess.length; i++) {
-      const propertyId = propertiesToProcess[i];
-      setProcessingIndex(i);
-
-      try {
-        // Prepare property data
-        const propertyData = await preparePropertyDataForBatch(propertyId);
-        batchData.push(propertyData);
-      } catch (error) {
-        console.error(
-          `Error preparing data for property ${propertyId}:`,
-          error
-        );
-        batchData.push({
-          propertyId,
-          propertyName:
+          const propertyName =
             typeof allProperties[propertyId] === "object"
               ? allProperties[propertyId].name
-              : allProperties[propertyId] || "Unknown Property",
-          error: error.message,
-          hasError: true,
-        });
+              : allProperties[propertyId] || "Unknown Property";
+
+          // Add error to summary
+          setConsolidatedSummary((prev) => [
+            ...prev,
+            {
+              propertyId,
+              propertyName,
+              error: error.message,
+              hasError: true,
+            },
+          ]);
+        }
       }
-    }
 
-    // Set this batch's data for processing
-    setConsolidatedSummary(batchData);
-
-    // IMPORTANT: Don't process immediately - show dialog first
-    // REMOVE THIS LINE: await processAllProperties();
-
-    // After preparing data, show the summary dialog
-    setTimeout(() => {
-      setSummaryDialogOpen(true);
-    }, 500);
-
-    // After processing, if there are more properties, show dialog to process next batch
-    const nextBatchStart = batchNumber * 10;
-    if (nextBatchStart < selectedProperties.length) {
-      // Show dialog asking to process next batch, BUT DON'T show summary yet
-      setShowNextBatchButton(true);
-    } else {
-      // All batches are prepared - don't process yet
-      setProcessedProperties((prev) => [
-        ...prev,
-        {
-          propertyId: "complete",
-          propertyName: "✅ ALL BATCHES READY ✅",
-          success: true,
-          message:
-            "All properties have been prepared. Click 'Confirm & Process All' to update.",
-        },
-      ]);
-
-      // Reset the processing state
+      // Show summary dialog for confirmation
+      setTimeout(() => {
+        setSummaryDialogOpen(true);
+      }, 500);
+    } catch (error) {
+      console.error("Error collecting property data:", error);
+      setErrorMessage(error.message);
+      setErrorDialogOpen(true);
       setIsMultiProcessing(false);
     }
   };
 
-  // Helper function to prepare data for a single property
-  const preparePropertyDataForBatch = async (propertyId) => {
+  // Helper function to prepare property data
+  const preparePropertyDataForProcessing = async (propertyId) => {
     const propertyName =
       typeof allProperties[propertyId] === "object"
         ? allProperties[propertyId].name
@@ -414,9 +335,9 @@ const ReportsPage = () => {
     );
 
     if (propertyBookings.length === 0) {
-      // No bookings for this property, return with zero values
+      // No bookings for this property
       return {
-        propertyId: propertyId,
+        propertyId,
         propertyName,
         totalRevenue: 0,
         totalCleaning: 0,
@@ -429,17 +350,17 @@ const ReportsPage = () => {
       };
     }
 
-    // Calculate revenue metrics for this property
+    // Calculate revenue metrics
     const monthIndex = startDate.month();
     const monthName = monthNames[monthIndex];
     const year = startDate.format("YYYY");
 
-    // API calls to get expenses and owner info
+    // Get expenses and owner info
     const [expensesResponse, ownerResponse] = await Promise.all([
       fetchWithAuth(`/api/sheets/expenses`, {
         method: "POST",
         body: JSON.stringify({
-          propertyId: propertyId,
+          propertyId,
           year,
           monthName,
         }),
@@ -482,7 +403,7 @@ const ReportsPage = () => {
       return sum + revenue;
     }, 0);
 
-    // Calculate cleaning fees
+    // Calculate cleaning fees - using fixed fees by property type
     const totalCleaning = propertyBookings.reduce((sum, booking) => {
       const cleaningMatch =
         booking.cleaningFeeMonth === monthYearKeyPadded ||
@@ -491,11 +412,11 @@ const ReportsPage = () => {
       return sum + cleaning;
     }, 0);
 
-    // Calculate net amount and owner profit
-    const netAmount = totalRevenue - totalCleaning - expensesTotal;
-    const ownerProfit = (netAmount * ownershipPercentage) / 100;
+    // Fixed the calculation as discussed
+    const netAmount = totalRevenue - totalCleaning;
+    const ownerGrossAmount = (netAmount * ownershipPercentage) / 100;
+    const ownerProfit = ownerGrossAmount - expensesTotal;
 
-    // Return the prepared data
     return {
       propertyId,
       propertyName,
@@ -513,585 +434,185 @@ const ReportsPage = () => {
     };
   };
 
-  // Step 1: Prepare data for the current property
-  const preparePropertyData = async (index) => {
-    // Make sure we have a valid index
-    if (index < 0 || index >= selectedProperties.length) {
-      console.log("Finished collecting data for all properties");
-
-      // Ensure there's a clear completion state
-      setIsMultiProcessing(false);
-
-      // Use a more reliable way to show the dialog
-      if (consolidatedSummary.length > 0) {
-        console.log(
-          `Showing summary dialog with ${consolidatedSummary.length} properties`
-        );
-        // Store the original full list
-        setOriginalSummary([...consolidatedSummary]);
-        // Calculate total batches
-        const batches = Math.ceil(consolidatedSummary.length / 10);
-        setTotalBatches(batches);
-        setCurrentBatch(1);
-        setTimeout(() => {
-          setSummaryDialogOpen(true);
-        }, 500);
-      } else {
-        console.log("No properties in summary to show");
-      }
-      return;
-    }
-
-    const currentPropertyId = selectedProperties[index];
-
-    if (!currentPropertyId) {
-      console.error("Invalid property ID at index", index);
-      // Skip to next property
-      setProcessingIndex(index + 1);
-      preparePropertyData(index + 1);
-      return;
-    }
-
-    const propertyName =
-      typeof allProperties[currentPropertyId] === "object"
-        ? allProperties[currentPropertyId].name
-        : allProperties[currentPropertyId] || "Unknown Property";
-
-    // Filter bookings for current property
-    const propertyBookings = bookings.filter(
-      (booking) => booking._propertyId === currentPropertyId
-    );
-
-    if (propertyBookings.length === 0) {
-      // No bookings for this property, add to summary with zero values
-      setConsolidatedSummary((prev) => [
-        ...prev,
-        {
-          propertyId: currentPropertyId,
-          propertyName,
-          totalRevenue: 0,
-          totalCleaning: 0,
-          expenses: 0,
-          netAmount: 0,
-          bookingCount: 0,
-          month: monthNames[startDate.month()],
-          year: startDate.format("YYYY"),
-          bookings: [],
-        },
-      ]);
-
-      // Move to next property
-      setProcessingIndex(index + 1);
-      preparePropertyData(index + 1);
-      return;
-    }
-
-    // Calculate revenue metrics for this property
-    const monthIndex = startDate.month();
-    const monthName = monthNames[monthIndex];
-    const year = startDate.format("YYYY");
-
-    // Instead of showing a dialog, add this property to the consolidated summary
-    Promise.all([
-      // Your existing API calls to get expenses and owner info
-      fetchWithAuth(`/api/sheets/expenses`, {
-        method: "POST",
-        body: JSON.stringify({
-          propertyId: currentPropertyId,
-          year,
-          monthName,
-        }),
-      }).then((res) =>
-        res.ok ? res.json() : { success: false, expensesTotal: 0 }
-      ),
-
-      fetchWithAuth(`/api/properties/${currentPropertyId}/owner`).then((res) =>
-        res.ok ? res.json() : { success: false, owner: null }
-      ),
-    ])
-      .then(([expensesData, ownerData]) => {
-        // Extract expense data
-        const expensesTotal = expensesData.success
-          ? parseFloat(expensesData.expensesTotal) || 0
-          : 0;
-
-        // Extract owner data (with better error handling)
-        let ownerInfo = null;
-        let ownershipPercentage = 100;
-
-        if (ownerData && ownerData.success) {
-          ownerInfo = ownerData.owner;
-          if (ownerInfo) {
-            ownershipPercentage = ownerInfo.ownership_percentage || 100;
-          } else {
-            console.log(
-              `No owner found for property ${currentPropertyId}, using default 100% ownership`
-            );
-          }
-        } else {
-          console.log(
-            `Error fetching owner for property ${currentPropertyId}, using default 100% ownership`
-          );
-        }
-
-        // Your existing revenue calculation code...
-        const paddedMonthNum = (monthIndex + 1).toString().padStart(2, "0");
-        const unPadedMonthNum = (monthIndex + 1).toString();
-
-        const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
-        const monthYearKeyUnpadded = `${year}-${unPadedMonthNum}`;
-
-        // Calculate revenue
-        const totalRevenue = propertyBookings.reduce((sum, booking) => {
-          const revenuePadded =
-            booking.revenueByMonth?.[monthYearKeyPadded] || 0;
-          const revenueUnpadded =
-            booking.revenueByMonth?.[monthYearKeyUnpadded] || 0;
-          const revenue = revenuePadded || revenueUnpadded;
-          return sum + revenue;
-        }, 0);
-
-        // Calculate cleaning fees
-        const totalCleaning = propertyBookings.reduce((sum, booking) => {
-          const cleaningMatch =
-            booking.cleaningFeeMonth === monthYearKeyPadded ||
-            booking.cleaningFeeMonth === monthYearKeyUnpadded;
-          const cleaning = cleaningMatch ? booking.cleaningFee : 0;
-          return sum + cleaning;
-        }, 0);
-
-        // Calculate net amount and owner profit
-        const netAmount = totalRevenue - totalCleaning - expensesTotal;
-        const ownerProfit = (netAmount * ownershipPercentage) / 100;
-
-        // Add to consolidated summary
-        setConsolidatedSummary((prev) => [
-          ...prev,
-          {
-            propertyId: currentPropertyId,
-            propertyName,
-            totalRevenue,
-            totalCleaning,
-            expenses: expensesTotal,
-            netAmount,
-            ownershipPercentage,
-            ownerProfit,
-            ownerInfo,
-            month: monthName,
-            year,
-            bookingCount: propertyBookings.length,
-            bookings: propertyBookings,
-          },
-        ]);
-
-        // Move to next property
-        setProcessingIndex(index + 1);
-        preparePropertyData(index + 1);
-      })
-      .catch((error) => {
-        console.error(`Error preparing data for ${propertyName}:`, error);
-        // Add error to summary
-        setConsolidatedSummary((prev) => [
-          ...prev,
-          {
-            propertyId: currentPropertyId,
-            propertyName,
-            error: error.message,
-            hasError: true,
-          },
-        ]);
-
-        // Move to next property
-        setProcessingIndex(index + 1);
-        preparePropertyData(index + 1);
-      });
-  };
-
-  // Step 2: Handle the confirmation for updating a property
-  const handleConfirmUpdate = () => {
-    setConfirmDialogOpen(false);
-
-    if (!revenueSummary) {
-      setErrorMessage("No revenue data available.");
-      setErrorDialogOpen(true);
-      return;
-    }
-
-    // Check explicitly for bookings
-    if (!revenueSummary.bookings || !Array.isArray(revenueSummary.bookings)) {
-      console.error("Missing bookings data in revenue summary", revenueSummary);
-      revenueSummary.bookings = revenueSummary.bookings || [];
-    }
-
-    // Log what we're adding to queue
-    console.log(`Adding property to queue: ${revenueSummary.propertyName}`);
-    console.log(`Has ${revenueSummary.bookings.length} bookings`);
-
-    // Add the confirmed property to queue with spread to ensure deep copy
-    const itemToAdd = {
-      ...revenueSummary,
-      bookings: [...revenueSummary.bookings],
-    };
-
-    // Create a copy of current queue to work with
-    const updatedQueue = [...confirmedQueue, itemToAdd];
-    setConfirmedQueue(updatedQueue);
-
-    // If we're in multi-property mode
-    if (revenueSummary.isMultiProperty) {
-      const nextIndex = revenueSummary.currentIndex + 1;
-
-      // If this was the last property to confirm
-      if (nextIndex >= selectedProperties.length) {
-        // Wait a bit longer to ensure state updates, and pass the updated queue directly
-        setTimeout(() => {
-          console.log(
-            `Processing queue with ${updatedQueue.length} properties`
-          );
-          processConfirmedQueue(updatedQueue); // Pass the queue directly
-        }, 500); // Increase delay to 500ms to ensure state updates
-      } else {
-        // Move to next property for confirmation
-        setProcessingIndex(nextIndex);
-        preparePropertyData(nextIndex);
-      }
-    } else {
-      // For single property, also auto-process immediately with updated queue
-      setTimeout(() => {
-        processConfirmedQueue(updatedQueue); // Pass the queue directly
-      }, 500);
-    }
-  };
-
-  // 1. First, remove email-related code from processConfirmedQueue function
-  const processConfirmedQueue = async (queueToProcess = null) => {
-    // Use the passed queue or the state queue
-    const queue = queueToProcess || confirmedQueue;
-
-    if (!queue.length) {
-      console.log("No properties in queue to process");
-      return;
-    }
-
-    console.log(`QUEUE STATUS: ${queue.length} properties ready to process`);
-    console.log(
-      "Properties in queue:",
-      queue.map((p) => p.propertyName).join(", ")
-    );
-
-    // Initialize processing state
-    setIsMultiProcessing(true);
-    setProcessingTotal(queue.length);
-    setProcessingIndex(0);
-    setProcessedProperties([]);
-
-    // Make a fresh local copy of the queue
-    const localQueue = queue.map((item) => ({ ...item }));
-    console.log(`Created local queue with ${localQueue.length} properties`);
-
-    // Process the queue one by one
-    for (let i = 0; i < localQueue.length; i++) {
-      let currentItem = null; // Define a variable outside the try block
-
-      try {
-        setProcessingIndex(i);
-        setUpdating(true);
-
-        currentItem = localQueue[i]; // Assign the current item
-
-        // Verify we have all required data before proceeding
-        if (
-          !currentItem ||
-          !currentItem.propertyId ||
-          !currentItem.propertyName
-        ) {
-          console.error(`Invalid item at index ${i}:`, currentItem);
-          throw new Error("Invalid property data");
-        }
-
-        console.log(
-          `===== PROCESSING PROPERTY ${i + 1}/${localQueue.length} =====`
-        );
-        console.log(
-          `Property: ${currentItem.propertyName} (${currentItem.propertyId})`
-        );
-        console.log(`Has bookings: ${currentItem.bookings.length}`);
-        console.log(`Has owner: ${currentItem.ownerInfo ? "Yes" : "No"}`);
-
-        // Log owner details if available
-        if (currentItem.ownerInfo) {
-          console.log(
-            `Owner: ${currentItem.ownerInfo.name} (ID: ${currentItem.ownerInfo.id})`
-          );
-        }
-
-        // Update revenue sheet only - no email
-        console.log(`Updating revenue sheet for ${currentItem.propertyName}`);
-        console.log(
-          `Including expenses total: $${(currentItem.expenses || 0).toFixed(2)}`
-        );
-
-        const response = await fetchWithAuth(`/api/sheets/revenue`, {
-          method: "PUT",
-          body: JSON.stringify({
-            propertyId: currentItem.propertyId,
-            propertyName: currentItem.propertyName,
-            bookings: currentItem.bookings || [],
-            year: currentItem.year,
-            monthName: currentItem.month,
-            expensesTotal: currentItem.expenses || 0,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to update revenue: ${errorText}`);
-        }
-
-        const revenueResult = await response.json();
-        if (!revenueResult.success) {
-          throw new Error(
-            revenueResult.error || "Failed to update revenue sheet."
-          );
-        }
-
-        console.log(`✅ Revenue sheet updated for ${currentItem.propertyName}`);
-
-        // Record success - simplified message without email references
-        setProcessedProperties((prev) => [
-          ...prev,
-          {
-            propertyId: currentItem.propertyId,
-            propertyName: currentItem.propertyName,
-            success: true,
-            message: "Revenue updated successfully",
-          },
-        ]);
-
-        // Record the successful revenue update in the month-end tracking
-        await fetchWithAuth(`/api/property-month-end`, {
-          method: "POST",
-          body: JSON.stringify({
-            propertyId: property.propertyId,
-            propertyName: property.propertyName,
-            year: property.year,
-            month: property.month,
-            monthNumber: monthNames.findIndex((m) => m === property.month) + 1,
-            statusType: "revenue",
-            statusData: {
-              revenueAmount: property.totalRevenue || 0,
-              cleaningFeesAmount: property.totalCleaning || 0,
-              expensesAmount: property.expenses || 0,
-              netAmount: property.netAmount || 0,
-              bookingsCount: property.bookings?.length || 0,
-              sheetId: result?.spreadsheetUrl || "",
-              ownerPercentage: property.ownershipPercentage || 100,
-              // Add these lines to include owner info
-              ownerId: property.ownerInfo?.id || null,
-              ownerName: property.ownerInfo?.name || null,
-            },
-          }),
-        });
-      } catch (error) {
-        // Record failure
-        console.error(
-          `❌ ERROR processing ${currentItem.propertyName}:`,
-          error
-        );
-        setProcessedProperties((prev) => [
-          ...prev,
-          {
-            propertyId: currentItem.propertyId,
-            propertyName: currentItem.propertyName,
-            success: false,
-            error: error.message,
-          },
-        ]);
-      } finally {
-        setUpdating(false);
-      }
-
-      // Add a delay between processing regardless of success/failure
-      if (i < localQueue.length - 1) {
-        console.log(`Waiting 2 seconds before processing next property...`);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
-    }
-
-    console.log(`All ${localQueue.length} properties have been processed.`);
-
-    setUpdating(false);
-
-    // Show completion message - removed email references
-    setProcessedProperties((prev) => [
-      ...prev,
-      {
-        propertyId: "complete",
-        propertyName: `✅ BATCH ${currentBatch} of ${totalBatches} COMPLETE`,
-        success: true,
-        message:
-          currentBatch < totalBatches
-            ? "Ready for next batch."
-            : "All revenue sheets updated.",
-      },
-    ]);
-
-    // IMPORTANT: Only modify processedSummary with unique items from consolidatedSummary
-    // Use a keyed approach to avoid duplicates
-    setProcessedSummary((prevSummary) => {
-      // Create a map of existing items by propertyId
-      const existingMap = new Map();
-      prevSummary.forEach((item) => {
-        if (item.propertyId) {
-          existingMap.set(item.propertyId, true);
-        }
-      });
-
-      // Only add items that aren't already in the summary
-      const newItems = consolidatedSummary.filter(
-        (item) => !existingMap.has(item.propertyId)
-      );
-
-      console.log(`Adding ${newItems.length} new items to summary`);
-      console.log(`Current summary has ${prevSummary.length} items`);
-
-      return [...prevSummary, ...newItems];
-    });
-
-    // If there are more batches, prepare to show the next batch dialog
-    if (currentBatch < totalBatches) {
-      setNextBatchDialogOpen(true);
-    } else if (currentBatch >= totalBatches) {
-      // All batches are complete - show the final summary
-      setTimeout(() => {
-        console.log(`Showing final summary dialog`);
-        setSummaryDialogOpen(true);
-      }, 500);
-    }
-  };
-
-  // Add this function to process all properties at once
   const processAllProperties = async () => {
-    setSummaryDialogOpen(false); // Close summary dialog if it's open
+    setSummaryDialogOpen(false);
     setUpdating(true);
 
     try {
-      // IMPORTANT: Log exactly what we're working with
       console.log("CONSOLIDATED SUMMARY DATA:", consolidatedSummary);
 
-      // If consolidatedSummary is empty but we have some in processedSummary, use that instead
-      const sourceData =
-        consolidatedSummary.length > 0 ? consolidatedSummary : processedSummary;
-
-      console.log(
-        `Using ${sourceData.length} properties from ${
-          consolidatedSummary.length > 0 ? "current batch" : "processed summary"
-        }`
-      );
-
       // Filter valid properties (no errors)
-      const propertiesToProcess = sourceData.filter((prop) => !prop.hasError);
+      const propertiesToProcess = consolidatedSummary.filter(
+        (prop) => !prop.hasError
+      );
       console.log(
         `Found ${propertiesToProcess.length} valid properties to process`
       );
 
+      // Add tracking arrays for success and failure
       const successfullyProcessed = [];
+      const failedProperties = [];
 
-      // CHANGE: Instead of throwing error, just show message and return
-      if (propertiesToProcess.length === 0) {
-        console.log("WARNING: No valid properties to process");
-        setErrorMessage(
-          "No valid properties to process. Please try selecting different properties."
+      const BATCH_SIZE = 5; // Process 10 properties at a time
+      const BATCH_PAUSE = 60000; // 30 second pause between batches
+
+      // Calculate total batches for progress display
+      const totalBatches = Math.ceil(propertiesToProcess.length / BATCH_SIZE);
+
+      // Process in batches of 10
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        // Get the current batch of properties
+        const startIdx = batchIndex * BATCH_SIZE;
+        const endIdx = Math.min(
+          startIdx + BATCH_SIZE,
+          propertiesToProcess.length
         );
-        setErrorDialogOpen(true);
-        setUpdating(false);
-        return; // Just return instead of throwing
-      }
+        const currentBatch = propertiesToProcess.slice(startIdx, endIdx);
 
-      // Process each property
-      for (let i = 0; i < propertiesToProcess.length; i++) {
-        const property = propertiesToProcess[i];
-        setProcessingIndex(i);
+        setProcessedProperties((prev) => [
+          ...prev,
+          {
+            propertyId: "batch-header",
+            propertyName: `Processing Batch ${
+              batchIndex + 1
+            } of ${totalBatches}`,
+            success: true,
+            isBatchHeader: true,
+          },
+        ]);
 
-        try {
-          console.log(`Processing property: ${property.propertyName}`);
+        // For each property in the current batch
+        for (let i = 0; i < currentBatch.length; i++) {
+          const property = currentBatch[i];
+          const overallIndex = startIdx + i;
+          setProcessingIndex(overallIndex);
 
-          // Update revenue sheet
-          const response = await fetchWithAuth(`/api/sheets/revenue`, {
-            method: "PUT",
-            body: JSON.stringify({
-              propertyId: property.propertyId,
-              propertyName: property.propertyName,
-              bookings: property.bookings || [],
-              year: property.year,
-              monthName: property.month,
-              expensesTotal: property.expenses || 0,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(
-              `Failed to update revenue sheet: ${await response.text()}`
+          try {
+            console.log(
+              `Processing property: ${property.propertyName} (${
+                overallIndex + 1
+              }/${propertiesToProcess.length})`
             );
-          }
 
-          const result = await response.json();
-          if (!result.success) {
-            throw new Error(result.error || "Failed to update revenue sheet");
-          }
+            let result;
 
-          // Record the successful update in the month-end tracking
-          await fetchWithAuth(`/api/property-month-end`, {
-            method: "POST",
-            body: JSON.stringify({
-              propertyId: property.propertyId,
-              propertyName: property.propertyName,
-              year: property.year,
-              month: property.month,
-              monthNumber:
-                monthNames.findIndex((m) => m === property.month) + 1,
-              statusType: "revenue",
-              statusData: {
-                revenueAmount: property.totalRevenue || 0,
-                cleaningFeesAmount: property.totalCleaning || 0,
-                expensesAmount: property.expenses || 0,
-                netAmount: property.netAmount || 0,
-                bookingsCount: property.bookings?.length || 0,
-                sheetId: result?.spreadsheetUrl || "",
-                ownerPercentage: property.ownershipPercentage || 100,
+            if (isDryRun) {
+              // Simulate successful API call without making actual changes
+              console.log(`DRY RUN: Would update ${property.propertyName}`);
+              result = {
+                success: true,
+                message: "Dry run - no changes made",
+                spreadsheetUrl: "dry-run-id",
+              };
+            } else {
+              // Use the executeWithQuotaBackoff wrapper
+              result = await executeWithQuotaBackoff(async () => {
+                // Update revenue sheet
+                const response = await fetchWithAuth(`/api/sheets/revenue`, {
+                  method: "PUT",
+                  body: JSON.stringify({
+                    propertyId: property.propertyId,
+                    propertyName: property.propertyName,
+                    bookings: property.bookings || [],
+                    year: property.year,
+                    monthName: property.month,
+                    expensesTotal: property.expenses || 0,
+                  }),
+                });
+
+                if (!response.ok) {
+                  throw new Error(
+                    `Failed to update revenue sheet: ${await response.text()}`
+                  );
+                }
+
+                return await response.json();
+              });
+            }
+
+            if (!result.success) {
+              throw new Error(result.error || "Failed to update revenue sheet");
+            }
+
+            // Record the successful update in the month-end tracking
+            await fetchWithAuth(`/api/property-month-end`, {
+              method: "POST",
+              body: JSON.stringify({
+                propertyId: property.propertyId,
+                propertyName: property.propertyName,
+                year: property.year,
+                month: property.month,
+                monthNumber:
+                  monthNames.findIndex((m) => m === property.month) + 1,
+                statusType: "revenue",
+                statusData: {
+                  revenueAmount: property.totalRevenue || 0,
+                  cleaningFeesAmount: property.totalCleaning || 0,
+                  expensesAmount: property.expenses || 0,
+                  netAmount: property.netAmount || 0,
+                  bookingsCount: property.bookings?.length || 0,
+                  sheetId: result?.spreadsheetUrl || "",
+                  ownerPercentage: property.ownershipPercentage || 100,
+                  ownerId: property.ownerInfo?.id || null,
+                  ownerName: property.ownerInfo?.name || null,
+                  ownerProfit: property.ownerProfit || 0,
+                },
+              }),
+            });
+
+            // If successful, add to success list
+            successfullyProcessed.push(property);
+
+            // Update processing status
+            setProcessedProperties((prev) => [
+              ...prev,
+              {
+                propertyId: property.propertyId,
+                propertyName: property.propertyName,
+                success: true,
+                message: isDryRun
+                  ? "Dry run - no changes made"
+                  : "Revenue updated successfully",
               },
-            }),
-          });
-
-          // Add this property to our successfully processed list
-          successfullyProcessed.push(property);
-
-          // Update processing status
-          setProcessedProperties((prev) => [
-            ...prev,
-            {
-              propertyId: property.propertyId,
+            ]);
+          } catch (error) {
+            console.error(`Error processing ${property.propertyName}:`, error);
+            // Add to failed list
+            failedProperties.push({
               propertyName: property.propertyName,
-              success: true,
-              message: "Revenue updated successfully",
-            },
-          ]);
-        } catch (error) {
-          console.error(`Error processing ${property.propertyName}:`, error);
-          setProcessedProperties((prev) => [
-            ...prev,
-            {
               propertyId: property.propertyId,
-              propertyName: property.propertyName,
-              success: false,
               error: error.message,
-            },
-          ]);
+            });
+
+            setProcessedProperties((prev) => [
+              ...prev,
+              {
+                propertyId: property.propertyId,
+                propertyName: property.propertyName,
+                success: false,
+                error: error.message,
+              },
+            ]);
+          }
         }
 
-        // Small delay between processing properties
-        if (i < propertiesToProcess.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+        // If this isn't the last batch, add a pause before the next batch
+        if (batchIndex < totalBatches - 1) {
+          // Add a status message about the pause
+          setProcessedProperties((prev) => [
+            ...prev,
+            {
+              propertyId: "pause-indicator",
+              propertyName: `Pausing for ${
+                BATCH_PAUSE / 1000
+              } seconds before next batch...`,
+              success: true,
+              isPause: true,
+            },
+          ]);
+
+          // Wait between batches to avoid hitting API limits
+          await new Promise((resolve) => setTimeout(resolve, BATCH_PAUSE));
         }
       }
 
@@ -1106,31 +627,33 @@ const ReportsPage = () => {
         },
       ]);
 
-      // IMPORTANT: Now update processedSummary directly with successful properties
-      // This ensures the summary dialog has the data it needs
-      setProcessedSummary((prevSummary) => {
-        // Create a map of existing items to avoid duplicates
-        const existingMap = new Map();
-        prevSummary.forEach((item) => {
-          if (item.propertyId) {
-            existingMap.set(item.propertyId, true);
-          }
+      // Log the failures summary if any
+      if (failedProperties.length > 0) {
+        console.error("=== FAILED PROPERTIES SUMMARY ===");
+        console.error(
+          `${failedProperties.length} properties failed to process:`
+        );
+        failedProperties.forEach((prop, index) => {
+          console.error(`${index + 1}. ${prop.propertyName}: ${prop.error}`);
         });
+        console.error("=====================================");
 
-        // Filter out duplicates
-        const newItems = successfullyProcessed.filter(
-          (item) => !existingMap.has(item.propertyId)
-        );
+        // Add a summary to the processed properties list
+        setProcessedProperties((prev) => [
+          ...prev,
+          {
+            propertyId: "failed-summary",
+            propertyName: `⚠️ ${failedProperties.length} properties failed to process`,
+            success: false,
+            error: "See console for details",
+          },
+        ]);
+      } else {
+        console.log("✅ All properties processed successfully!");
+      }
 
-        console.log(
-          `Adding ${newItems.length} new items to summary, now total: ${
-            prevSummary.length + newItems.length
-          }`
-        );
-
-        // Return combined unique items
-        return [...prevSummary, ...newItems];
-      });
+      // Update processedSummary
+      setProcessedSummary(successfullyProcessed);
     } catch (error) {
       console.error("Error in processAllProperties:", error);
       setErrorMessage(`Error: ${error.message}`);
@@ -1185,21 +708,8 @@ const ReportsPage = () => {
   }, [activeTab, reportsMonth]);
 
   const handleSummaryDialogClose = () => {
-    // Close the summary dialog
     setSummaryDialogOpen(false);
-
-    // Always reset next batch dialog
-    setNextBatchDialogOpen(false);
-
-    // If this was the final batch, fully reset ALL processing states
-    if (currentBatch >= totalBatches) {
-      setIsMultiProcessing(false);
-      setShowNextBatchButton(false);
-      setProcessedProperties([]);
-
-      // Don't reset processedSummary here - we want to keep it until a new run starts
-      console.log("Final batch complete, all processing states reset");
-    }
+    setIsMultiProcessing(false);
   };
 
   /// Modify this function to simplify the CSV output
@@ -1621,6 +1131,59 @@ const ReportsPage = () => {
     }
   };
 
+  // Add this function to your component
+
+  const executeWithQuotaBackoff = async (apiCall, maxRetries = 5) => {
+    let retries = 0;
+
+    while (retries <= maxRetries) {
+      try {
+        return await apiCall();
+      } catch (error) {
+        // Check if it's a quota error
+        if (
+          error.message?.includes("Quota exceeded") ||
+          error.message?.includes("rate limit")
+        ) {
+          retries++;
+
+          if (retries > maxRetries) {
+            throw new Error(
+              `Max retries (${maxRetries}) exceeded: ${error.message}`
+            );
+          }
+
+          // Exponential backoff: 5s, 10s, 20s, 40s, 80s
+          const delay = 5000 * Math.pow(2, retries - 1);
+          console.log(
+            `Quota exceeded. Waiting ${
+              delay / 1000
+            }s before retry ${retries}/${maxRetries}`
+          );
+
+          // Add to processed properties log
+          setProcessedProperties((prev) => [
+            ...prev,
+            {
+              propertyId: "quota-pause",
+              propertyName: `⚠️ API Quota limit hit. Pausing for ${
+                delay / 1000
+              }s before retry ${retries}/${maxRetries}...`,
+              isPause: true,
+              success: true,
+            },
+          ]);
+
+          // Wait for the backoff period
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        } else {
+          // If it's not a quota error, just throw it
+          throw error;
+        }
+      }
+    }
+  };
+
   return (
     <AdminProtected>
       <div className="flex flex-col h-full w-full p-6 bg-transparent">
@@ -1819,35 +1382,19 @@ const ReportsPage = () => {
                               )}
                             </Button>
 
-                            {showProcessButton && (
-                              <Button
-                                variant="contained"
-                                onClick={processConfirmedQueue}
-                                disabled={updating || isMultiProcessing}
-                                fullWidth
-                                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium py-2 rounded-lg shadow-md transition-colors duration-300"
-                                sx={{
-                                  textTransform: "none",
-                                  fontSize: "1rem",
-                                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                                  "&:hover": {
-                                    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                                  },
-                                }}
-                              >
-                                {updating ? (
-                                  <span className="flex items-center justify-center">
-                                    <CircularProgress
-                                      size={20}
-                                      sx={{ color: "#333333", mr: 1 }}
-                                    />
-                                    Processing...
-                                  </span>
-                                ) : (
-                                  "Process Confirmed Updates"
-                                )}
-                              </Button>
-                            )}
+                            {/* Add this toggle button near your other action buttons */}
+                            <Button
+                              variant="outlined"
+                              onClick={() => setIsDryRun(!isDryRun)}
+                              sx={{
+                                textTransform: "none",
+                                borderColor: isDryRun ? "#4caf50" : "#f44336",
+                                color: isDryRun ? "#4caf50" : "#f44336",
+                                marginBottom: 2,
+                              }}
+                            >
+                              {isDryRun ? "Dry Run: ON" : "Dry Run: OFF"}
+                            </Button>
                           </div>
                         </div>
 
@@ -1905,56 +1452,6 @@ const ReportsPage = () => {
                             >
                               {updateStatus}
                             </p>
-                          </div>
-                        )}
-
-                        {confirmedQueue.length > 0 && !isMultiProcessing && (
-                          <div className="mb-4 p-4 bg-white/50 rounded-lg border border-primary/30">
-                            <div className="flex justify-between items-center mb-3">
-                              <h3 className="text-lg font-semibold text-dark">
-                                Confirmed Properties ({confirmedQueue.length})
-                              </h3>
-                              <Button
-                                variant="contained"
-                                onClick={processConfirmedQueue}
-                                disabled={updating}
-                                className="bg-primary hover:bg-secondary hover:text-primary text-dark font-medium py-1 px-4 rounded-lg shadow-md transition-colors duration-300"
-                                sx={{
-                                  textTransform: "none",
-                                  fontSize: "0.9rem",
-                                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                                  "&:hover": {
-                                    boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                                  },
-                                }}
-                              >
-                                Process All
-                              </Button>
-                            </div>
-
-                            <div className="max-h-60 overflow-y-auto">
-                              {confirmedQueue.map((item, idx) => (
-                                <div
-                                  key={`${item.propertyId}-${idx}`}
-                                  className="bg-white p-3 rounded-lg mb-2 border border-primary/10"
-                                >
-                                  <div className="flex justify-between items-center">
-                                    <span className="font-medium">
-                                      {item.propertyName}
-                                    </span>
-                                    <span className="text-sm bg-yellow-50 text-yellow-700 py-1 px-2 rounded">
-                                      Confirmed
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between text-sm mt-1">
-                                    <span>
-                                      {item.month} {item.year}
-                                    </span>
-                                    <span>${item.totalRevenue.toFixed(2)}</span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
                           </div>
                         )}
                       </div>
@@ -2498,33 +1995,6 @@ const ReportsPage = () => {
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={handleSkipProperty}
-            color="primary"
-            sx={{
-              textTransform: "none",
-              fontSize: "1rem",
-            }}
-          >
-            {revenueSummary?.isMultiProperty ? "Skip" : "Cancel"}
-          </Button>
-          <Button
-            onClick={handleConfirmUpdate}
-            color="primary"
-            variant="contained"
-            sx={{
-              textTransform: "none",
-              fontSize: "1rem",
-              backgroundColor: "#eccb34",
-              "&:hover": {
-                backgroundColor: "#d4b02a",
-              },
-            }}
-          >
-            Confirm Update
-          </Button>
-        </DialogActions>
       </Dialog>
 
       <Dialog
@@ -2579,7 +2049,7 @@ const ReportsPage = () => {
             paddingBottom: 1,
           }}
         >
-          Month End Summary - Confirm All Updates
+          {isDryRun ? "DRY RUN - " : ""}Month End Summary - Confirm All Updates
         </DialogTitle>
         <DialogContent>
           <div className="mt-4">
@@ -2698,6 +2168,16 @@ const ReportsPage = () => {
               </div>
             )}
 
+            {isDryRun && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-blue-800">
+                  <strong>Dry Run Mode:</strong> This will simulate processing
+                  all properties but won&apos;t make any actual changes to
+                  sheets, send emails, or create invoices.
+                </p>
+              </div>
+            )}
+
             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-dark">
                 <strong>Important:</strong> This will update revenue sheets,
@@ -2733,120 +2213,67 @@ const ReportsPage = () => {
           >
             Confirm & Process All
           </Button>
+        </DialogActions>
+      </Dialog>
 
-          {showNextBatchButton && currentBatch < totalBatches && (
-            <Button
-              // Update the onClick handler in the nextBatchDialog
-              onClick={() => {
-                setNextBatchDialogOpen(false);
+      <div className="p-4 bg-white rounded-lg shadow-md border border-primary/10 mt-6">
+        <h3 className="text-lg font-semibold mb-4 text-dark">
+          Processed Properties
+        </h3>
 
-                // Process next batch
-                const nextBatch = currentBatch + 1;
-                setCurrentBatch(nextBatch);
-
-                // Clear only consolidated summary and processed properties, NOT processedSummary
-                setConsolidatedSummary([]);
-                setProcessedProperties([]);
-
-                const nextBatchStart = (nextBatch - 1) * 10;
-                const nextBatchEnd = Math.min(
-                  nextBatchStart + 10,
-                  selectedProperties.length
-                );
-                const nextBatchProperties = selectedProperties.slice(
-                  nextBatchStart,
-                  nextBatchEnd
-                );
-
-                console.log(
-                  `Processing next batch of ${nextBatchProperties.length} properties`
-                );
-                prepareAndProcessBatch(nextBatchProperties, nextBatch);
-              }}
-              variant="contained"
-              sx={{
-                textTransform: "none",
-                fontSize: "1rem",
-                backgroundColor: "#eccb34",
-                "&:hover": { backgroundColor: "#d4b02a" },
-              }}
+        {processedProperties.length === 0 ? (
+          <p className="text-gray-500 text-sm">
+            No properties have been processed yet.
+          </p>
+        ) : (
+          processedProperties.map((item, index) => (
+            <div
+              key={`${item.propertyId}-${index}`}
+              className={`p-3 mb-2 rounded-lg ${
+                item.isBatchHeader
+                  ? "bg-blue-100 border border-blue-300 font-semibold"
+                  : item.isPause
+                  ? "bg-gray-100 border border-gray-300 italic"
+                  : item.success
+                  ? "bg-green-50 border border-green-200"
+                  : "bg-red-50 border border-red-200"
+              }`}
             >
-              Process Next Batch
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
-
-      {/* Dialog for asking about the next batch */}
-      <Dialog
-        open={nextBatchDialogOpen}
-        onClose={() => setNextBatchDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            backgroundColor: "#fafafa",
-            color: "#333333",
-            borderRadius: "12px",
-            border: "1px solid rgba(236, 203, 52, 0.2)",
-            maxWidth: "500px",
-          },
-        }}
-      >
-        <DialogTitle>Process Next Batch?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Batch {currentBatch} of {totalBatches} completed successfully. Would
-            you like to process the next batch of properties?
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              setNextBatchDialogOpen(false);
-              setIsMultiProcessing(false);
-            }}
-            sx={{ textTransform: "none", fontSize: "1rem" }}
-          >
-            Stop Here
-          </Button>
-          <Button
-            onClick={() => {
-              setNextBatchDialogOpen(false);
-
-              // Process next batch
-              const nextBatch = currentBatch + 1;
-              setCurrentBatch(nextBatch);
-
-              // Clear any previous data
-              setConsolidatedSummary([]);
-              setProcessedProperties([]);
-
-              const nextBatchStart = (nextBatch - 1) * 10;
-              const nextBatchEnd = Math.min(
-                nextBatchStart + 10,
-                selectedProperties.length
-              );
-              const nextBatchProperties = selectedProperties.slice(
-                nextBatchStart,
-                nextBatchEnd
-              );
-
-              console.log(
-                `Processing next batch of ${nextBatchProperties.length} properties`
-              );
-              prepareAndProcessBatch(nextBatchProperties, nextBatch);
-            }}
-            variant="contained"
-            sx={{
-              textTransform: "none",
-              fontSize: "1rem",
-              backgroundColor: "#eccb34",
-              "&:hover": { backgroundColor: "#d4b02a" },
-            }}
-          >
-            Process Next Batch
-          </Button>
-        </DialogActions>
-      </Dialog>
+              <div className="flex items-center">
+                {item.isBatchHeader ? (
+                  <div className="w-6 h-6 rounded-full bg-blue-200 flex items-center justify-center mr-3">
+                    <span className="text-blue-800">⚙️</span>
+                  </div>
+                ) : item.isPause ? (
+                  <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center mr-3">
+                    <span className="text-gray-800">⏱️</span>
+                  </div>
+                ) : item.success ? (
+                  <div className="w-6 h-6 rounded-full bg-green-200 flex items-center justify-center mr-3">
+                    <span className="text-green-800">✓</span>
+                  </div>
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-red-200 flex items-center justify-center mr-3">
+                    <span className="text-red-800">✗</span>
+                  </div>
+                )}
+                <div>
+                  <p
+                    className={`${item.success ? "text-dark" : "text-red-600"}`}
+                  >
+                    {item.propertyName}
+                  </p>
+                  {!item.isBatchHeader && !item.isPause && (
+                    <p className="text-sm text-gray-500">
+                      {item.success ? item.message : `Error: ${item.error}`}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </AdminProtected>
   );
 };

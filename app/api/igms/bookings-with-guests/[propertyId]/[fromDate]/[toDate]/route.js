@@ -1,6 +1,7 @@
 // app/api/igms/bookings-with-guests/[propertyId]/[fromDate]/[toDate]/route.js
 import axios from "axios";
 import bookingService from "@/lib/services/bookingService";
+import PropertyService from "@/lib/services/propertyService";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -86,7 +87,9 @@ export async function GET(request, { params }) {
           (checkOut - checkIn) / (1000 * 60 * 60 * 24)
         );
 
-        const cleaningFee = parseFloat(booking.price.price_extras) || 0;
+        const cleaningFee = await PropertyService.getCleaningFeeForProperty(
+          propertyId
+        );
         const baseTotal = parseFloat(booking.price.price_total) - cleaningFee;
         const nightlyRate = baseTotal / totalNights;
 
