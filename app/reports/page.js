@@ -1,6 +1,7 @@
 "use client";
 
 import { useProperties } from "@/contexts/PropertyContext";
+import PropertyStatusIndicator from "./PropertyStatusIndicator";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import { useState, useEffect } from "react";
@@ -26,6 +27,8 @@ import MonthEndStatus from "../components/MonthEndStatus";
 import DownloadIcon from "@mui/icons-material/Download";
 import SendIcon from "@mui/icons-material/Send";
 import ClientOnly from "@/app/components/ClientOnly";
+import googleLimiter from "@/lib/utils/googleApiLimiter";
+import MonthEndProcessTab from "./MonthEndProcessTab";
 
 // Define monthNames array
 const monthNames = [
@@ -56,6 +59,8 @@ const ReportsPage = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
   const [updateStatus, setUpdateStatus] = useState(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [errorDialogOpen, setErrorDialogOpen] = useState(false);
@@ -93,6 +98,15 @@ const ReportsPage = () => {
   // Add this state at the top with your other state variables
   const [isDryRun, setIsDryRun] = useState(false);
 
+  // Add this state variable with your other state variables at the top of your component
+  const [selectedPropertyStatus, setSelectedPropertyStatus] = useState(null);
+
+  // Add this state variable with your other state variables
+  const [notReadyProperties, setNotReadyProperties] = useState([]);
+  const [notReadyDialogOpen, setNotReadyDialogOpen] = useState(false);
+
+  const [monthEndSubTab, setMonthEndSubTab] = useState(0); // New state for sub-tab
+
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
@@ -100,12 +114,6 @@ const ReportsPage = () => {
   const handlePropertiesChange = (selectedIds) => {
     setSelectedProperties(selectedIds);
   };
-
-  useEffect(() => {
-    if (user && propertyId) {
-      fetchBookings(propertyId, startDate, endDate);
-    }
-  }, [user, propertyId]);
 
   const fetchBookings = async (propertyId, start, end) => {
     setLoading(true);
@@ -156,53 +164,120 @@ const ReportsPage = () => {
     try {
       const allBookings = [];
 
-      const fetchPromises = selectedProperties.map((propId) =>
-        fetchWithAuth(
-          `/api/igms/bookings-with-guests/${propId}/${startDate.format(
-            "YYYY-MM-DD"
-          )}/${endDate.format("YYYY-MM-DD")}`
-        )
-          .then((response) => {
-            if (!response.ok) {
-              throw new Error(
-                `Failed to fetch bookings for property ${propId}: ${response.statusText}`
-              );
-            }
-            return response.json();
-          })
-          .then((data) => {
-            if (data.success && data.bookings) {
+      // For each property, we'll need to fetch both IGMS and manual bookings
+      const fetchPromises = selectedProperties.map(async (propId) => {
+        // Create array to hold both types of bookings for this property
+        const propertyBookings = [];
+
+        // 1. Fetch IGMS bookings
+        try {
+          const igmsResponse = await fetchWithAuth(
+            `/api/igms/bookings-with-guests/${propId}/${startDate.format(
+              "YYYY-MM-DD"
+            )}/${endDate.format("YYYY-MM-DD")}`
+          );
+
+          if (igmsResponse.ok) {
+            const igmsData = await igmsResponse.json();
+            if (igmsData.success && igmsData.bookings) {
               const propertyName =
                 typeof allProperties[propId] === "object"
                   ? allProperties[propId].name
-                  : allProperties[propId];
+                  : allProperties[propId] || "Unknown Property";
 
-              const bookingsWithProperty = data.bookings.map((booking) => ({
-                ...booking,
-                propertyName,
-                _propertyId: propId, // Make sure this is set correctly
-              }));
+              // Add property name to each booking
+              const igmsBookingsWithProperty = igmsData.bookings.map(
+                (booking) => ({
+                  ...booking,
+                  propertyName,
+                  _propertyId: propId,
+                  source: "igms", // Add source flag for debugging
+                })
+              );
 
-              return bookingsWithProperty;
+              propertyBookings.push(...igmsBookingsWithProperty);
             }
-            return [];
-          })
-      );
-
-      const results = await Promise.allSettled(fetchPromises);
-
-      results.forEach((result, index) => {
-        if (result.status === "fulfilled") {
-          allBookings.push(...result.value);
-        } else {
+          }
+        } catch (igmsError) {
           console.error(
-            `Error fetching bookings for property ${selectedProperties[index]}:`,
-            result.reason
+            `Error fetching IGMS bookings for property ${propId}:`,
+            igmsError
           );
+        }
+
+        // 2. Fetch manual bookings from database
+        try {
+          const manualResponse = await fetchWithAuth(
+            `/api/bookings?propertyId=${propId}&startDate=${startDate.format(
+              "YYYY-MM-DD"
+            )}&endDate=${endDate.format("YYYY-MM-DD")}&pageSize=100`
+          );
+
+          if (manualResponse.ok) {
+            const manualData = await manualResponse.json();
+            if (manualData.success && manualData.bookings) {
+              // Filter to only include manual bookings (to avoid duplicates with IGMS)
+              const manualBookings = manualData.bookings.filter(
+                (booking) =>
+                  booking.platform === "manual" || booking.platform === "direct"
+              );
+
+              const propertyName =
+                typeof allProperties[propId] === "object"
+                  ? allProperties[propId].name
+                  : allProperties[propId] || "Unknown Property";
+
+              // Add property name to each booking
+              const manualBookingsWithProperty = manualBookings.map(
+                (booking) => ({
+                  ...booking,
+                  propertyName,
+                  _propertyId: propId,
+                  source: "manual", // Add source flag for debugging
+                })
+              );
+
+              propertyBookings.push(...manualBookingsWithProperty);
+            }
+          }
+        } catch (manualError) {
+          console.error(
+            `Error fetching manual bookings for property ${propId}:`,
+            manualError
+          );
+        }
+
+        return propertyBookings;
+      });
+
+      // Wait for all property bookings to be fetched
+      const results = await Promise.all(fetchPromises);
+
+      // Flatten the array of arrays into a single array of bookings
+      results.forEach((propertyBookings) => {
+        allBookings.push(...propertyBookings);
+      });
+
+      // Remove duplicates (same booking code)
+      const uniqueBookings = [];
+      const bookingCodes = new Set();
+
+      allBookings.forEach((booking) => {
+        if (!bookingCodes.has(booking.bookingCode)) {
+          bookingCodes.add(booking.bookingCode);
+          uniqueBookings.push(booking);
         }
       });
 
-      setBookings(allBookings);
+      setBookings(uniqueBookings);
+
+      console.log(
+        `Found ${uniqueBookings.length} total bookings (${
+          uniqueBookings.filter((b) => b.source === "manual").length
+        } manual, ${
+          uniqueBookings.filter((b) => b.source === "igms").length
+        } IGMS)`
+      );
     } catch (error) {
       console.error("Failed to fetch bookings:", error);
       setErrorMessage(error.message || "Failed to fetch bookings.");
@@ -255,6 +330,16 @@ const ReportsPage = () => {
 
     if (!bookings.length) {
       setErrorMessage("No bookings available to update.");
+      setErrorDialogOpen(true);
+      return;
+    }
+
+    if (selectedProperties.length === 1 && selectedPropertyStatus !== "draft") {
+      setErrorMessage(
+        selectedPropertyStatus === "ready"
+          ? "This property's revenue has already been updated. Cannot update again."
+          : "This property is already complete. Cannot update again."
+      );
       setErrorDialogOpen(true);
       return;
     }
@@ -334,6 +419,14 @@ const ReportsPage = () => {
       (booking) => booking._propertyId === propertyId
     );
 
+    console.log(
+      `Processing ${propertyName}: Found ${propertyBookings.length} bookings (${
+        propertyBookings.filter((b) => b.source === "manual").length
+      } manual, ${
+        propertyBookings.filter((b) => b.source !== "manual").length
+      } IGMS)`
+    );
+
     if (propertyBookings.length === 0) {
       // No bookings for this property
       return {
@@ -394,22 +487,39 @@ const ReportsPage = () => {
     const monthYearKeyPadded = `${year}-${paddedMonthNum}`;
     const monthYearKeyUnpadded = `${year}-${unPadedMonthNum}`;
 
-    // Calculate revenue
+    // Enhanced calculation that works with both IGMS and manual bookings
     const totalRevenue = propertyBookings.reduce((sum, booking) => {
-      const revenuePadded = booking.revenueByMonth?.[monthYearKeyPadded] || 0;
-      const revenueUnpadded =
-        booking.revenueByMonth?.[monthYearKeyUnpadded] || 0;
-      const revenue = revenuePadded || revenueUnpadded;
-      return sum + revenue;
+      // Handle different formats of revenueByMonth data
+      let revenue = 0;
+
+      if (booking.revenueByMonth) {
+        // Try both padded and unpadded month keys
+        revenue =
+          booking.revenueByMonth[monthYearKeyPadded] ||
+          booking.revenueByMonth[monthYearKeyUnpadded] ||
+          0;
+      } else if (booking.totalAmount && booking.month === monthName) {
+        // Fallback for manual bookings that might store revenue differently
+        revenue = parseFloat(booking.totalAmount);
+      }
+
+      return sum + parseFloat(revenue);
     }, 0);
 
-    // Calculate cleaning fees - using fixed fees by property type
+    // Enhanced cleaning fee calculation
     const totalCleaning = propertyBookings.reduce((sum, booking) => {
-      const cleaningMatch =
-        booking.cleaningFeeMonth === monthYearKeyPadded ||
-        booking.cleaningFeeMonth === monthYearKeyUnpadded;
-      const cleaning = cleaningMatch ? booking.cleaningFee : 0;
-      return sum + cleaning;
+      let cleaningFee = 0;
+
+      if (booking.cleaningFee) {
+        const cleaningMatch =
+          booking.cleaningFeeMonth === monthYearKeyPadded ||
+          booking.cleaningFeeMonth === monthYearKeyUnpadded ||
+          booking.month === monthName;
+
+        cleaningFee = cleaningMatch ? parseFloat(booking.cleaningFee) : 0;
+      }
+
+      return sum + cleaningFee;
     }, 0);
 
     // Fixed the calculation as discussed
@@ -439,27 +549,61 @@ const ReportsPage = () => {
     setUpdating(true);
 
     try {
-      console.log("CONSOLIDATED SUMMARY DATA:", consolidatedSummary);
+      // Check if any properties are not ready before processing
+      const notReady = [];
 
+      for (const property of consolidatedSummary.filter((p) => !p.hasError)) {
+        try {
+          const monthNum =
+            monthNames.findIndex((m) => m === property.month) + 1;
+          const response = await fetchWithAuth(
+            `/api/property-month-end?propertyId=${property.propertyId}&year=${property.year}&monthNumber=${monthNum}`
+          );
+
+          if (response.ok) {
+            const statusData = await response.json();
+            const status = statusData.data?.status || "draft";
+
+            if (status !== "ready" && status !== "complete") {
+              notReady.push({
+                ...property,
+                currentStatus: status,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(
+            `Error checking status for ${property.propertyName}:`,
+            error
+          );
+        }
+      }
+
+      // If we found properties that aren't ready, show dialog instead of proceeding
+      if (notReady.length > 0) {
+        setNotReadyProperties(notReady);
+        setNotReadyDialogOpen(true);
+        setUpdating(false);
+        return;
+      }
+
+      // Continue with the existing processing code...
       // Filter valid properties (no errors)
       const propertiesToProcess = consolidatedSummary.filter(
         (prop) => !prop.hasError
-      );
-      console.log(
-        `Found ${propertiesToProcess.length} valid properties to process`
       );
 
       // Add tracking arrays for success and failure
       const successfullyProcessed = [];
       const failedProperties = [];
 
-      const BATCH_SIZE = 5; // Process 10 properties at a time
-      const BATCH_PAUSE = 60000; // 30 second pause between batches
+      const BATCH_SIZE = 5; // Process 5 properties at a time
+      const BATCH_PAUSE = 60000; // 60 second pause between batches
 
       // Calculate total batches for progress display
       const totalBatches = Math.ceil(propertiesToProcess.length / BATCH_SIZE);
 
-      // Process in batches of 10
+      // Process in batches
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
         // Get the current batch of properties
         const startIdx = batchIndex * BATCH_SIZE;
@@ -469,6 +613,7 @@ const ReportsPage = () => {
         );
         const currentBatch = propertiesToProcess.slice(startIdx, endIdx);
 
+        // Add batch header to processed properties
         setProcessedProperties((prev) => [
           ...prev,
           {
@@ -494,6 +639,52 @@ const ReportsPage = () => {
               }/${propertiesToProcess.length})`
             );
 
+            // Check if inventory exists first - NOW INSIDE THE PROPERTY LOOP
+            if (!isDryRun) {
+              const statusResponse = await fetchWithAuth(
+                `/api/property-month-end?propertyId=${
+                  property.propertyId
+                }&year=${property.year}&monthNumber=${
+                  monthNames.findIndex((m) => m === property.month) + 1
+                }`
+              );
+
+              if (statusResponse.ok) {
+                const statusData = await statusResponse.json();
+                if (!statusData.data?.inventory_invoice_generated) {
+                  // Generate inventory automatically if missing
+                  console.log(
+                    `Auto-generating inventory for ${property.propertyName}`
+                  );
+
+                  const inventoryResponse = await fetchWithAuth(
+                    `/api/inventory/generate-auto`,
+                    {
+                      method: "POST",
+                      body: JSON.stringify({
+                        propertyId: property.propertyId,
+                        propertyName: property.propertyName,
+                        month: property.month,
+                        year: property.year,
+                        monthNumber:
+                          monthNames.findIndex((m) => m === property.month) + 1,
+                      }),
+                    }
+                  );
+
+                  if (!inventoryResponse.ok) {
+                    console.warn(
+                      `Warning: Could not auto-generate inventory for ${property.propertyName}`
+                    );
+                  } else {
+                    console.log(
+                      `Successfully auto-generated inventory for ${property.propertyName}`
+                    );
+                  }
+                }
+              }
+            }
+
             let result;
 
             if (isDryRun) {
@@ -505,8 +696,7 @@ const ReportsPage = () => {
                 spreadsheetUrl: "dry-run-id",
               };
             } else {
-              // Use the executeWithQuotaBackoff wrapper
-              result = await executeWithQuotaBackoff(async () => {
+              result = await googleLimiter.schedule(async () => {
                 // Update revenue sheet
                 const response = await fetchWithAuth(`/api/sheets/revenue`, {
                   method: "PUT",
@@ -560,7 +750,6 @@ const ReportsPage = () => {
               }),
             });
 
-            // If successful, add to success list
             successfullyProcessed.push(property);
 
             // Update processing status
@@ -572,7 +761,7 @@ const ReportsPage = () => {
                 success: true,
                 message: isDryRun
                   ? "Dry run - no changes made"
-                  : "Revenue updated successfully",
+                  : "Revenue updated and marked as Ready",
               },
             ]);
           } catch (error) {
@@ -933,32 +1122,20 @@ const ReportsPage = () => {
     try {
       setUpdating(true);
 
-      // If no owner_id exists, try to fetch it directly
-      let ownerId = report.owner_id;
+      // Check if status is appropriate before sending
+      const statusCheckResponse = await fetchWithAuth(
+        `/api/property-month-end/options?propertyId=${report.property_id}&year=${report.year}&monthNumber=${report.month_number}&checkEmail=true`
+      );
 
-      if (!ownerId) {
-        // Try to fetch the owner directly from the property
-        try {
-          const ownerResponse = await fetchWithAuth(
-            `/api/properties/${report.property_id}/owner`
-          );
-          if (ownerResponse.ok) {
-            const ownerData = await ownerResponse.json();
-            if (ownerData.success && ownerData.owner && ownerData.owner.id) {
-              ownerId = ownerData.owner.id;
-              console.log(
-                `Found owner ID ${ownerId} for property ${report.property_name}`
-              );
-            }
-          }
-        } catch (lookupError) {
-          console.error("Failed to lookup owner:", lookupError);
-        }
+      if (!statusCheckResponse.ok) {
+        throw new Error("Failed to validate property status");
       }
 
-      if (!ownerId) {
+      const statusCheck = await statusCheckResponse.json();
+
+      if (!statusCheck.canSendEmail) {
         setErrorMessage(
-          `Cannot send email: No owner assigned to ${report.property_name}`
+          statusCheck.message || "Cannot send email: Property not ready"
         );
         setErrorDialogOpen(true);
         return;
@@ -1055,132 +1232,133 @@ const ReportsPage = () => {
     }
   };
 
-  // Add this function to generate an inventory invoice
-  const generateInventoryInvoice = async () => {
-    if (!selectedPropertyForInvoice) {
-      setErrorMessage("Please select a property.");
-      setErrorDialogOpen(true);
-      return;
-    }
-
-    const propertyName =
-      typeof allProperties[selectedPropertyForInvoice] === "object"
-        ? allProperties[selectedPropertyForInvoice].name
-        : allProperties[selectedPropertyForInvoice] || "Unknown Property";
-
-    const month = invoiceMonth.format("MMMM");
-    const year = invoiceMonth.format("YYYY");
-    const monthNumber = invoiceMonth.month() + 1;
-
-    setGeneratingInvoice(true);
-    setInvoiceResult(null);
-
-    try {
-      const response = await fetchWithAuth("/api/inventory/auto-generate", {
-        method: "POST",
-        body: JSON.stringify({
-          propertyId: selectedPropertyForInvoice,
-          propertyName,
-          month,
-          year,
-          monthNumber,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to generate invoice: ${await response.text()}`);
-      }
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to generate inventory invoice");
-      }
-
-      // Set the result for display
-      setInvoiceResult({
-        propertyId: selectedPropertyForInvoice,
-        propertyName,
-        month,
-        year,
-        totalAmount: result.data?.totalAmount || 0,
-        noItemsFound: result.data?.noItemsFound || false,
-      });
-
-      // Update the month-end status for this property
-      await fetchWithAuth(`/api/property-month-end`, {
-        method: "POST",
-        body: JSON.stringify({
-          propertyId: selectedPropertyForInvoice,
-          year,
-          month,
-          monthNumber,
-          statusType: "inventory",
-          statusData: {
-            totalAmount: result.data?.totalAmount || 0,
-            noItemsFound: result.data?.noItemsFound || false,
-          },
-        }),
-      });
-    } catch (error) {
-      console.error("Error generating inventory invoice:", error);
-      setErrorMessage(`Failed to generate inventory invoice: ${error.message}`);
-      setErrorDialogOpen(true);
-    } finally {
-      setGeneratingInvoice(false);
-    }
-  };
-
-  // Add this function to your component
-
-  const executeWithQuotaBackoff = async (apiCall, maxRetries = 5) => {
-    let retries = 0;
-
-    while (retries <= maxRetries) {
-      try {
-        return await apiCall();
-      } catch (error) {
-        // Check if it's a quota error
-        if (
-          error.message?.includes("Quota exceeded") ||
-          error.message?.includes("rate limit")
-        ) {
-          retries++;
-
-          if (retries > maxRetries) {
-            throw new Error(
-              `Max retries (${maxRetries}) exceeded: ${error.message}`
-            );
-          }
-
-          // Exponential backoff: 5s, 10s, 20s, 40s, 80s
-          const delay = 5000 * Math.pow(2, retries - 1);
-          console.log(
-            `Quota exceeded. Waiting ${
-              delay / 1000
-            }s before retry ${retries}/${maxRetries}`
+  // Add near your other useEffect hooks
+  useEffect(() => {
+    const fetchPropertyStatus = async () => {
+      if (selectedProperties.length === 1 && startDate) {
+        try {
+          const response = await fetchWithAuth(
+            `/api/property-month-end?propertyId=${
+              selectedProperties[0]
+            }&year=${startDate.format("YYYY")}&monthNumber=${
+              startDate.month() + 1
+            }`
           );
 
-          // Add to processed properties log
-          setProcessedProperties((prev) => [
-            ...prev,
-            {
-              propertyId: "quota-pause",
-              propertyName: `⚠️ API Quota limit hit. Pausing for ${
-                delay / 1000
-              }s before retry ${retries}/${maxRetries}...`,
-              isPause: true,
-              success: true,
-            },
-          ]);
+          if (response.ok) {
+            const data = await response.json();
+            setSelectedPropertyStatus(data.data?.status || "draft");
+            console.log(`Property status: ${data.data?.status || "draft"}`);
+          } else {
+            setSelectedPropertyStatus("draft");
+          }
+        } catch (error) {
+          console.error("Error fetching property status:", error);
+          setSelectedPropertyStatus("draft");
+        }
+      } else {
+        setSelectedPropertyStatus(null);
+      }
+    };
 
-          // Wait for the backoff period
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        } else {
-          // If it's not a quota error, just throw it
-          throw error;
+    fetchPropertyStatus();
+  }, [selectedProperties, startDate]);
+
+  // Add this function right after processAllProperties or with your other functions
+  const markPropertiesAsReady = async () => {
+    // Show confirmation dialog instead of using undefined confirmDialog function
+    setReadyConfirmMessage(
+      "This will mark properties as Ready but will NOT update the sheets. Use with caution."
+    );
+    setReadyConfirmDialogOpen(true);
+  };
+
+  // New state for ready confirmation dialog
+  const [readyConfirmDialogOpen, setReadyConfirmDialogOpen] = useState(false);
+  const [readyConfirmMessage, setReadyConfirmMessage] = useState("");
+
+  // New function to handle the confirmation
+  const handleReadyConfirmation = async () => {
+    setReadyConfirmDialogOpen(false);
+    setUpdating(true);
+    const results = [];
+
+    try {
+      for (const property of notReadyProperties) {
+        try {
+          const monthNum =
+            monthNames.findIndex((m) => m === property.month) + 1;
+          console.log(`Marking property as ready: ${property.propertyName}`);
+
+          const response = await fetchWithAuth(
+            `/api/property-month-end/status`,
+            {
+              method: "PUT",
+              body: JSON.stringify({
+                propertyId: property.propertyId,
+                year: property.year,
+                monthNumber: monthNum,
+                status: "ready",
+              }),
+            }
+          );
+
+          if (response.ok) {
+            results.push({
+              propertyName: property.propertyName,
+              success: true,
+            });
+          } else {
+            results.push({
+              propertyName: property.propertyName,
+              success: false,
+              error: "Failed to update status",
+            });
+          }
+        } catch (error) {
+          console.error(
+            `Error updating status for ${property.propertyName}:`,
+            error
+          );
+          results.push({
+            propertyName: property.propertyName,
+            success: false,
+            error: error.message,
+          });
         }
       }
+
+      // Close the dialog
+      setNotReadyDialogOpen(false);
+
+      // Show results
+      const successful = results.filter((r) => r.success).length;
+      const failed = results.filter((r) => !r.success).length;
+
+      if (failed === 0) {
+        setProcessedProperties((prev) => [
+          ...prev,
+          {
+            propertyId: "status-update",
+            propertyName: `Successfully marked ${successful} properties as ready`,
+            success: true,
+          },
+        ]);
+
+        // Continue with processing if all were successful
+        processAllProperties();
+      } else {
+        setErrorMessage(
+          `Marked ${successful} properties as ready, but ${failed} failed. Please try again.`
+        );
+        setErrorDialogOpen(true);
+      }
+    } catch (error) {
+      console.error("Error marking properties as ready:", error);
+      setErrorMessage(`Failed to mark properties as ready: ${error.message}`);
+      setErrorDialogOpen(true);
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -1378,7 +1556,15 @@ const ReportsPage = () => {
                                   Updating...
                                 </span>
                               ) : (
-                                "Calculate Month End"
+                                <>
+                                  {selectedProperties.length === 1 &&
+                                  selectedPropertyStatus === "ready"
+                                    ? "Update Revenue Sheet"
+                                    : selectedProperties.length === 1 &&
+                                      selectedPropertyStatus === "complete"
+                                    ? "Revenue Already Updated"
+                                    : "Calculate Month End"}
+                                </>
                               )}
                             </Button>
 
@@ -1483,9 +1669,13 @@ const ReportsPage = () => {
                                 ))}
                               </div>
                             ) : (
-                              <div className="flex items-center justify-center h-40">
+                              <div className="flex flex-col items-center justify-center h-40">
                                 <p className="text-dark text-lg">
                                   No bookings found
+                                </p>
+                                <p className="text-dark/60 mt-2">
+                                  Select properties and date range, then click
+                                  &quot;Search Bookings&quot;
                                 </p>
                               </div>
                             )}
@@ -1515,193 +1705,345 @@ const ReportsPage = () => {
                         <div className="p-4">Loading month-end reports...</div>
                       }
                     >
-                      <div className="bg-white/50 rounded-xl shadow-sm border border-primary/10 p-6">
-                        <div className="flex justify-between items-center mb-6">
-                          <h3 className="text-xl font-semibold text-dark">
-                            Month-End Reports
-                          </h3>
+                      {/* Add a tab sub-system within the Month-End Reports */}
+                      <Box sx={{ width: "100%", mb: 3 }}>
+                        <Tabs
+                          value={monthEndSubTab}
+                          onChange={(e, newValue) =>
+                            setMonthEndSubTab(newValue)
+                          }
+                          sx={{
+                            mb: 2,
+                            borderBottom: "1px solid rgba(236, 203, 52, 0.2)",
+                            "& .MuiTab-root": {
+                              textTransform: "none",
+                              minWidth: 100,
+                            },
+                            "& .Mui-selected": {
+                              color: "#eccb34",
+                            },
+                            "& .MuiTabs-indicator": {
+                              backgroundColor: "#eccb34",
+                            },
+                          }}
+                        >
+                          <Tab label="Reports" />
+                          <Tab label="Process Management" />
+                        </Tabs>
+                      </Box>
 
-                          <div className="flex gap-4 items-center">
-                            <LocalizationProvider dateAdapter={AdapterDayjs}>
-                              <DatePicker
-                                value={reportsMonth}
-                                onChange={setReportsMonth}
-                                views={["month", "year"]}
-                                className="bg-white rounded-lg border border-primary/30"
-                                slotProps={{
-                                  textField: {
-                                    size: "small",
-                                    sx: {
-                                      "& .MuiOutlinedInput-root": {
-                                        borderColor: "#eccb34",
+                      {monthEndSubTab === 0 ? (
+                        // Current Month-End Reports implementation
+                        <div className="bg-white/50 rounded-xl shadow-sm border border-primary/10 p-6">
+                          <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-semibold text-dark">
+                              Month-End Reports
+                            </h3>
+
+                            <div className="flex gap-4 items-center">
+                              <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                <DatePicker
+                                  value={reportsMonth}
+                                  onChange={setReportsMonth}
+                                  views={["month", "year"]}
+                                  className="bg-white rounded-lg border border-primary/30"
+                                  slotProps={{
+                                    textField: {
+                                      size: "small",
+                                      sx: {
+                                        "& .MuiOutlinedInput-root": {
+                                          borderColor: "#eccb34",
+                                        },
                                       },
                                     },
+                                  }}
+                                />
+                              </LocalizationProvider>
+
+                              <Button
+                                variant="contained"
+                                onClick={downloadReportsSpreadsheet}
+                                disabled={!completedReports.length}
+                                className="bg-primary hover:bg-secondary hover:text-primary text-dark"
+                                sx={{
+                                  textTransform: "none",
+                                  backgroundColor: "#eccb34",
+                                  "&:hover": {
+                                    backgroundColor: "#d4b02a",
                                   },
                                 }}
-                              />
-                            </LocalizationProvider>
+                              >
+                                Download Spreadsheet
+                              </Button>
 
-                            <Button
-                              variant="contained"
-                              onClick={downloadReportsSpreadsheet}
-                              disabled={!completedReports.length}
-                              className="bg-primary hover:bg-secondary hover:text-primary text-dark"
-                              sx={{
-                                textTransform: "none",
-                                backgroundColor: "#eccb34",
-                                "&:hover": {
-                                  backgroundColor: "#d4b02a",
-                                },
-                              }}
-                            >
-                              Download Spreadsheet
-                            </Button>
-
-                            {/* New Email Button */}
-                            <Button
-                              variant="contained"
-                              onClick={sendOwnerEmails}
-                              disabled={!completedReports.length}
-                              startIcon={<SendIcon />}
-                              className="bg-primary hover:bg-secondary hover:text-primary text-dark"
-                              sx={{
-                                textTransform: "none",
-                                backgroundColor: "#3f51b5",
-                                color: "white",
-                                "&:hover": {
-                                  backgroundColor: "#303f9f",
-                                },
-                              }}
-                            >
-                              Send Owner Emails
-                            </Button>
+                              {/* New Email Button */}
+                              <Button
+                                variant="contained"
+                                onClick={sendOwnerEmails}
+                                disabled={!completedReports.length}
+                                startIcon={
+                                  updating ? (
+                                    <CircularProgress
+                                      size={20}
+                                      sx={{ color: "white" }}
+                                    />
+                                  ) : (
+                                    <SendIcon />
+                                  )
+                                }
+                                className="bg-primary hover:bg-secondary hover:text-primary text-dark"
+                                sx={{
+                                  textTransform: "none",
+                                  backgroundColor:
+                                    completedReports.length > 0
+                                      ? "#3f51b5"
+                                      : "#9e9e9e",
+                                  color: "white",
+                                  "&:hover": {
+                                    backgroundColor:
+                                      completedReports.length > 0
+                                        ? "#303f9f"
+                                        : "#9e9e9e",
+                                  },
+                                }}
+                              >
+                                {completedReports.length > 0
+                                  ? `Send Owner Emails (${completedReports.length})`
+                                  : "No Properties Ready for Emails"}
+                              </Button>
+                            </div>
                           </div>
-                        </div>
 
-                        {loadingReports ? (
-                          <div className="flex justify-center py-8">
-                            <CircularProgress sx={{ color: "#eccb34" }} />
-                          </div>
-                        ) : completedReports.length > 0 ? (
-                          <div className="overflow-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                              <thead className="bg-primary/10">
-                                <tr>
-                                  <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                  >
-                                    Property
-                                  </th>
-                                  <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                  >
-                                    Revenue
-                                  </th>
-                                  <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                  >
-                                    Net Amount
-                                  </th>
-                                  <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                  >
-                                    Owner %
-                                  </th>
-                                  <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                  >
-                                    Owner Payment
-                                  </th>
-                                  <th
-                                    scope="col"
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                                  >
-                                    Actions
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white divide-y divide-gray-200">
-                                {completedReports.map((report) => (
-                                  <tr
-                                    key={report.property_id}
-                                    className="hover:bg-gray-50"
-                                  >
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                      <div className="font-medium text-gray-900">
-                                        {report.property_name}
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                      $
-                                      {parseFloat(
-                                        report.revenue_amount || 0
-                                      ).toFixed(2)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                      $
-                                      {parseFloat(
-                                        report.net_amount || 0
-                                      ).toFixed(2)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                      {report.owner_percentage || 100}%
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap font-medium text-green-600">
-                                      $
-                                      {parseFloat(
-                                        report.owner_profit || 0
-                                      ).toFixed(2)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                      <Button
-                                        variant="contained"
-                                        onClick={() =>
-                                          sendSingleOwnerEmail(report)
+                          {loadingReports ? (
+                            <div className="flex justify-center py-8">
+                              <CircularProgress sx={{ color: "#eccb34" }} />
+                            </div>
+                          ) : completedReports.length > 0 ? (
+                            <div className="overflow-auto">
+                              {/* Status Statistics */}
+                              <div className="bg-white/80 rounded-xl shadow-sm border border-primary/10 p-4 mb-6">
+                                <h3 className="text-lg font-semibold mb-3 text-dark">
+                                  Month-End Status
+                                </h3>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                    <h4 className="text-sm font-semibold text-orange-700 mb-1">
+                                      Draft
+                                    </h4>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-2xl font-bold text-orange-600">
+                                        {
+                                          completedReports.filter(
+                                            (r) =>
+                                              !r.status || r.status === "draft"
+                                          ).length
                                         }
-                                        disabled={
-                                          updating || report.owner_email_sent
+                                      </span>
+                                      <span className="text-xs text-orange-500">
+                                        Need to update revenue
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <h4 className="text-sm font-semibold text-blue-700 mb-1">
+                                      Ready
+                                    </h4>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-2xl font-bold text-blue-600">
+                                        {
+                                          completedReports.filter(
+                                            (r) => r.status === "ready"
+                                          ).length
                                         }
-                                        startIcon={<SendIcon />}
-                                        size="small"
-                                        sx={{
-                                          textTransform: "none",
-                                          backgroundColor:
-                                            report.owner_email_sent
-                                              ? "#cccccc"
-                                              : "#3f51b5",
-                                          color: "white",
-                                          "&:hover": {
+                                      </span>
+                                      <span className="text-xs text-blue-500">
+                                        Ready for owner emails
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <h4 className="text-sm font-semibold text-green-700 mb-1">
+                                      Complete
+                                    </h4>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-2xl font-bold text-green-600">
+                                        {
+                                          completedReports.filter(
+                                            (r) => r.status === "complete"
+                                          ).length
+                                        }
+                                      </span>
+                                      <span className="text-xs text-green-500">
+                                        All done!
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {completedReports.filter(
+                                  (r) => r.status === "ready"
+                                ).length > 0 && (
+                                  <div className="bg-blue-100 border border-blue-300 rounded p-3 text-blue-800">
+                                    <strong>Ready for Emails:</strong>{" "}
+                                    {
+                                      completedReports.filter(
+                                        (r) => r.status === "ready"
+                                      ).length
+                                    }{" "}
+                                    properties are ready to send owner emails.
+                                  </div>
+                                )}
+                              </div>
+
+                              <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-primary/10">
+                                  <tr>
+                                    <th
+                                      scope="col"
+                                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    >
+                                      Property
+                                    </th>
+                                    <th
+                                      scope="col"
+                                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    >
+                                      Revenue
+                                    </th>
+                                    <th
+                                      scope="col"
+                                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    >
+                                      Net Amount
+                                    </th>
+                                    <th
+                                      scope="col"
+                                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    >
+                                      Owner %
+                                    </th>
+                                    <th
+                                      scope="col"
+                                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    >
+                                      Owner Payment
+                                    </th>
+                                    <th
+                                      scope="col"
+                                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    >
+                                      Status
+                                    </th>
+                                    <th
+                                      scope="col"
+                                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                                    >
+                                      Actions
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                  {completedReports.map((report) => (
+                                    <tr
+                                      key={report.property_id}
+                                      className="hover:bg-gray-50"
+                                    >
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="font-medium text-gray-900">
+                                          {report.property_name}
+                                        </div>
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        $
+                                        {parseFloat(
+                                          report.revenue_amount || 0
+                                        ).toFixed(2)}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        $
+                                        {parseFloat(
+                                          report.net_amount || 0
+                                        ).toFixed(2)}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        {report.owner_percentage || 100}%
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap font-medium text-green-600">
+                                        $
+                                        {parseFloat(
+                                          report.owner_profit || 0
+                                        ).toFixed(2)}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        <PropertyStatusIndicator
+                                          status={report.status || "draft"}
+                                        />
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        <Button
+                                          variant="contained"
+                                          onClick={() =>
+                                            sendSingleOwnerEmail(report)
+                                          }
+                                          disabled={
+                                            updating || report.owner_email_sent
+                                          }
+                                          startIcon={<SendIcon />}
+                                          size="small"
+                                          sx={{
+                                            textTransform: "none",
                                             backgroundColor:
                                               report.owner_email_sent
                                                 ? "#cccccc"
-                                                : "#303f9f",
-                                          },
-                                          fontSize: "0.75rem",
-                                          padding: "2px 8px",
-                                        }}
-                                      >
-                                        {report.owner_email_sent
-                                          ? "Sent"
-                                          : "Email"}
-                                      </Button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : (
-                          <div className="text-center py-8 text-gray-500">
-                            No completed month-end reports found for{" "}
-                            {reportsMonth.format("MMMM YYYY")}
-                          </div>
-                        )}
-                      </div>
+                                                : "#3f51b5",
+                                            color: "white",
+                                            "&:hover": {
+                                              backgroundColor:
+                                                report.owner_email_sent
+                                                  ? "#cccccc"
+                                                  : "#303f9f",
+                                            },
+                                            fontSize: "0.75rem",
+                                            padding: "2px 8px",
+                                          }}
+                                        >
+                                          {report.owner_email_sent
+                                            ? "Sent"
+                                            : "Email"}
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-gray-500">
+                              No completed month-end reports found for{" "}
+                              {reportsMonth.format("MMMM YYYY")}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        // New Process Management tab
+                        <MonthEndProcessTab
+                          year={reportsMonth.format("YYYY")}
+                          month={reportsMonth.month()}
+                          onSuccess={(message) => {
+                            setSuccessMessage(message);
+                            setSuccessDialogOpen(true); // Open the dialog to show the message
+                            // Refresh reports after successful status changes
+                            fetchCompletedReports(
+                              reportsMonth.format("MMMM"),
+                              reportsMonth.format("YYYY")
+                            );
+                          }}
+                          onError={setErrorMessage}
+                        />
+                      )}
                     </ClientOnly>
                   </div>
                 )}
@@ -2133,27 +2475,39 @@ const ReportsPage = () => {
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap">
                             {!property.hasError &&
-                              `$${property.totalRevenue.toFixed(2)}`}
+                              `$${parseFloat(
+                                property.totalRevenue || 0
+                              ).toFixed(2)}`}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap">
                             {!property.hasError &&
-                              `$${property.totalCleaning.toFixed(2)}`}
+                              `$${parseFloat(
+                                property.totalCleaning || 0
+                              ).toFixed(2)}`}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap">
                             {!property.hasError &&
-                              `$${property.expenses.toFixed(2)}`}
+                              `$${parseFloat(property.expenses || 0).toFixed(
+                                2
+                              )}`}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap">
                             {!property.hasError &&
-                              `$${property.netAmount.toFixed(2)}`}
+                              `$${parseFloat(property.netAmount || 0).toFixed(
+                                2
+                              )}`}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap">
                             {!property.hasError &&
-                              `${property.ownershipPercentage || 100}%`}
+                              `${parseFloat(
+                                property.ownershipPercentage || 100
+                              ).toFixed(0)}%`}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap font-medium text-green-600">
                             {!property.hasError &&
-                              `$${(property.ownerProfit || 0).toFixed(2)}`}
+                              `$${parseFloat(property.ownerProfit || 0).toFixed(
+                                2
+                              )}`}
                           </td>
                         </tr>
                       ))}
@@ -2216,6 +2570,72 @@ const ReportsPage = () => {
         </DialogActions>
       </Dialog>
 
+      <Dialog
+        open={notReadyDialogOpen}
+        onClose={() => setNotReadyDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
+            maxWidth: "500px",
+            width: "100%",
+          },
+        }}
+      >
+        <DialogTitle>Properties Not Ready</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            The following properties are not ready for processing. Please update
+            their status to &quot;Ready&quot; before proceeding with the
+            month-end processing.
+          </DialogContentText>
+
+          <div className="mt-4">
+            <h4 className="text-lg font-semibold mb-2">Not Ready Properties</h4>
+
+            <ul className="list-disc list-inside">
+              {notReadyProperties.map((property) => (
+                <li key={property.propertyId} className="text-dark">
+                  {property.propertyName} - Current Status:{" "}
+                  <span className="font-semibold">
+                    {property.currentStatus}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setNotReadyDialogOpen(false)}
+            color="primary"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+            }}
+          >
+            Close
+          </Button>
+          <Button
+            onClick={markPropertiesAsReady}
+            color="primary"
+            variant="contained"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+              backgroundColor: "#eccb34",
+              "&:hover": {
+                backgroundColor: "#d4b02a",
+              },
+            }}
+          >
+            Mark as Ready
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <div className="p-4 bg-white rounded-lg shadow-md border border-primary/10 mt-6">
         <h3 className="text-lg font-semibold mb-4 text-dark">
           Processed Properties
@@ -2274,6 +2694,83 @@ const ReportsPage = () => {
           ))
         )}
       </div>
+
+      {/* Success Dialog */}
+      <Dialog
+        open={successDialogOpen}
+        onClose={() => setSuccessDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
+          },
+        }}
+      >
+        <DialogTitle>Success</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{successMessage}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setSuccessDialogOpen(false)}
+            color="primary"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Ready Confirmation Dialog */}
+      <Dialog
+        open={readyConfirmDialogOpen}
+        onClose={() => setReadyConfirmDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            backgroundColor: "#fafafa",
+            color: "#333333",
+            borderRadius: "12px",
+            border: "1px solid rgba(236, 203, 52, 0.2)",
+          },
+        }}
+      >
+        <DialogTitle>Confirm Action</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{readyConfirmMessage}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setReadyConfirmDialogOpen(false)}
+            color="primary"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleReadyConfirmation}
+            color="primary"
+            variant="contained"
+            sx={{
+              textTransform: "none",
+              fontSize: "1rem",
+              backgroundColor: "#eccb34",
+              "&:hover": {
+                backgroundColor: "#d4b02a",
+              },
+            }}
+          >
+            Proceed
+          </Button>
+        </DialogActions>
+      </Dialog>
     </AdminProtected>
   );
 };

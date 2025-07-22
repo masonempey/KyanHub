@@ -83,38 +83,6 @@ export const UserProvider = ({ children }) => {
     };
   }, []);
 
-  // Separate non-blocking effect for admin initialization
-  useEffect(() => {
-    if (user?.role === "admin" && !initWatchCalled) {
-      console.log("Admin user authenticated, calling init-watch API");
-      setInitWatchCalled(true);
-
-      // Make this non-blocking with fetch
-      fetch("/api/init/init-watch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      })
-        .then(async (response) => {
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(
-              `Init watch failed (${response.status}): ${errorText}`
-            );
-          }
-          console.log("Init watch completed successfully");
-          return response.json();
-        })
-        .then((data) => {
-          console.log("Watch initialization results:", data);
-        })
-        .catch((err) => {
-          console.error("Init watch error:", err);
-          // Reset flag after some time to allow retry
-          setTimeout(() => setInitWatchCalled(false), 60000);
-        });
-    }
-  }, [user, initWatchCalled]);
-
   // Optimized redirect logic
   useEffect(() => {
     if (loading) return; // Don't redirect while loading

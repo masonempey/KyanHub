@@ -34,19 +34,44 @@ const BookingCard = ({ booking }) => {
           </span>
         </div>
 
-        <div className="mb-2 flex justify-between">
+        <div className="flex justify-between mb-1">
           <span className="text-dark text-sm">Nightly Rate:</span>
           <span className="text-dark font-medium">
-            ${booking.nightlyRate ? booking.nightlyRate.toFixed(2) : "0.00"}
+            $
+            {booking.nightlyRate
+              ? parseFloat(booking.nightlyRate).toFixed(2)
+              : "0.00"}
           </span>
         </div>
 
         <div className="mb-3 flex justify-between">
           <span className="text-dark text-sm">Base Price:</span>
           <span className="text-dark font-medium">
-            ${booking.rawPriceData?.price_total || "0.00"}
+            ${booking.baseTotal || booking.rawPriceData?.price_total || "0.00"}
           </span>
         </div>
+
+        {/* Add a new line to display total amount including cleaning fee */}
+        <div className="mb-3 flex justify-between">
+          <span className="text-dark text-sm">Total Amount:</span>
+          <span className="text-dark font-medium">
+            $
+            {parseFloat(booking.baseTotal || 0) +
+              parseFloat(booking.cleaningFee || 0) ||
+              booking.rawPriceData?.price_total ||
+              "0.00"}
+          </span>
+        </div>
+
+        {/* Add cleaning fee display */}
+        {booking.cleaningFee > 0 && (
+          <div className="mb-3 flex justify-between">
+            <span className="text-dark text-sm">Cleaning Fee:</span>
+            <span className="text-dark font-medium">
+              ${formatAmount(booking.cleaningFee)}
+            </span>
+          </div>
+        )}
 
         {/* Nights by Month Dropdown */}
         <div className="mb-2 border-t border-primary/10 pt-2">

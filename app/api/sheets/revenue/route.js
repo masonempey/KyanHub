@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import googleService from "@/lib/services/googleService";
 import PropertyService from "@/lib/services/propertyService";
+import MonthEndService from "@/lib/services/monthEndService";
 
 const SHEET_LAYOUTS = {
   "Kyan Owned Properties": {
@@ -149,6 +150,32 @@ export async function PUT(request) {
     const sheetNameResult = sheetMetadata.data.properties.title;
     console.log(`Processing sheet: ${sheetNameResult} (ID: ${sheetId})`);
 
+    const monthIndex = monthNames.indexOf(monthName);
+    const monthNum = monthIndex !== -1 ? monthIndex + 1 : null;
+
+    if (monthNum === null) {
+      throw new Error(`Invalid month name: ${monthName}`);
+    }
+
+    const status = await MonthEndService.getMonthEndStatus(
+      propertyId,
+      year,
+      monthNum
+    );
+
+    const statusValue = status?.status || "draft";
+
+    if (statusValue !== "ready" && statusValue !== "complete") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Property must be marked as Ready before updating revenue",
+          currentStatus: statusValue,
+        },
+        { status: 403 }
+      );
+    }
+
     // Continue with your existing code for updating the sheet
     const layout = getSheetLayout(propertyName);
     const sheetName = getSheetName(propertyName, layout);
@@ -178,7 +205,6 @@ export async function PUT(request) {
     const actualRowIndex = yearRowIndex + monthRowIndex + 1;
     console.log("Updating row:", actualRowIndex);
 
-    const monthNum = (monthNames.indexOf(monthName) + 1).toString();
     const monthYearKey = `${year}-${monthNum}`;
 
     const monthTotal = Number(
@@ -282,6 +308,23 @@ export async function PUT(request) {
 
     // Get the spreadsheet URL
     const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
+
+    // Update revenue and status atomically - this only happens on success
+    await MonthEndService.updateRevenueAndStatus({
+      propertyId,
+      propertyName,
+      year,
+      month: monthName,
+      monthNumber: monthNum,
+      revenueAmount: monthTotal || 0,
+      cleaningAmount: cleaningTotal || 0,
+      expensesAmount: expensesTotal || 0,
+      netAmount: monthTotal - cleaningTotal - expensesTotal || 0,
+      bookingsCount: bookings.length,
+      sheetId,
+      ownerPercentage: 100, // Default or fetch from somewhere
+      status: "ready", // Set to ready now that the update succeeded
+    });
 
     return NextResponse.json({
       success: true,

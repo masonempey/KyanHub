@@ -49,14 +49,11 @@ const GoogleIntegration = ({ property, onUpdate }) => {
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileViewerOpen, setFileViewerOpen] = useState(false);
-  const [isWatchingFolder, setIsWatchingFolder] = useState(false);
-  const [watchStatus, setWatchStatus] = useState(null);
 
   // Fetch files when driveId changes or component mounts
   useEffect(() => {
     if (driveId) {
       fetchFiles();
-      checkWatchStatus();
     }
   }, [driveId]);
 
@@ -83,73 +80,6 @@ const GoogleIntegration = ({ property, onUpdate }) => {
       });
     } finally {
       setIsLoadingFiles(false);
-    }
-  };
-
-  const checkWatchStatus = async () => {
-    if (!driveId) return;
-
-    try {
-      const response = await fetchWithAuth(
-        `/api/google/watch-status?folderId=${driveId}`
-      );
-
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${await response.text()}`);
-      }
-
-      const data = await response.json();
-      setIsWatchingFolder(data.isWatching);
-      setWatchStatus(data.expiresAt ? new Date(data.expiresAt) : null);
-    } catch (err) {
-      console.error("Error checking watch status:", err);
-    }
-  };
-
-  const toggleWatchFolder = async () => {
-    if (!driveId) return;
-
-    try {
-      setIsLoading(true);
-      const endpoint = isWatchingFolder
-        ? `/api/google/unwatch?folderId=${driveId}`
-        : `/api/google/watch?folderId=${driveId}&propertyId=${property.id}`;
-
-      const response = await fetchWithAuth(endpoint, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to ${
-            isWatchingFolder ? "unwatch" : "watch"
-          } folder: ${await response.text()}`
-        );
-      }
-
-      const data = await response.json();
-      setIsWatchingFolder(!isWatchingFolder);
-
-      if (data.expiresAt) {
-        setWatchStatus(new Date(data.expiresAt));
-      } else {
-        setWatchStatus(null);
-      }
-
-      setNotification({
-        type: "success",
-        message: isWatchingFolder
-          ? "Stopped watching folder for changes"
-          : "Now watching folder for changes! You'll be notified when new files are added.",
-      });
-    } catch (err) {
-      console.error("Error toggling watch:", err);
-      setNotification({
-        type: "error",
-        message: err.message,
-      });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -337,57 +267,6 @@ const GoogleIntegration = ({ property, onUpdate }) => {
                   <Typography variant="body2" className="text-dark/70">
                     Folder ID: {driveId}
                   </Typography>
-
-                  <Box className="flex justify-between items-center mt-4">
-                    <Typography variant="body2" className="text-dark/70">
-                      {isWatchingFolder ? (
-                        <div className="flex items-center">
-                          <CheckCircleIcon
-                            color="success"
-                            fontSize="small"
-                            className="mr-1"
-                          />
-                          <span>Watching for new files</span>
-                          {watchStatus && (
-                            <span className="ml-2 text-xs opacity-70">
-                              (expires: {formatDate(watchStatus)})
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        "Not watching for new files"
-                      )}
-                    </Typography>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={
-                        isWatchingFolder ? (
-                          <CloudDownloadIcon />
-                        ) : (
-                          <CloudSyncIcon />
-                        )
-                      }
-                      onClick={toggleWatchFolder}
-                      disabled={isLoading}
-                      sx={{
-                        textTransform: "none",
-                        color: isWatchingFolder ? "#e74c3c" : "#2ecc71",
-                        borderColor: isWatchingFolder ? "#e74c3c" : "#2ecc71",
-                        "&:hover": {
-                          bgcolor: isWatchingFolder
-                            ? "rgba(231, 76, 60, 0.1)"
-                            : "rgba(46, 204, 113, 0.1)",
-                        },
-                      }}
-                    >
-                      {isLoading
-                        ? "Processing..."
-                        : isWatchingFolder
-                        ? "Stop Watching"
-                        : "Watch for New Files"}
-                    </Button>
-                  </Box>
                 </Box>
               )}
             </CardContent>

@@ -16,6 +16,36 @@ export async function GET(request) {
       );
     }
 
+    // If checking for email sending capability
+    if (searchParams.get("checkEmail") === "true") {
+      const status = await MonthEndService.getMonthEndStatus(
+        propertyId,
+        year,
+        monthNumber
+      );
+
+      // Can only send email if revenue has been updated
+      if (!status || !status.revenue_updated) {
+        return NextResponse.json({
+          canSendEmail: false,
+          message: "Revenue must be updated before sending owner email",
+        });
+      }
+
+      // Already sent email
+      if (status.owner_email_sent) {
+        return NextResponse.json({
+          canSendEmail: false,
+          message: "Owner email has already been sent",
+        });
+      }
+
+      return NextResponse.json({
+        canSendEmail: true,
+        message: "Ready to send owner email",
+      });
+    }
+
     const validation = await MonthEndService.validateRevenueUpdate(
       propertyId,
       year,
