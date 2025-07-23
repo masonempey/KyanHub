@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Box,
   Button,
@@ -21,6 +21,7 @@ import {
   FormControlLabel,
   Radio,
   Alert,
+  AlertTitle,
   Tooltip,
   IconButton,
 } from "@mui/material";
@@ -30,6 +31,11 @@ import EditIcon from "@mui/icons-material/Edit";
 import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import dayjs from "dayjs";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import WarningIcon from "@mui/icons-material/Warning";
+
+const inventoryStatusCache = new Map(); // Cache for inventory status
 
 const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
   const [loading, setLoading] = useState(true);
@@ -49,17 +55,45 @@ const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [batchConfirmDialogOpen, setBatchConfirmDialogOpen] = useState(false);
   const [batchAction, setBatchAction] = useState({ from: "", to: "" });
+  const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
+  const [consolidatedSummary, setConsolidatedSummary] = useState([]);
+  const [processedSummary, setProcessedSummary] = useState([]);
+
+  // Add these refs to control fetches
+  const lastFetchTimeRef = useRef(0);
+  const isMountedRef = useRef(false);
+  const skipNextFetchRef = useRef(false);
+  const lastYearRef = useRef(year);
+  const lastMonthRef = useRef(month);
 
   // Convert month (0-11) to month number (1-12) for API calls
   const monthNumber = month + 1;
 
-  // Fetch property statuses on initial load
-  useEffect(() => {
-    const fetchPropertyStatuses = async () => {
+  // Memoize the fetch function to prevent unnecessary refetches
+  const fetchPropertyStatuses = useCallback(
+    async (force = false) => {
+      // Skip if explicitly told to skip
+      if (skipNextFetchRef.current && !force) {
+        skipNextFetchRef.current = false;
+        return;
+      }
+
       if (!year || !monthNumber) return;
+
+      // Add throttling to prevent excessive fetches
+      const now = Date.now();
+      if (
+        !force &&
+        isMountedRef.current &&
+        now - lastFetchTimeRef.current < 5000
+      ) {
+        console.log("Skipping fetch - throttled");
+        return;
+      }
 
       setLoading(true);
       try {
+        console.log("Fetching property statuses");
         const response = await fetchWithAuth(
           `/api/property-month-end/statuses?year=${year}&month=${monthNumber}`
         );
@@ -84,24 +118,48 @@ const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
         });
 
         setStatusCounts(counts);
+        lastFetchTimeRef.current = now;
       } catch (error) {
         console.error("Error fetching property statuses:", error);
         if (onError) onError(error.message);
       } finally {
         setLoading(false);
       }
-    };
+    },
+    [year, monthNumber, onError]
+  );
 
-    fetchPropertyStatuses();
-  }, [year, monthNumber, onError]);
+  // Fetch property statuses only on mount and when year/month change
+  useEffect(() => {
+    // Ensure we only fetch on mount and when dependencies change
+    if (!isMountedRef.current) {
+      isMountedRef.current = true;
+      fetchPropertyStatuses(true);
+    } else if (
+      year !== lastYearRef.current ||
+      monthNumber !== lastMonthRef.current
+    ) {
+      // Only fetch if year or month has changed
+      lastYearRef.current = year;
+      lastMonthRef.current = monthNumber;
+      lastFetchTimeRef.current = 0;
+      fetchPropertyStatuses(true);
+    }
+
+    // Cleanup function
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [year, monthNumber, fetchPropertyStatuses]);
 
   // Filter properties by status
-  const filteredProperties =
-    statusFilterValue === "all"
+  const filteredProperties = useMemo(() => {
+    return statusFilterValue === "all"
       ? propertyList
       : propertyList.filter(
           (prop) => (prop.status || "draft") === statusFilterValue
         );
+  }, [propertyList, statusFilterValue]);
 
   // Handle property status click
   const handleStatusClick = (property) => {
@@ -109,36 +167,25 @@ const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
     setStatusDialogOpen(true);
   };
 
-  // Handle status change
+  // Update handleStatusChanged to prevent unnecessary refetches
   const handleStatusChanged = async (newStatus) => {
     if (!selectedProperty) return;
 
+    // Set flag to skip the next automatic fetch
+    skipNextFetchRef.current = true;
     setUpdating(true);
+
     try {
       console.log(`Updating ${selectedProperty.name} status to ${newStatus}`);
 
-      // The month parameter in your component is 0-indexed, but the API expects 1-indexed
-      const monthNum = month + 1;
+      // Optimistically update UI first
+      const propertyId = selectedProperty.propertyId;
+      const oldStatus = selectedProperty.status || "draft";
 
-      const response = await fetchWithAuth(`/api/property-month-end/status`, {
-        method: "PUT",
-        body: JSON.stringify({
-          propertyId: selectedProperty.propertyId,
-          year: year,
-          monthNumber: monthNum, // Add the month number here
-          status: newStatus,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to update status");
-      }
-
-      // Update local state - modify the main propertyList instead of filtered
+      // Update property list
       setPropertyList((prevList) => {
         return prevList.map((prop) => {
-          if (prop.propertyId === selectedProperty.propertyId) {
+          if (prop.propertyId === propertyId) {
             return { ...prop, status: newStatus };
           }
           return prop;
@@ -147,30 +194,64 @@ const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
 
       // Update status counts
       const newStatusCounts = { ...statusCounts };
-      if (selectedProperty.status) {
-        newStatusCounts[selectedProperty.status] = Math.max(
-          0,
-          (newStatusCounts[selectedProperty.status] || 0) - 1
-        );
-      }
+      newStatusCounts[oldStatus] = Math.max(
+        0,
+        (newStatusCounts[oldStatus] || 0) - 1
+      );
       newStatusCounts[newStatus] = (newStatusCounts[newStatus] || 0) + 1;
       setStatusCounts(newStatusCounts);
 
-      // Close dialog
+      // Close dialog immediately for better UX
       setStatusDialogOpen(false);
 
-      // Success callback
+      // Make the actual API call
+      const response = await fetchWithAuth(`/api/property-month-end/status`, {
+        method: "PUT",
+        body: JSON.stringify({
+          propertyId: propertyId,
+          year: year,
+          monthNumber: monthNumber,
+          status: newStatus,
+          skipValidation: true, // Add this to tell the API to skip validation of other properties
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update status");
+      }
+
+      // Success - but don't call onSuccess if it would trigger a refetch
+      const successMsg = `Status updated to ${newStatus} successfully`;
+      console.log(successMsg);
+
+      // Use a local notification instead of the parent callback
+      // This prevents triggering parent re-renders which cascade
       if (onSuccess) {
-        onSuccess(`Status updated to ${newStatus} successfully`);
+        // Wrapping in setTimeout to avoid triggering a re-render immediately
+        setTimeout(() => {
+          onSuccess(successMsg, { preventRefetch: true });
+        }, 0);
       }
     } catch (error) {
       console.error("Error updating status:", error);
+
+      // If there was an error, revert the optimistic update
+      fetchPropertyStatuses(true);
+
       if (onError) {
         onError(error.message);
       }
     } finally {
       setUpdating(false);
     }
+  };
+
+  // Fix for Mark as Ready button
+  const handleMarkAsReady = async (property) => {
+    // Set the selected property and then call handleStatusChanged
+    setSelectedProperty(property);
+    await handleStatusChanged("ready");
   };
 
   // Handle batch status update
@@ -250,25 +331,25 @@ const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
 
   // Load booking comparison data
   const handleCompareBookings = async (property) => {
+    skipNextFetchRef.current = true; // Skip the next automatic fetch
     setSelectedProperty(property);
     setBookingsLoading(true);
     setComparisonDialogOpen(true);
 
     try {
-      // Load IGMS bookings
-      const igmsResponse = await fetchWithAuth(
-        `/api/igms/bookings?propertyId=${property.propertyId}&year=${year}&month=${monthNumber}`
-      );
+      // Use Promise.all to load both datasets in parallel
+      const [igmsResponse, dbResponse] = await Promise.all([
+        fetchWithAuth(
+          `/api/igms/bookings?propertyId=${property.propertyId}&year=${year}&month=${monthNumber}`
+        ),
+        fetchWithAuth(
+          `/api/bookings?propertyId=${property.propertyId}&year=${year}&month=${monthNumber}`
+        ),
+      ]);
 
       if (!igmsResponse.ok) {
         throw new Error("Failed to fetch IGMS bookings");
       }
-
-      // Load database bookings
-      const dbResponse = await fetchWithAuth(
-        `/api/bookings?propertyId=${property.propertyId}&year=${year}&month=${monthNumber}`
-      );
-
       if (!dbResponse.ok) {
         throw new Error("Failed to fetch database bookings");
       }
@@ -457,6 +538,253 @@ const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
     setBatchConfirmDialogOpen(true);
   };
 
+  // Process all properties
+  const processAllProperties = async () => {
+    // Close summary dialog if it's open
+    setSummaryDialogOpen(false);
+    setUpdating(true);
+
+    try {
+      // Get data to process
+      const sourceData =
+        consolidatedSummary.length > 0 ? consolidatedSummary : processedSummary;
+
+      // Filter valid properties
+      const propertiesToProcess = sourceData.filter((prop) => !prop.hasError);
+
+      if (propertiesToProcess.length === 0) {
+        onError("No valid properties to process");
+        setUpdating(false);
+        return;
+      }
+
+      // Check inventory status for each property
+      const missingInventory = [];
+
+      for (const property of propertiesToProcess) {
+        const validation = await fetchWithAuth(
+          `/api/property-month-end/options?propertyId=${property.propertyId}&year=${property.year}&monthNumber=${property.monthNumber}`
+        );
+
+        if (!validation.ok) {
+          throw new Error(
+            `Failed to validate property ${property.propertyName}`
+          );
+        }
+
+        const validationData = await validation.json();
+        if (!validationData.inventoryReady) {
+          missingInventory.push(property.propertyName);
+        }
+      }
+
+      // If any properties are missing inventory invoices, block processing
+      if (missingInventory.length > 0) {
+        onError(
+          `The following properties need inventory invoices before processing: ${missingInventory.join(
+            ", "
+          )}`
+        );
+        setUpdating(false);
+        return;
+      }
+
+      // Continue with regular processing...
+    } catch (error) {
+      console.error("Error in processAllProperties:", error);
+      onError(`Error: ${error.message}`);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // Property validation function
+  const validateProperty = async (propertyId, year, monthNumber) => {
+    try {
+      const response = await fetchWithAuth(
+        `/api/property-month-end/options?propertyId=${propertyId}&year=${year}&monthNumber=${monthNumber}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to validate property status");
+      }
+
+      const data = await response.json();
+      return {
+        valid: data.inventoryReady !== false,
+        message: data.message || "Unknown validation error",
+        data,
+      };
+    } catch (error) {
+      console.error("Property validation error:", error);
+      return {
+        valid: false,
+        message: error.message,
+        error,
+      };
+    }
+  };
+
+  // Inventory Status Indicator Component
+  const InventoryStatusIndicator = ({ propertyId, year, monthNumber }) => {
+    const [status, setStatus] = useState("loading");
+    const [tooltipText, setTooltipText] = useState("");
+    const cacheKey = `${propertyId}-${year}-${monthNumber}`;
+
+    useEffect(() => {
+      // Check cache first
+      if (inventoryStatusCache.has(cacheKey)) {
+        const cachedData = inventoryStatusCache.get(cacheKey);
+        setStatus(cachedData.status);
+        setTooltipText(cachedData.tooltipText);
+        return;
+      }
+
+      // Skip API calls for properties that haven't been scrolled into view
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting) {
+            checkInventoryStatus();
+            observer.disconnect();
+          }
+        },
+        { threshold: 0.1 }
+      );
+
+      const currentElement = document.getElementById(`inventory-${cacheKey}`);
+      if (currentElement) {
+        observer.observe(currentElement);
+      } else {
+        // If we can't find the element, check anyway
+        checkInventoryStatus();
+      }
+
+      return () => {
+        observer.disconnect();
+      };
+    }, [cacheKey]);
+
+    const checkInventoryStatus = async () => {
+      try {
+        // If this property is already being checked, don't duplicate the request
+        if (inventoryStatusCache.get(cacheKey)?.status === "checking") {
+          return;
+        }
+
+        // Mark as checking to prevent duplicate requests
+        inventoryStatusCache.set(cacheKey, {
+          status: "checking",
+          tooltipText: "Checking...",
+        });
+
+        const response = await fetchWithAuth(
+          `/api/property-month-end/options?propertyId=${propertyId}&year=${year}&monthNumber=${monthNumber}`
+        );
+
+        if (!response.ok) {
+          const errorData = {
+            status: "error",
+            tooltipText: "Failed to check inventory status",
+          };
+          setStatus(errorData.status);
+          setTooltipText(errorData.tooltipText);
+          inventoryStatusCache.set(cacheKey, errorData);
+          return;
+        }
+
+        const data = await response.json();
+        const resultData = data.inventoryReady
+          ? {
+              status: "ready",
+              tooltipText: "Inventory invoice has been generated",
+            }
+          : {
+              status: "missing",
+              tooltipText: "Inventory invoice needs to be generated",
+            };
+
+        setStatus(resultData.status);
+        setTooltipText(resultData.tooltipText);
+        inventoryStatusCache.set(cacheKey, resultData);
+      } catch (error) {
+        console.error("Error checking inventory status:", error);
+        const errorData = {
+          status: "error",
+          tooltipText: `Error: ${error.message}`,
+        };
+        setStatus(errorData.status);
+        setTooltipText(errorData.tooltipText);
+        inventoryStatusCache.set(cacheKey, errorData);
+      }
+    };
+
+    // Status icons with colors
+    const statusIcons = {
+      loading: <CircularProgress size={16} sx={{ color: "#9e9e9e" }} />,
+      checking: <CircularProgress size={16} sx={{ color: "#9e9e9e" }} />,
+      ready: <CheckCircleIcon fontSize="small" sx={{ color: "#4caf50" }} />,
+      missing: <ErrorIcon fontSize="small" sx={{ color: "#f44336" }} />,
+      error: <WarningIcon fontSize="small" sx={{ color: "#ff9800" }} />,
+    };
+
+    return (
+      <Tooltip title={tooltipText}>
+        <div id={`inventory-${cacheKey}`} className="flex items-center">
+          {statusIcons[status]}
+          <span className="ml-1" style={{ fontSize: "0.875rem" }}>
+            {status === "ready"
+              ? "Complete"
+              : status === "missing"
+              ? "Required"
+              : status === "checking" || status === "loading"
+              ? "Checking"
+              : status}
+          </span>
+        </div>
+      </Tooltip>
+    );
+  };
+
+  // Add this function to batch check inventories for visible properties
+  const batchCheckInventories = async (properties, year, monthNumber) => {
+    // Get visible properties only
+    const visiblePropertyIds = properties.slice(0, 10).map((p) => p.propertyId);
+
+    if (visiblePropertyIds.length === 0) return;
+
+    try {
+      // Make a single API call for multiple properties
+      const response = await fetchWithAuth(
+        `/api/property-month-end/options/batch`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            propertyIds: visiblePropertyIds,
+            year,
+            monthNumber,
+          }),
+        }
+      );
+
+      if (!response.ok) return;
+
+      const results = await response.json();
+
+      // Update cache with results
+      results.forEach((result) => {
+        const cacheKey = `${result.propertyId}-${year}-${monthNumber}`;
+        inventoryStatusCache.set(cacheKey, {
+          status: result.inventoryReady ? "ready" : "missing",
+          tooltipText: result.inventoryReady
+            ? "Inventory invoice has been generated"
+            : "Inventory invoice needs to be generated",
+        });
+      });
+    } catch (error) {
+      console.error("Batch inventory check error:", error);
+    }
+  };
+
   return (
     <div className="mt-6">
       {loading ? (
@@ -623,12 +951,24 @@ const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
               </Box>
             )}
 
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <AlertTitle>Inventory Check</AlertTitle>
+              Before processing month-end reports, all properties must have
+              inventory invoices generated. Properties with{" "}
+              <ErrorIcon
+                fontSize="small"
+                sx={{ color: "#f44336", verticalAlign: "middle" }}
+              />
+              require inventory invoices to be generated first.
+            </Alert>
+
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead sx={{ backgroundColor: "rgba(236, 203, 52, 0.1)" }}>
                   <TableRow>
                     <TableCell sx={{ fontWeight: "bold" }}>Property</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: "bold" }}>Inventory</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Bookings</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>Revenue</TableCell>
                     <TableCell sx={{ fontWeight: "bold" }}>
@@ -640,7 +980,7 @@ const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
                 <TableBody>
                   {filteredProperties.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                      <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
                         No properties found with{" "}
                         {statusFilterValue === "all"
                           ? "any"
@@ -656,6 +996,13 @@ const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
                           <StatusBadge
                             status={property.status || "draft"}
                             onClick={() => handleStatusClick(property)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <InventoryStatusIndicator
+                            propertyId={property.propertyId}
+                            year={year}
+                            monthNumber={monthNumber}
                           />
                         </TableCell>
                         <TableCell>{property.bookingCount || 0}</TableCell>
@@ -685,10 +1032,7 @@ const MonthEndProcessTab = ({ year, month, onSuccess, onError }) => {
                               <Button
                                 size="small"
                                 variant="contained"
-                                onClick={() => {
-                                  setSelectedProperty(property);
-                                  handleStatusChanged("ready");
-                                }}
+                                onClick={() => handleMarkAsReady(property)}
                                 startIcon={<DoneAllIcon />}
                                 sx={{
                                   bgcolor: "#0288d1",
