@@ -24,6 +24,7 @@
     "@mui/system": "^5.8.6",
     "@mui/x-date-pickers": "^7.27.0",
     "axios": "^1.8.0",
+    "bottleneck": "^2.19.5",
     "dayjs": "^1.11.7",
     "dotenv": "^16.4.7",
     "firebase": "^11.3.1",

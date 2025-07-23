@@ -104,6 +104,7 @@ const PropertyList = ({
         bedrooms: property.Bedrooms || fullPropertyData.bedrooms || "",
         bathrooms: property.Bathrooms || fullPropertyData.bathrooms || "",
         sqft: property.sqft || fullPropertyData.sqft || "",
+        propertyType: fullPropertyData.property_type || "",
         GoogleSheetId: fullPropertyData.google_sheet_id || "",
         GoogleFolderId: fullPropertyData.google_folder_id || "",
       });
@@ -152,6 +153,7 @@ const PropertyList = ({
             bedrooms: editFormData.bedrooms,
             bathrooms: editFormData.bathrooms,
             sqft: editFormData.sqft,
+            propertyType: editFormData.propertyType,
             GoogleSheetId: editFormData.GoogleSheetId,
             GoogleFolderId: editFormData.GoogleFolderId,
           }),
@@ -578,6 +580,41 @@ const PropertyList = ({
                     },
                   }}
                 />
+
+                <FormControl fullWidth variant="outlined" sx={{ mb: 2 }}>
+                  <InputLabel id="property-type-edit-label">
+                    Property Type
+                  </InputLabel>
+                  <Select
+                    labelId="property-type-edit-label"
+                    id="property-type-edit"
+                    name="propertyType"
+                    value={editFormData.propertyType || ""}
+                    onChange={handleInputChange}
+                    label="Property Type"
+                    sx={{
+                      "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+                        {
+                          borderColor: "#eccb34",
+                        },
+                      "& .MuiInputLabel-root.Mui-focused": {
+                        color: "#eccb34",
+                      },
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em>Select a type</em>
+                    </MenuItem>
+                    <MenuItem value="studio">Studio</MenuItem>
+                    <MenuItem value="1_bedroom">1 Bedroom</MenuItem>
+                    <MenuItem value="2_bedroom">2 Bedroom</MenuItem>
+                    <MenuItem value="3_bedroom">3 Bedroom</MenuItem>
+                    <MenuItem value="townhome">Townhome</MenuItem>
+                    <MenuItem value="invermere">Invermere</MenuItem>
+                    <MenuItem value="kelowna">Kelowna</MenuItem>
+                  </Select>
+                </FormControl>
+
                 <TextField
                   label="Google Sheet ID"
                   name="GoogleSheetId"

@@ -15,6 +15,7 @@ import NotificationsPanel from "./NotificationsPanel";
 import fetchWithAuth from "@/lib/fetchWithAuth";
 import { useUser } from "@/contexts/UserContext";
 import { useMobileMenu } from "@/contexts/MobileMenuContext";
+import BookOnlineIcon from "@mui/icons-material/BookOnline";
 
 const SideBar = () => {
   const router = useRouter();
@@ -190,6 +191,17 @@ const SideBar = () => {
           >
             <MapsHomeWorkIcon className={getIconClasses("MapsHomeWorkIcon")} />
             <span className="ml-3 text-dark md:hidden">Properties</span>
+          </div>
+
+          {/* New navigation item */}
+          <div
+            className={getContainerClasses("BookOnlineIcon")}
+            onMouseOver={() => handleMouseOver("BookOnlineIcon")}
+            onMouseOut={handleMouseOut}
+            onClick={() => navigateTo("/manage-bookings")}
+          >
+            <BookOnlineIcon className={getIconClasses("BookOnlineIcon")} />
+            <span className="ml-3 text-dark md:hidden">Manage Bookings</span>
           </div>
         </div>
 

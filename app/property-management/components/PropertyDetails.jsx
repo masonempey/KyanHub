@@ -11,6 +11,10 @@ import {
   Box,
   Tab,
   Tabs,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import fetchWithAuth from "@/lib/fetchWithAuth";
@@ -123,8 +127,8 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                 "& .MuiTab-root": {
                   color: "#333333",
                   "&.Mui-selected": { color: "#eccb34" },
-                  fontSize: { xs: "0.8rem", sm: "0.875rem" }, // Responsive font size
-                  padding: { xs: "6px 12px", sm: "12px 16px" }, // Responsive padding
+                  fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                  padding: { xs: "6px 12px", sm: "12px 16px" },
                 },
                 "& .MuiTabs-indicator": { backgroundColor: "#eccb34" },
               }}
@@ -254,198 +258,29 @@ const PropertyDetails = ({ propertyId, onError, onSuccess }) => {
                           variant="outlined"
                         />
                       </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          )}
-
-          {/* For other tabs */}
-          {detailsTab === 1 && (
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Card>
-                  {/* Similar adjustments to the grid items for financial section */}
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Financial Overview
-                    </Typography>
-                    <Divider className="mb-4" />
-                    <Grid container spacing={2}>
                       <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Purchase Price"
-                          name="purchasePrice"
-                          type="number"
-                          value={property.purchasePrice || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Current Value"
-                          name="currentValue"
-                          type="number"
-                          value={property.currentValue || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Monthly Rental Income"
-                          name="rentalIncome"
-                          type="number"
-                          value={property.rentalIncome || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Monthly Expenses"
-                          name="monthlyExpenses"
-                          type="number"
-                          value={property.monthlyExpenses || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                        />
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Mortgage Information
-                    </Typography>
-                    <Divider className="mb-4" />
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Mortgage Amount"
-                          name="mortgageAmount"
-                          type="number"
-                          value={property.mortgageAmount || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Interest Rate"
-                          name="interestRate"
-                          type="number"
-                          value={property.interestRate || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Loan Term (years)"
-                          name="loanTerm"
-                          type="number"
-                          value={property.loanTerm || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                        />
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Monthly Payment"
-                          name="monthlyPayment"
-                          type="number"
-                          value={property.monthlyPayment || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                        />
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          )}
-
-          {detailsTab === 2 && (
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Important Contacts
-                    </Typography>
-                    <Divider className="mb-4" />
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Property Manager"
-                          name="propertyManager"
-                          value={property.propertyManager || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                          className="mb-2"
-                        />
-                        <TextField
-                          label="Property Manager Phone"
-                          name="propertyManagerPhone"
-                          value={property.propertyManagerPhone || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                          className="mb-2"
-                        />
-                        <TextField
-                          label="Property Manager Email"
-                          name="propertyManagerEmail"
-                          value={property.propertyManagerEmail || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                        />
-                      </Grid>
-
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Maintenance Contact"
-                          name="maintenanceContact"
-                          value={property.maintenanceContact || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                          className="mb-2"
-                        />
-                        <TextField
-                          label="Maintenance Phone"
-                          name="maintenancePhone"
-                          value={property.maintenancePhone || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                          className="mb-2"
-                        />
-                        <TextField
-                          label="Maintenance Email"
-                          name="maintenanceEmail"
-                          value={property.maintenanceEmail || ""}
-                          onChange={handleInputChange}
-                          fullWidth
-                          variant="outlined"
-                        />
+                        <FormControl fullWidth variant="outlined">
+                          <InputLabel id="property-type-label">
+                            Property Type
+                          </InputLabel>
+                          <Select
+                            labelId="property-type-label"
+                            id="property-type"
+                            name="propertyType"
+                            value={property.propertyType || ""}
+                            onChange={handleInputChange}
+                            label="Property Type"
+                          >
+                            <MenuItem value="">
+                              <em>Select a type</em>
+                            </MenuItem>
+                            <MenuItem value="studio">Studio</MenuItem>
+                            <MenuItem value="1_bedroom">1 Bedroom</MenuItem>
+                            <MenuItem value="2_bedroom">2 Bedroom</MenuItem>
+                            <MenuItem value="3_bedroom">3 Bedroom</MenuItem>
+                            <MenuItem value="townhome">Townhome</MenuItem>
+                          </Select>
+                        </FormControl>
                       </Grid>
                     </Grid>
                   </CardContent>

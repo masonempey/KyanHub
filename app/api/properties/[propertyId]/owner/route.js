@@ -5,7 +5,9 @@ import { query } from "@/lib/database";
 
 export async function GET(request, { params }) {
   try {
-    const { propertyId } = params;
+    // Await params before destructuring
+    const resolvedParams = await params;
+    const { propertyId } = resolvedParams;
 
     console.log(`Looking up owner for property: ${propertyId}`);
 
