@@ -165,8 +165,14 @@ export async function POST(request) {
     }, 0);
 
     // Calculate net amount and owner profit
-    const netAmount = totalRevenue - totalCleaning - expensesTotal;
-    const ownerProfit = (netAmount * ownershipPercentage) / 100;
+    const netAmount = totalRevenue - totalCleaning; // Do NOT subtract expenses here
+    const ownerProfitBeforeExpenses = (netAmount * ownershipPercentage) / 100;
+    const ownerProfit = ownerProfitBeforeExpenses - expensesTotal; // Subtract expenses only from owner's share
+
+    console.log(
+      `Calculated for property ${propertyId} (${propertyName}):`,
+      `Total Revenue: ${totalRevenue}, Total Cleaning: ${totalCleaning}, Expenses: ${expensesTotal}, Net Amount: ${netAmount}, Owner Profit: ${ownerProfit}`
+    );
 
     // If not a dry run, save to the database
     let dbResult = null;
@@ -182,7 +188,7 @@ export async function POST(request) {
         expensesTotal,
         netAmount,
         bookings.length,
-        null, // sheetId - not updating the sheet yet
+        null,
         ownershipPercentage
       );
     }

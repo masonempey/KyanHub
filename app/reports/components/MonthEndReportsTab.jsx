@@ -27,7 +27,6 @@ const MonthEndReportsTab = ({
   const [loadingReports, setLoadingReports] = useState(false);
   const [updating, setUpdating] = useState(false);
 
-  // Fetch completed month-end reports for the selected month and year
   const fetchCompletedReports = async (month, year) => {
     setLoadingReports(true);
     try {
@@ -65,12 +64,11 @@ const MonthEndReportsTab = ({
     let successCount = 0;
     let errorCount = 0;
     let noOwnerCount = 0;
-    let ownerMap = new Map(); // Cache for looked-up owners
+    let ownerMap = new Map();
 
     try {
       for (const report of completedReports) {
         try {
-          // Implementation details...
           successCount++;
         } catch (err) {
           console.error(
@@ -165,9 +163,54 @@ const MonthEndReportsTab = ({
         return;
       }
 
-      // Implementation details for sending the email...
+      // --- Fetch owner for the property ---
+      const ownerResponse = await fetchWithAuth(
+        `/api/properties/${report.property_id}/owner`
+      );
+      if (!ownerResponse.ok) {
+        setErrorMessage(
+          `No owner found for property "${report.property_name}". Cannot send email.`
+        );
+        setErrorDialogOpen(true);
+        return;
+      }
+      const ownerData = await ownerResponse.json();
+      const ownerId = ownerData.owner?.id;
+      if (!ownerId) {
+        setErrorMessage(
+          `No owner ID found for property "${report.property_name}". Cannot send email.`
+        );
+        setErrorDialogOpen(true);
+        return;
+      }
 
-      // Show success message
+      // --- Send the email ---
+      const emailResponse = await fetchWithAuth(
+        "/api/email/send-owner-report",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ownerId,
+            propertyName: report.property_name,
+            propertyId: report.property_id,
+            month: report.month,
+            year: report.year,
+            totalRevenue: report.revenue_amount,
+            totalCleaning: report.cleaning_fees_amount,
+            expenses: report.expenses_amount,
+            profit: report.owner_profit,
+            bookingCount: Number(report.booking_count || 0),
+            spreadsheetUrl: report.spreadsheet_url,
+          }),
+        }
+      );
+
+      if (!emailResponse.ok) {
+        const errorData = await emailResponse.json();
+        throw new Error(errorData.error || "Failed to send owner email");
+      }
+
       setErrorMessage(`Email sent successfully for ${report.property_name}`);
       setErrorDialogOpen(true);
 

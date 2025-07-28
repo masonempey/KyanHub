@@ -104,6 +104,7 @@ const BookingReportsTab = ({
   const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [errorDialogVisible, setErrorDialogVisible] = useState(false);
+  const [processedData, setProcessedData] = useState([]);
 
   // Handle errors locally first, then propagate up if needed
   const handleError = (message) => {
@@ -112,11 +113,6 @@ const BookingReportsTab = ({
     // Also notify parent component
     if (setErrorMessage) setErrorMessage(message);
     if (setErrorDialogOpen) setErrorDialogOpen(true);
-  };
-
-  // Handle property selection changes
-  const handlePropertiesChange = (selectedIds) => {
-    setSelectedProperties(selectedIds);
   };
 
   // Handle start date change with validation
@@ -248,21 +244,15 @@ const BookingReportsTab = ({
     setUpdating(true);
 
     try {
-      // First check inventory status for all properties
-      const missingInventory = [];
+      // const missingInventory = [];
       const month = startDate.month() + 1;
       const year = startDate.format("YYYY");
 
-      // Check each property for inventory status
       for (const propertyId of selectedProperties) {
         const propertyName =
           typeof allProperties[propertyId] === "object"
             ? allProperties[propertyId].name
             : allProperties[propertyId];
-
-        console.log(
-          `Checking inventory status for property ${propertyName} (ID: ${propertyId})`
-        );
 
         const response = await fetchWithAuth(
           `/api/property-month-end/options?propertyId=${propertyId}&year=${year}&monthNumber=${month}`
@@ -276,16 +266,12 @@ const BookingReportsTab = ({
         }
 
         const data = await response.json();
-        console.log(
-          `Inventory check for ${propertyName}: inventoryReady=${data.inventoryReady}`
-        );
 
         if (!data.inventoryReady) {
           missingInventory.push(propertyName);
         }
       }
 
-      // If any properties are missing inventory, show error and stop
       if (missingInventory.length > 0) {
         handleError(
           `The following properties need inventory invoices before processing: ${missingInventory.join(
@@ -296,73 +282,6 @@ const BookingReportsTab = ({
         return;
       }
 
-      // Handle single property with existing status (special case)
-      if (
-        selectedProperties.length === 1 &&
-        selectedPropertyStatus !== "draft"
-      ) {
-        // If the property is already ready or complete, handle differently
-        if (selectedPropertyStatus === "ready") {
-          // Update the revenue sheet for a ready property
-          const propertyId = selectedProperties[0];
-          const propertyName =
-            typeof allProperties[propertyId] === "object"
-              ? allProperties[propertyId].name
-              : allProperties[propertyId];
-
-          const response = await fetchWithAuth(
-            `/api/property-month-end/update-sheet`,
-            {
-              method: "POST",
-              body: JSON.stringify({
-                propertyId,
-                year,
-                monthNumber: month,
-                dryRun: isDryRun,
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(
-              `Failed to update revenue sheet for ${propertyName}`
-            );
-          }
-
-          const result = await response.json();
-          setUpdateStatus(
-            `Successfully updated revenue sheet for ${propertyName}`
-          );
-
-          // Add to processed properties for display
-          setProcessedProperties((prev) => [
-            ...prev,
-            {
-              id: propertyId,
-              name: propertyName,
-              status: "Updated revenue sheet",
-              timestamp: new Date().toISOString(),
-            },
-          ]);
-
-          setUpdating(false);
-          return;
-        } else if (selectedPropertyStatus === "complete") {
-          handleError(
-            "This property's month-end processing is already complete."
-          );
-          setUpdating(false);
-          return;
-        }
-      }
-
-      // Reset processing state for multi-property processing
-      setConsolidatedSummary([]);
-      setProcessedProperties([]);
-      setIsMultiProcessing(true);
-
-      // Process each property
-      const newProcessedProperties = [];
       const summaryResults = [];
 
       for (const propertyId of selectedProperties) {
@@ -371,149 +290,70 @@ const BookingReportsTab = ({
             ? allProperties[propertyId].name
             : allProperties[propertyId];
 
-        try {
-          console.log(`Processing month-end for ${propertyName}`);
+        const propertyBookings = bookings.filter(
+          (b) => b.propertyId === propertyId || b.propertyUid === propertyId
+        );
 
-          // Get property bookings
-          const propertyBookings = bookings.filter(
-            (b) => b.propertyId === propertyId || b.propertyUid === propertyId
-          );
-
-          console.log(
-            `Found ${propertyBookings.length} bookings for ${propertyName}`
-          );
-
-          if (propertyBookings.length === 0) {
-            console.log(`No bookings found for ${propertyName}, skipping`);
-            newProcessedProperties.push({
-              id: propertyId,
-              name: propertyName,
-              status: "No bookings found",
-              timestamp: new Date().toISOString(),
-            });
-            continue;
-          }
-
-          // Calculate month-end for this property
-          const response = await fetchWithAuth(
-            `/api/property-month-end/calculate`,
-            {
-              method: "POST",
-              body: JSON.stringify({
-                propertyId,
-                propertyName,
-                year,
-                month: monthNames[month - 1],
-                monthNumber: month,
-                bookings: propertyBookings,
-                dryRun: isDryRun,
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error(await response.text());
-          }
-
-          // Parse the response - all calculations were done on the server
-          const result = await response.json();
-          console.log("Month-end calculation result:", result);
-
-          // Add debugging to identify where values are coming from
-          console.log(`Raw API Result:`, result);
-
-          // Extract the data, handling both direct and nested formats
-          const apiData = result.data || result;
-
-          // Make sure we're using the correct property names from the API response
-          const totalRevenue = parseFloat(apiData.revenue_amount || 0);
-          const cleaningFeesAmount = parseFloat(
-            apiData.cleaning_fees_amount || 0
-          );
-          const expensesTotal = parseFloat(apiData.expenses_amount || 0);
-          const ownershipPercentage = parseFloat(
-            apiData.owner_percentage || 100
-          );
-
-          // Calculate derived values
-          const netAmount = totalRevenue - cleaningFeesAmount - expensesTotal;
-          const ownerProfit = (netAmount * ownershipPercentage) / 100;
-
-          // Add to summary results
+        if (propertyBookings.length === 0) {
           summaryResults.push({
             propertyId,
             propertyName,
-            year,
-            month: monthNames[month - 1],
-            monthNumber: month,
-            bookingCount: propertyBookings.length,
-            totalRevenue,
-            totalCleaning: cleaningFeesAmount,
-            expenses: expensesTotal,
-            netAmount,
-            ownershipPercentage,
-            ownerProfit,
-            status: apiData.status || "draft",
+            status: "No bookings found",
           });
-
-          // Add to processed properties
-          newProcessedProperties.push({
-            id: propertyId,
-            name: propertyName,
-            status: "Successfully calculated",
-            timestamp: new Date().toISOString(),
-            revenue: totalRevenue || 0,
-          });
-        } catch (error) {
-          console.error(`Error processing ${propertyName}:`, error);
-
-          newProcessedProperties.push({
-            id: propertyId,
-            name: propertyName,
-            status: "Error",
-            timestamp: new Date().toISOString(),
-            error: error.message || "Unknown error",
-            success: false,
-          });
-
-          summaryResults.push({
-            propertyId,
-            propertyName,
-            year,
-            month: monthNames[month - 1],
-            monthNumber: month,
-            hasError: true,
-            errorMessage: error.message || "Unknown error",
-          });
+          continue;
         }
+
+        const response = await fetchWithAuth(
+          `/api/property-month-end/calculate`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              propertyId,
+              propertyName,
+              year,
+              month: monthNames[month - 1],
+              monthNumber: month,
+              bookings: propertyBookings,
+              dryRun: false,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const result = await response.json();
+        const apiData = result.data || result;
+
+        summaryResults.push({
+          propertyId,
+          propertyName,
+          year,
+          month: monthNames[month - 1],
+          monthNumber: month,
+          bookingCount: propertyBookings.length,
+          totalRevenue: parseFloat(apiData.revenue_amount || 0),
+          totalCleaning: parseFloat(apiData.cleaning_fees_amount || 0),
+          expenses: parseFloat(apiData.expenses_amount || 0),
+          netAmount: parseFloat(apiData.net_amount || 0),
+          ownershipPercentage: parseFloat(apiData.owner_percentage || 100),
+          ownerProfit: parseFloat(apiData.owner_profit || 0),
+          status: apiData.status || "draft",
+        });
       }
 
-      // Update state with results
+      // Save the processed data to state
+      setProcessedData(summaryResults);
+
+      // Optionally, show a summary dialog
       setConsolidatedSummary(summaryResults);
-      setProcessedProperties((prev) => [...prev, ...newProcessedProperties]);
-
-      // Show the summary dialog with results
-      if (summaryResults.length > 0) {
-        setSummaryDialogOpen(true);
-      }
-
-      // Show success message
-      const successCount = newProcessedProperties.filter(
-        (p) => !p.error
-      ).length;
-      const errorCount = newProcessedProperties.filter((p) => p.error).length;
-
-      setUpdateStatus(
-        `Processed ${successCount} properties successfully${
-          errorCount > 0 ? `, ${errorCount} with errors` : ""
-        }`
-      );
+      setSummaryDialogOpen(true);
     } catch (error) {
       console.error("Error processing properties:", error);
       handleError(`Error: ${error.message}`);
     } finally {
       setUpdating(false);
-      setIsMultiProcessing(false);
     }
   };
 
@@ -559,84 +399,63 @@ const BookingReportsTab = ({
   const processAllProperties = async () => {
     try {
       setUpdating(true);
-      setUpdateStatus("Updating Google Sheets...");
+      setUpdateStatus("Processing Month-End...");
 
-      // Filter out properties with errors and build request data
-      const requestData = consolidatedSummary
-        .filter((property) => !property.hasError)
-        .map((property) => {
-          const propertyBookings = bookings.filter(
-            (b) =>
-              b.propertyId === property.propertyId ||
-              b.propertyUid === property.propertyId
-          );
-
-          return {
-            propertyId: property.propertyId,
-            propertyName: property.propertyName,
-            bookings: propertyBookings,
-            year: property.year,
-            monthName: property.month,
-            expensesTotal: property.expenses || 0,
-          };
-        });
-
-      // Validate that requestData contains valid entries
-      if (!requestData.length) {
-        throw new Error(
-          "No valid properties to process. Check for errors in the summary."
+      // Use the processed data from handleMultiPropertyUpdate
+      const requestData = processedData.map((property) => {
+        // Filter bookings for the current property
+        const propertyBookings = bookings.filter(
+          (b) =>
+            b.propertyId === property.propertyId ||
+            b.propertyUid === property.propertyId
         );
-      }
 
-      // Validate each request item has the required properties
-      for (const item of requestData) {
-        if (
-          !item.propertyId ||
-          !item.propertyName ||
-          !item.bookings ||
-          !item.year ||
-          !item.monthName
-        ) {
-          console.error("Invalid property data:", item);
-          throw new Error(
-            `Missing required data for property: ${
-              item.propertyName || "Unknown"
-            }`
-          );
-        }
-      }
+        return {
+          propertyId: property.propertyId,
+          propertyName: property.propertyName,
+          year: property.year,
+          monthName: property.month,
+          monthNumber: property.monthNumber,
+          totalRevenue: property.totalRevenue,
+          totalCleaning: property.totalCleaning,
+          expensesTotal: property.expenses,
+          netAmount: property.netAmount,
+          ownershipPercentage: property.ownershipPercentage,
+          ownerProfit: property.ownerProfit,
+          bookings: propertyBookings,
+          dryRun: isDryRun,
+        };
+      });
 
-      console.log("Sending update request with data:", requestData);
-
+      // Send the data to the backend
       const response = await fetchWithAuth("/api/sheets/revenue", {
         method: "PUT",
         body: JSON.stringify(requestData),
       });
 
-      const data = await response.json();
-
-      // Add this block to handle re-authentication
       if (!response.ok) {
-        if (data.needsReauth) {
-          // Redirect to Google auth
-          setUpdateStatus(
-            "Your Google authorization has expired. Redirecting to sign in..."
-          );
-          setTimeout(() => {
-            window.location.href = "/api/google/reauth"; // Adjust this to your auth endpoint
-          }, 2000);
-          return;
-        }
-        throw new Error(data.error || "Failed to update sheet");
+        throw new Error("Failed to process month-end");
       }
 
-      setUpdateStatus(
-        `Successfully processed ${requestData.length} properties`
+      // Refetch updated data from the database
+      const month = startDate.format("MMMM");
+      const year = startDate.format("YYYY");
+      const updatedResponse = await fetchWithAuth(
+        `/api/property-month-end/completed?month=${encodeURIComponent(
+          month
+        )}&year=${encodeURIComponent(year)}`
       );
+
+      if (!updatedResponse.ok) {
+        throw new Error("Failed to fetch updated reports");
+      }
+
+      // Close the summary dialog and show a success message
       setSummaryDialogOpen(false);
+      setUpdateStatus("Update Completed Successfully!");
     } catch (error) {
-      console.error("Error processing final properties:", error);
-      handleError(`Error: ${error.message}`);
+      console.error("Error processing month-end:", error);
+      setUpdateStatus(`Error: ${error.message}`);
     } finally {
       setUpdating(false);
     }
@@ -993,7 +812,6 @@ const BookingReportsTab = ({
             >
               Download CSV
             </Button>
-            {/* Add the new Update Sheets button */}
             <Button
               onClick={processAllProperties}
               color="primary"
