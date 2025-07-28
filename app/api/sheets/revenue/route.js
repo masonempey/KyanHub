@@ -110,14 +110,12 @@ export async function PUT(request) {
 
     // Initialize Google API
     await googleService.init();
-    console.log("Google API initialized with valid credentials");
 
     // Parse the request body
     const requestBody = await request.json();
     const propertyData = Array.isArray(requestBody)
       ? requestBody
       : [requestBody];
-    console.log(`Processing ${propertyData.length} properties`);
 
     // Declare spreadsheetUrl at the top level
     let spreadsheetUrls = [];
@@ -138,7 +136,15 @@ export async function PUT(request) {
         year,
         monthName,
         expensesTotal,
+        dryRun,
       } = data;
+
+      if (dryRun) {
+        console.log(
+          `Dry Run enabled. Skipping updates for property: ${propertyName}`
+        );
+        continue;
+      }
 
       // Validate required fields for each property
       if (!propertyId || !propertyName || !bookings || !year || !monthName) {
@@ -156,9 +162,6 @@ export async function PUT(request) {
           { status: 400 }
         );
       }
-
-      console.log(`Processing property: ${propertyName} (${propertyId})`);
-      console.log(`Bookings count: ${bookings.length}`);
 
       // Get the Google Sheet ID directly from the database
       const sheetId = await PropertyService.getClientSheetID(propertyId);
@@ -370,6 +373,20 @@ export async function PUT(request) {
         url: sheetUrl,
       });
 
+      // Fetch the actual ownership percentage for this property
+      let ownershipPercentage = 80;
+      try {
+        const ownerInfo = await PropertyService.getPropertyOwner(propertyId);
+        if (ownerInfo && ownerInfo.ownership_percentage) {
+          ownershipPercentage = ownerInfo.ownership_percentage;
+        }
+      } catch (err) {
+        console.error(
+          `Could not fetch ownership percentage for property ${propertyId}:`,
+          err.message
+        );
+      }
+
       // Update revenue and status
       await MonthEndService.updateRevenueAndStatus({
         propertyId,
@@ -383,12 +400,12 @@ export async function PUT(request) {
         netAmount: monthTotal - cleaningTotal - expensesTotal || 0,
         bookingsCount: bookings.length,
         sheetId,
-        ownerPercentage: 100, // Default or fetch from somewhere
-        status: "ready", // Set to ready now that the update succeeded
+        ownerPercentage: ownershipPercentage,
+        status: "ready",
+        forceUpdate: true,
       });
     }
 
-    // Return a single URL if there's only one, otherwise return the array
     const spreadsheetUrl =
       spreadsheetUrls.length === 1 ? spreadsheetUrls[0].url : spreadsheetUrls;
 
