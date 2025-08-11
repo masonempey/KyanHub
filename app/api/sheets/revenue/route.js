@@ -129,281 +129,312 @@ export async function PUT(request) {
 
     // Process each property
     for (const data of propertyData) {
-      const {
-        propertyId,
-        propertyName,
-        bookings,
-        year,
-        monthName,
-        expensesTotal,
-        dryRun,
-      } = data;
+      try {
+        const {
+          propertyId,
+          propertyName,
+          bookings,
+          year,
+          monthName,
+          expensesTotal,
+          dryRun,
+        } = data;
 
-      if (dryRun) {
-        console.log(
-          `Dry Run enabled. Skipping updates for property: ${propertyName}`
-        );
-        continue;
-      }
-
-      // Validate required fields for each property
-      if (!propertyId || !propertyName || !bookings || !year || !monthName) {
-        console.error(
-          "Missing required data for property:",
-          propertyName || "Unknown"
-        );
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Missing required data for property: ${
-              propertyName || "Unknown"
-            }`,
-          },
-          { status: 400 }
-        );
-      }
-
-      // Get the Google Sheet ID directly from the database
-      const sheetId = await PropertyService.getClientSheetID(propertyId);
-
-      if (!sheetId) {
-        const errorMsg = `No Google Sheet ID found for property: ${propertyName} (ID: ${propertyId})`;
-        console.error(errorMsg);
-        return NextResponse.json(
-          { success: false, error: errorMsg },
-          { status: 404 }
-        );
-      }
-
-      // Get sheet metadata to confirm it exists
-      const sheetMetadata = await googleService.sheets.spreadsheets.get({
-        spreadsheetId: sheetId,
-        fields: "properties.title",
-      });
-      const sheetNameResult = sheetMetadata.data.properties.title;
-      console.log(`Processing sheet: ${sheetNameResult} (ID: ${sheetId})`);
-
-      const monthIndex = monthNames.indexOf(monthName);
-      const monthNum = monthIndex !== -1 ? monthIndex + 1 : null;
-
-      if (monthNum === null) {
-        throw new Error(`Invalid month name: ${monthName}`);
-      }
-
-      // Check month-end status
-      const status = await MonthEndService.getMonthEndStatus(
-        propertyId,
-        year,
-        monthNum
-      );
-      const statusValue = status?.status || "draft";
-
-      if (statusValue !== "ready" && statusValue !== "complete") {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Property must be marked as Ready before updating revenue",
-            currentStatus: statusValue,
-          },
-          { status: 403 }
-        );
-      }
-
-      // Get the layout and sheet name
-      const layout = getSheetLayout(propertyName);
-      const sheetName = getSheetName(propertyName, layout);
-      console.log("Using layout:", layout);
-      console.log("Using sheet name:", sheetName);
-
-      // Fetch column A data
-      const columnData = await googleService.getSheetData(
-        sheetId,
-        `${sheetName}!A:A`
-      );
-
-      // Find year and month rows
-      const yearRowIndex = columnData.findIndex(
-        (row) => row[0] && row[0].toString() === year
-      );
-      if (yearRowIndex === -1) throw new Error(`Year ${year} not found`);
-
-      const monthRowIndex = columnData
-        .slice(yearRowIndex)
-        .findIndex(
-          (row) =>
-            row[0] &&
-            row[0].toString().toLowerCase() === monthName.toLowerCase()
-        );
-      if (monthRowIndex === -1)
-        throw new Error(`Month ${monthName} not found after year ${year}`);
-
-      const actualRowIndex = yearRowIndex + monthRowIndex + 1;
-      console.log("Updating row:", actualRowIndex);
-
-      // Calculate totals
-      const monthYearKey = `${year}-${monthNum}`;
-      const monthTotal = Number(
-        bookings
-          .reduce((sum, booking) => {
-            const revenue = booking.revenueByMonth[monthYearKey] || 0;
-            return sum + revenue;
-          }, 0)
-          .toFixed(2)
-      );
-      const monthTotalFormatted = monthTotal === 0 ? "" : `$${monthTotal}`;
-
-      const cleaningTotal = Number(
-        bookings
-          .reduce((sum, booking) => {
-            const cleaning =
-              booking.cleaningFeeMonth === monthYearKey
-                ? booking.cleaningFee
-                : 0;
-            return sum + cleaning;
-          }, 0)
-          .toFixed(2)
-      );
-      const cleaningTotalFormatted =
-        cleaningTotal === 0 ? "" : `$${cleaningTotal}`;
-
-      // Format expenses
-      const expensesTotalNumber = Number(expensesTotal);
-      const expensesTotalFormatted =
-        expensesTotalNumber === 0 ? "" : `$${expensesTotalNumber.toFixed(2)}`;
-
-      // Update main totals in a single batch
-      await googleService.updateSheetValues(sheetId, sheetName, [
-        {
-          range: `${layout.revenueColumn}${actualRowIndex}`,
-          value: monthTotalFormatted,
-        },
-        {
-          range: `${layout.cleaningColumn}${actualRowIndex}`,
-          value: cleaningTotalFormatted,
-        },
-        {
-          range: `${layout.expensesColumn}${actualRowIndex}`,
-          value: expensesTotalFormatted,
-        },
-      ]);
-
-      // Handle booking details
-      const rightSideData = await googleService.getSheetData(
-        sheetId,
-        `${sheetName}!${layout.rightSideStart}:${layout.rightSideEnd}`
-      );
-
-      const newBookings = bookings.filter((booking) => {
-        return !rightSideData.some((row) => {
-          if (!row || !row[0]) return false;
-          const rowMonth = String(row[0]);
-          const rowName = String(row[1] || "");
-          const rowBookingCode = String(row[4] || "");
-          return (
-            (rowMonth.toLowerCase() === monthName.toLowerCase() &&
-              rowName.toLowerCase() === booking.guestName.toLowerCase()) ||
-            (rowBookingCode && rowBookingCode === booking.bookingCode)
+        if (dryRun) {
+          console.log(
+            `Dry Run enabled. Skipping updates for property: ${propertyName}`
           );
+          continue;
+        }
+
+        // Validate required fields for each property
+        if (!propertyId || !propertyName || !bookings || !year || !monthName) {
+          console.error(
+            "Missing required data for property:",
+            propertyName || "Unknown"
+          );
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Missing required data for property: ${
+                propertyName || "Unknown"
+              }`,
+            },
+            { status: 400 }
+          );
+        }
+
+        console.log(`[${propertyName}] Getting Google Sheet ID...`);
+        const sheetId = await PropertyService.getClientSheetID(propertyId);
+        console.log(`[${propertyName}] Sheet ID:`, sheetId);
+
+        if (!sheetId) {
+          const errorMsg = `No Google Sheet ID found for property: ${propertyName} (ID: ${propertyId})`;
+          console.error(errorMsg);
+          continue;
+        }
+
+        console.log(`[${propertyName}] Fetching sheet metadata...`);
+        const sheetMetadata = await googleService.sheets.spreadsheets.get({
+          spreadsheetId: sheetId,
+          fields: "properties.title",
         });
-      });
+        const sheetNameResult = sheetMetadata.data.properties.title;
+        console.log(
+          `[${propertyName}] Sheet metadata loaded:`,
+          sheetNameResult
+        );
 
-      // PERFORMANCE IMPROVEMENT: Use batch updates for booking rows
-      if (newBookings.length > 0) {
-        const firstEmptyRow = rightSideData.length + 1;
+        const monthIndex = monthNames.indexOf(monthName);
+        const monthNum = monthIndex !== -1 ? monthIndex + 1 : null;
+        if (monthNum === null)
+          throw new Error(`Invalid month name: ${monthName}`);
 
-        // Prepare all values for batch update
-        const batchUpdates = [];
+        console.log(`[${propertyName}] Checking month-end status...`);
+        const status = await MonthEndService.getMonthEndStatus(
+          propertyId,
+          year,
+          monthNum
+        );
+        const statusValue = status?.status || "draft";
+        console.log(`[${propertyName}] Month-end status:`, statusValue);
 
-        newBookings.forEach((booking, index) => {
-          const revenue = Number(
-            booking.revenueByMonth[monthYearKey] || 0
-          ).toFixed(2);
-          const cleaning =
-            booking.cleaningFeeMonth === monthYearKey
-              ? Number(booking.cleaningFee).toFixed(2)
-              : "";
+        if (statusValue !== "ready" && statusValue !== "complete") {
+          console.error(
+            `[${propertyName}] Not ready for update, status:`,
+            statusValue
+          );
+          continue;
+        }
 
-          const rowIndex = firstEmptyRow + index;
-          const range = `${layout.rightSideStart}${rowIndex}:${layout.rightSideEnd}${rowIndex}`;
+        const layout = getSheetLayout(propertyName);
+        const sheetName = getSheetName(propertyName, layout);
+        console.log(`[${propertyName}] Using layout:`, layout);
+        console.log(`[${propertyName}] Using sheet name:`, sheetName);
 
-          const values = [
-            monthName,
-            booking.guestName,
-            revenue === "0.00" ? "" : `$${revenue}`,
-            cleaning === "0.00" ? "" : cleaning ? `$${cleaning}` : "",
-            booking.platform,
-            booking.bookingCode || "",
-          ];
+        console.log(`[${propertyName}] Fetching column A data...`);
+        const columnData = await googleService.getSheetData(
+          sheetId,
+          `${sheetName}!A:A`
+        );
+        console.log(
+          `[${propertyName}] Column A data loaded, rows:`,
+          columnData.length
+        );
 
-          batchUpdates.push({
-            range: range,
-            values: [values],
+        const yearRowIndex = columnData.findIndex(
+          (row) => row[0] && row[0].toString() === year
+        );
+        console.log(`[${propertyName}] Year row index:`, yearRowIndex);
+
+        const monthRowIndex = columnData
+          .slice(yearRowIndex)
+          .findIndex(
+            (row) =>
+              row[0] &&
+              row[0].toString().toLowerCase() === monthName.toLowerCase()
+          );
+        console.log(`[${propertyName}] Month row index:`, monthRowIndex);
+
+        const actualRowIndex = yearRowIndex + monthRowIndex + 1;
+        console.log(
+          `[${propertyName}] Actual row index to update:`,
+          actualRowIndex
+        );
+
+        // Calculate totals
+        const monthYearKey = `${year}-${monthNum}`;
+        const monthTotal = Number(
+          bookings
+            .reduce((sum, booking) => {
+              const revenue = booking.revenueByMonth[monthYearKey] || 0;
+              return sum + revenue;
+            }, 0)
+            .toFixed(2)
+        );
+        const monthTotalFormatted = monthTotal === 0 ? "" : `$${monthTotal}`;
+
+        const cleaningTotal = Number(
+          bookings
+            .reduce((sum, booking) => {
+              const cleaning =
+                booking.cleaningFeeMonth === monthYearKey
+                  ? booking.cleaningFee
+                  : 0;
+              return sum + cleaning;
+            }, 0)
+            .toFixed(2)
+        );
+        const cleaningTotalFormatted =
+          cleaningTotal === 0 ? "" : `$${cleaningTotal}`;
+
+        // Format expenses
+        const expensesTotalNumber = Number(expensesTotal);
+        const expensesTotalFormatted =
+          expensesTotalNumber === 0 ? "" : `$${expensesTotalNumber.toFixed(2)}`;
+
+        console.log(`[${propertyName}] Updating main totals in sheet...`);
+        // Update main totals in a single batch
+        await googleService.updateSheetValues(sheetId, sheetName, [
+          {
+            range: `${layout.revenueColumn}${actualRowIndex}`,
+            value: monthTotalFormatted,
+          },
+          {
+            range: `${layout.cleaningColumn}${actualRowIndex}`,
+            value: cleaningTotalFormatted,
+          },
+          {
+            range: `${layout.expensesColumn}${actualRowIndex}`,
+            value: expensesTotalFormatted,
+          },
+        ]);
+        console.log(`[${propertyName}] Main totals updated.`);
+
+        console.log(`[${propertyName}] Fetching right-side data...`);
+        const rightSideData = await googleService.getSheetData(
+          sheetId,
+          `${sheetName}!${layout.rightSideStart}:${layout.rightSideEnd}`
+        );
+        console.log(
+          `[${propertyName}] Right-side data loaded, rows:`,
+          rightSideData.length
+        );
+
+        // Handle booking details
+        const newBookings = bookings.filter((booking) => {
+          return !rightSideData.some((row) => {
+            if (!row || !row[0]) return false;
+            const rowMonth = String(row[0]);
+            const rowName = String(row[1] || "");
+            const rowBookingCode = String(row[4] || "");
+            return (
+              (rowMonth.toLowerCase() === monthName.toLowerCase() &&
+                rowName.toLowerCase() === booking.guestName.toLowerCase()) ||
+              (rowBookingCode && rowBookingCode === booking.bookingCode)
+            );
           });
         });
 
-        // Execute a single batch update instead of multiple individual updates
-        if (batchUpdates.length > 0) {
-          console.log(
-            `Updating ${batchUpdates.length} booking rows in a batch`
-          );
+        // PERFORMANCE IMPROVEMENT: Use batch updates for booking rows
+        if (newBookings.length > 0) {
+          const firstEmptyRow = rightSideData.length + 1;
 
-          // Format the data as expected by the Google Sheets API
-          for (const update of batchUpdates) {
-            try {
-              await googleService.updateRangeValues(
-                sheetId,
-                sheetName,
-                update.range,
-                [update.values[0]] // Wrap in array as expected by the API
-              );
-              console.log(
-                `Successfully updated row for ${update.values[0][1]}`
-              );
-            } catch (updateError) {
-              console.error(`Error updating row:`, updateError.message);
+          // Prepare all values for batch update
+          const batchUpdates = [];
+
+          newBookings.forEach((booking, index) => {
+            const revenue = Number(
+              booking.revenueByMonth[monthYearKey] || 0
+            ).toFixed(2);
+            const cleaning =
+              booking.cleaningFeeMonth === monthYearKey
+                ? Number(booking.cleaningFee).toFixed(2)
+                : "";
+
+            const rowIndex = firstEmptyRow + index;
+            const range = `${layout.rightSideStart}${rowIndex}:${layout.rightSideEnd}${rowIndex}`;
+
+            const values = [
+              monthName,
+              booking.guestName,
+              revenue === "0.00" ? "" : `$${revenue}`,
+              cleaning === "0.00" ? "" : cleaning ? `$${cleaning}` : "",
+              booking.platform,
+              booking.bookingCode || "",
+            ];
+
+            batchUpdates.push({
+              range: range,
+              values: [values],
+            });
+          });
+
+          if (batchUpdates.length > 0) {
+            console.log(
+              `[${propertyName}] Updating ${batchUpdates.length} booking rows in a batch`
+            );
+            for (const update of batchUpdates) {
+              try {
+                console.log(
+                  `[${propertyName}] Updating range:`,
+                  update.range,
+                  "with values:",
+                  update.values[0]
+                );
+                await googleService.updateRangeValues(
+                  sheetId,
+                  sheetName,
+                  update.range,
+                  [update.values[0]]
+                );
+                console.log(
+                  `[${propertyName}] Successfully updated row for ${update.values[0][1]}`
+                );
+              } catch (updateError) {
+                console.error(
+                  `[${propertyName}] Error updating row:`,
+                  updateError.message,
+                  updateError
+                );
+              }
             }
           }
         }
-      }
 
-      // Get the spreadsheet URL
-      const sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
-      spreadsheetUrls.push({
-        propertyName: propertyName,
-        url: sheetUrl,
-      });
+        // Get the spreadsheet URL
+        const sheetUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/edit`;
+        spreadsheetUrls.push({
+          propertyName: propertyName,
+          url: sheetUrl,
+        });
 
-      // Fetch the actual ownership percentage for this property
-      let ownershipPercentage = 80;
-      try {
-        const ownerInfo = await PropertyService.getPropertyOwner(propertyId);
-        if (ownerInfo && ownerInfo.ownership_percentage) {
-          ownershipPercentage = ownerInfo.ownership_percentage;
+        // Fetch the actual ownership percentage for this property
+        let ownershipPercentage = 80;
+        try {
+          const ownerInfo = await PropertyService.getPropertyOwner(propertyId);
+          if (ownerInfo && ownerInfo.ownership_percentage) {
+            ownershipPercentage = ownerInfo.ownership_percentage;
+          }
+        } catch (err) {
+          console.error(
+            `Could not fetch ownership percentage for property ${propertyId}:`,
+            err.message
+          );
         }
-      } catch (err) {
-        console.error(
-          `Could not fetch ownership percentage for property ${propertyId}:`,
-          err.message
-        );
-      }
 
-      // Update revenue and status
-      await MonthEndService.updateRevenueAndStatus({
-        propertyId,
-        propertyName,
-        year,
-        month: monthName,
-        monthNumber: monthNum,
-        revenueAmount: monthTotal || 0,
-        cleaningAmount: cleaningTotal || 0,
-        expensesAmount: expensesTotal || 0,
-        netAmount: monthTotal - cleaningTotal - expensesTotal || 0,
-        bookingsCount: bookings.length,
-        sheetId,
-        ownerPercentage: ownershipPercentage,
-        status: "ready",
-        forceUpdate: true,
-      });
+        // Update revenue and status
+        await MonthEndService.updateRevenueAndStatus({
+          propertyId,
+          propertyName,
+          year,
+          month: monthName,
+          monthNumber: monthNum,
+          revenueAmount: monthTotal || 0,
+          cleaningAmount: cleaningTotal || 0,
+          expensesAmount: expensesTotal || 0,
+          netAmount: monthTotal - cleaningTotal - expensesTotal || 0,
+          bookingsCount: bookings.length,
+          sheetId,
+          ownerPercentage: ownershipPercentage,
+          status: "ready",
+          forceUpdate: true,
+        });
+      } catch (error) {
+        console.error(
+          `[${data.propertyName || "Unknown"}] Error in property loop:`,
+          error.message,
+          error
+        );
+        if (error.response?.status === 403) {
+          console.error(
+            `[${data.propertyName || "Unknown"}] 403 error details:`,
+            error.response?.data,
+            error.response
+          );
+        }
+        continue;
+      }
     }
 
     const spreadsheetUrl =

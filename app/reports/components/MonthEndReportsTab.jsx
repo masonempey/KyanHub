@@ -201,7 +201,7 @@ const MonthEndReportsTab = ({
             expenses: report.expenses_amount,
             profit: report.owner_profit,
             bookingCount: Number(report.booking_count || 0),
-            spreadsheetUrl: report.spreadsheet_url,
+            spreadsheetUrl: report.sheet_id,
           }),
         }
       );
