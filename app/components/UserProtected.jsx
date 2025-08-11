@@ -11,14 +11,6 @@ export default function UserProtected({ children }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    console.log(
-      "UserProtected - User:",
-      user,
-      "Loading:",
-      loading,
-      "Path:",
-      pathname
-    );
     if (!loading && !user && pathname !== "/login") {
       console.log("No user, redirecting to /login from:", pathname);
       router.push("/login");

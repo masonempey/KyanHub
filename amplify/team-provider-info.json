@@ -1,0 +1,15 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-kyanhub-dev-9ca6b-authRole",
+      "UnauthRoleArn": "arn:aws:iam::972240688289:role/amplify-kyanhub-dev-9ca6b-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::972240688289:role/amplify-kyanhub-dev-9ca6b-authRole",
+      "Region": "ca-central-1",
+      "DeploymentBucketName": "amplify-kyanhub-dev-9ca6b-deployment",
+      "UnauthRoleName": "amplify-kyanhub-dev-9ca6b-unauthRole",
+      "StackName": "amplify-kyanhub-dev-9ca6b",
+      "StackId": "arn:aws:cloudformation:ca-central-1:972240688289:stack/amplify-kyanhub-dev-9ca6b/8bcd8720-76eb-11f0-85ed-02050846d5a3",
+      "AmplifyAppId": "d2612k76ettpmp"
+    }
+  }
+}

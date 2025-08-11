@@ -13,11 +13,12 @@ const HomePage = () => {
   useEffect(() => {
     if (!userLoading && !propertiesLoading) {
       if (user) {
-        router.push("/property-management");
+        router.push("/login");
       } else {
         router.push("/login");
       }
     }
+    s;
   }, [router, user, userLoading, propertiesLoading]);
 
   if (userLoading || propertiesLoading) {

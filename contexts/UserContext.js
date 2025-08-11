@@ -2,9 +2,9 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase/client";
 import { useRouter, usePathname } from "next/navigation";
+import { getCurrentUser, signOut } from "aws-amplify/auth";
+import { Hub } from "aws-amplify/utils";
 
 const UserContext = createContext();
 
@@ -15,58 +15,27 @@ export const UserProvider = ({ children }) => {
   const pathname = usePathname();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [initWatchCalled, setInitWatchCalled] = useState(false);
 
-  // Auth state listener - optimized to not depend on user
   useEffect(() => {
     let isMounted = true;
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+
+    // Check for authenticated user
+    const checkUser = async () => {
       try {
-        if (firebaseUser) {
-          // Only fetch user data if we don't have it yet or it's for a different user
-          if (!user || user.uid !== firebaseUser.uid) {
-            // Use Promise.race with a timeout to prevent this from hanging
-            const userDataPromise = Promise.race([
-              fetch(`/api/users/${firebaseUser.uid}`).then((res) => res.json()),
-              new Promise((_, reject) =>
-                setTimeout(
-                  () => reject(new Error("User data fetch timeout")),
-                  5000
-                )
-              ),
-            ]);
+        const cognitoUser = await getCurrentUser();
+        const userAttributes = cognitoUser.signInDetails?.loginId
+          ? { email: cognitoUser.signInDetails.loginId }
+          : {};
 
-            try {
-              const userData = await userDataPromise;
-
-              if (isMounted) {
-                const userWithRole = {
-                  email: firebaseUser.email,
-                  uid: firebaseUser.uid,
-                  role: userData.role,
-                };
-
-                setUser(userWithRole);
-              }
-            } catch (error) {
-              console.error("Error fetching user data:", error);
-              if (isMounted) {
-                // Still set basic user info even if role fetch fails
-                setUser({
-                  email: firebaseUser.email,
-                  uid: firebaseUser.uid,
-                  role: "unknown",
-                });
-              }
-            }
-          }
-        } else {
-          if (isMounted) {
-            setUser(null);
-          }
+        if (isMounted) {
+          const userWithRole = {
+            email: userAttributes.email || cognitoUser.username,
+            uid: cognitoUser.username,
+            role: cognitoUser.attributes?.["custom:role"] || "user",
+          };
+          setUser(userWithRole);
         }
       } catch (error) {
-        console.error("Error in onAuthStateChanged:", error);
         if (isMounted) {
           setUser(null);
         }
@@ -75,44 +44,55 @@ export const UserProvider = ({ children }) => {
           setLoading(false);
         }
       }
+    };
+
+    // Listen for auth events
+    const hubListener = Hub.listen("auth", ({ payload: { event, data } }) => {
+      switch (event) {
+        case "signInWithRedirect":
+          checkUser();
+          break;
+        case "signOut":
+          setUser(null);
+          router.push("/login");
+          break;
+        case "customOAuthState":
+          break;
+      }
     });
+
+    checkUser();
 
     return () => {
       isMounted = false;
-      unsubscribe();
+      hubListener(); // Calling the function returned by hub.listen to unsubscribe
     };
-  }, []);
+  }, [router]);
 
-  // Optimized redirect logic
+  // Redirect logic
   useEffect(() => {
-    if (loading) return; // Don't redirect while loading
+    if (loading) return;
 
     const currentPath = pathname || "";
 
-    // Handle redirects based on auth state
     if (user) {
-      // User is logged in
       if (currentPath === "/login") {
-        console.log("User signed in, redirecting to /property-management");
         router.push("/property-management");
       }
     } else {
-      // User not logged in
       if (currentPath !== "/login") {
-        console.log("No user, redirecting to /login");
         router.push("/login");
       }
     }
   }, [user, loading, pathname, router]);
 
-  // Memoized context value to prevent unnecessary re-renders
   const contextValue = React.useMemo(
     () => ({
       user,
       loading,
       logout: async () => {
         try {
-          await signOut(auth);
+          await signOut();
           setUser(null);
           router.push("/login");
         } catch (error) {

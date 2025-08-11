@@ -22,35 +22,16 @@ export default function AdminProtected({ children }) {
       }
 
       try {
-        const response = await fetchWithAuth("/api/admin");
-
-        // Check if response is ok before trying to parse JSON
-        if (!response.ok) {
-          if (response.status === 403) {
-            setError("You do not have permission to access this page.");
-            return;
-          }
-          throw new Error(`HTTP error! status: ${response.status}`);
+        // Check if user has admin role using Cognito custom attributes
+        if (user.role === "admin") {
+          setIsAdmin(true);
+        } else {
+          setError("You do not have permission to access this page.");
+          setIsAdmin(false);
         }
-
-        // Safe JSON parsing with error handling
-        let data;
-        try {
-          data = await response.json();
-        } catch (jsonError) {
-          console.error("JSON parse error:", jsonError);
-          throw new Error("Invalid response format from server");
-        }
-
-        if (!data.success) {
-          setError(data.error || "Access denied");
-          return;
-        }
-
-        setIsAdmin(true);
       } catch (error) {
-        console.error("Admin check failed:", error);
-        setError("An error occurred while checking permissions.");
+        console.error("Error checking admin status:", error);
+        setError("Error verifying permissions");
       } finally {
         setIsChecking(false);
       }
@@ -63,14 +44,7 @@ export default function AdminProtected({ children }) {
 
   if (userLoading || isChecking) {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-        }}
-      >
+      <div className="flex h-screen w-full items-center justify-center">
         <CircularProgress sx={{ color: "#eccb34" }} />
       </div>
     );
@@ -85,37 +59,25 @@ export default function AdminProtected({ children }) {
           alignItems: "center",
           justifyContent: "center",
           height: "100vh",
-          gap: 2,
-          p: 3,
+          p: 4,
         }}
       >
-        <Alert
-          severity="error"
-          sx={{
-            mb: 2,
-            backgroundColor: "#2b2b2b",
-            color: "#fafafa",
-            "& .MuiAlert-icon": {
-              color: "#eccb34",
-            },
-          }}
-        >
+        <Alert severity="error" sx={{ mb: 3, width: "100%", maxWidth: 500 }}>
           {error}
         </Alert>
-        <Typography variant="body1" sx={{ color: "#fafafa" }}>
-          Please contact an administrator for access.
+        <Typography variant="body1" sx={{ mb: 3 }}>
+          You need administrator privileges to access this page.
         </Typography>
         <Button
           variant="contained"
-          onClick={() => router.push("/login")}
+          onClick={() => router.push("/property-view")}
           sx={{
-            mt: 2,
-            backgroundColor: "#eccb34",
-            color: "#fafafa",
-            "&:hover": { backgroundColor: "#2b2b2b" },
+            bgcolor: "#eccb34",
+            color: "#333",
+            "&:hover": { bgcolor: "#d4b62c" },
           }}
         >
-          Return to Log In & Contact Admin
+          Go to Property View
         </Button>
       </Box>
     );

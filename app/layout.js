@@ -6,6 +6,7 @@ import { PropertyProvider } from "@/contexts/PropertyContext";
 import { MobileMenuProvider } from "@/contexts/MobileMenuContext";
 import RootLayoutClient from "./components/RootLayoutClient";
 import UserProtected from "./components/UserProtected";
+import AmplifyConfig from "./components/AmplifyConfig";
 
 const lato = Lato({
   subsets: ["latin"],
@@ -19,13 +20,15 @@ export default function RootLayout({ children }) {
     <html lang="en" className={lato.className}>
       <body>
         <MobileMenuProvider>
-          <UserProvider>
-            <PropertyProvider>
-              <RootLayoutClient>
-                <UserProtected>{children}</UserProtected>
-              </RootLayoutClient>
-            </PropertyProvider>
-          </UserProvider>
+          <AmplifyConfig>
+            <UserProvider>
+              <PropertyProvider>
+                <RootLayoutClient>
+                  <UserProtected>{children}</UserProtected>
+                </RootLayoutClient>
+              </PropertyProvider>
+            </UserProvider>
+          </AmplifyConfig>
         </MobileMenuProvider>
       </body>
     </html>
