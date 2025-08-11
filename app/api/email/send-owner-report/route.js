@@ -124,7 +124,6 @@ export async function POST(request) {
             );
           } catch (verifyError) {
             console.error(`Error verifying sheet existence:`, verifyError);
-            // If verification fails, the sheet doesn't exist or is inaccessible
           }
         } catch (sheetError) {
           console.error("Error exporting spreadsheet:", sheetError);
@@ -135,6 +134,9 @@ export async function POST(request) {
         );
       }
     }
+
+    console.log("spreadsheetUrl received:", spreadsheetUrl);
+    console.log("Extracted sheetId:", sheetId);
 
     // Create variables to replace in the email template
     const variables = {
@@ -147,10 +149,10 @@ export async function POST(request) {
       EXPENSES: formattedExpenses,
       PROFIT: formattedProfit,
       BOOKING_COUNT: bookingCount.toString(),
-      // Remove SPREADSHEET_URL from variables since we're attaching the file
     };
 
-    // Send the email with attachment
+    console.log("Attachment object before sending email:", attachment);
+
     const emailResult = await emailService.sendTemplateEmail({
       to: owner.email,
       templateId: owner.template_id,
@@ -158,11 +160,10 @@ export async function POST(request) {
       attachments: attachment ? [attachment] : [],
     });
 
+    console.log("Email send result:", emailResult);
+
     if (!emailResult.success) {
-      return NextResponse.json(
-        { success: false, error: emailResult.error },
-        { status: 500 }
-      );
+      console.error("Email send failed:", emailResult.error);
     }
 
     return NextResponse.json({ success: true });

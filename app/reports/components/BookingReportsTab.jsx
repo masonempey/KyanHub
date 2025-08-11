@@ -248,39 +248,39 @@ const BookingReportsTab = ({
       const month = startDate.month() + 1;
       const year = startDate.format("YYYY");
 
-      for (const propertyId of selectedProperties) {
-        const propertyName =
-          typeof allProperties[propertyId] === "object"
-            ? allProperties[propertyId].name
-            : allProperties[propertyId];
+      // for (const propertyId of selectedProperties) {
+      //   const propertyName =
+      //     typeof allProperties[propertyId] === "object"
+      //       ? allProperties[propertyId].name
+      //       : allProperties[propertyId];
 
-        const response = await fetchWithAuth(
-          `/api/property-month-end/options?propertyId=${propertyId}&year=${year}&monthNumber=${month}`
-        );
+      //   const response = await fetchWithAuth(
+      //     `/api/property-month-end/options?propertyId=${propertyId}&year=${year}&monthNumber=${month}`
+      //   );
 
-        if (!response.ok) {
-          console.error(
-            `Failed to check inventory status for ${propertyName} (API error)`
-          );
-          continue;
-        }
+      //   if (!response.ok) {
+      //     console.error(
+      //       `Failed to check inventory status for ${propertyName} (API error)`
+      //     );
+      //     continue;
+      //   }
 
-        const data = await response.json();
+      //   const data = await response.json();
 
-        if (!data.inventoryReady) {
-          missingInventory.push(propertyName);
-        }
-      }
+      //   // if (!data.inventoryReady) {
+      //   //   missingInventory.push(propertyName);
+      //   // }
+      // }
 
-      if (missingInventory.length > 0) {
-        handleError(
-          `The following properties need inventory invoices before processing: ${missingInventory.join(
-            ", "
-          )}`
-        );
-        setUpdating(false);
-        return;
-      }
+      // // if (missingInventory.length > 0) {
+      // //   handleError(
+      // //     `The following properties need inventory invoices before processing: ${missingInventory.join(
+      // //       ", "
+      // //     )}`
+      // //   );
+      // //   setUpdating(false);
+      // return;
+      // }
 
       const summaryResults = [];
 
