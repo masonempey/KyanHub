@@ -3,6 +3,7 @@ import emailService from "@/lib/services/emailService"; // Import as default exp
 import OwnerService from "@/lib/services/ownerService";
 import EmailTemplateService from "@/lib/services/emailTemplateService";
 import googleService from "@/lib/services/googleService";
+import MonthEndService from "@/lib/services/monthEndService";
 
 export async function POST(request) {
   try {
@@ -160,10 +161,41 @@ export async function POST(request) {
       attachments: attachment ? [attachment] : [],
     });
 
+    // After successful email sending
     console.log("Email send result:", emailResult);
 
     if (!emailResult.success) {
       console.error("Email send failed:", emailResult.error);
+      return NextResponse.json(
+        {
+          success: false,
+          error: emailResult.error || "Failed to send email",
+        },
+        { status: 500 }
+      );
+    }
+
+    // Update the property_month_end table to mark email as sent
+    try {
+      // Get the property_month_end record first to update
+      const monthNumber = new Date(`${month} 1, ${year}`).getMonth() + 1;
+
+      // Update the email status in property_month_end
+      await MonthEndService.updateEmailStatus(
+        propertyId,
+        year,
+        monthNumber,
+        ownerId,
+        owner.name,
+        profit
+      );
+
+      console.log(
+        `Updated property_month_end to mark email as sent for ${propertyName}`
+      );
+    } catch (updateError) {
+      console.error("Failed to update email status:", updateError);
+      // Continue execution - don't fail the request just because we couldn't update the status
     }
 
     return NextResponse.json({ success: true });

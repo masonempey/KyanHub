@@ -164,10 +164,9 @@ export async function POST(request) {
       return sum + cleaning;
     }, 0);
 
-    // Calculate net amount and owner profit
-    const netAmount = totalRevenue - totalCleaning; // Do NOT subtract expenses here
-    const ownerProfitBeforeExpenses = (netAmount * ownershipPercentage) / 100;
-    const ownerProfit = ownerProfitBeforeExpenses - expensesTotal; // Subtract expenses only from owner's share
+    const netAmount = totalRevenue - totalCleaning; // Net amount before expenses
+    const ownerRevenueShare = (netAmount * ownershipPercentage) / 100; // Owner's share of revenue
+    const ownerProfit = ownerRevenueShare - expensesTotal;
 
     console.log(
       `Calculated for property ${propertyId} (${propertyName}):`,

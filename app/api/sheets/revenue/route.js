@@ -301,17 +301,30 @@ export async function PUT(request) {
           rightSideData.length
         );
 
+        // Sort bookings by check-in date before processing
+        const sortedBookings = bookings.sort((a, b) => {
+          const dateA = new Date(a.checkIn);
+          const dateB = new Date(b.checkIn);
+          return dateA - dateB; // Ascending order by check-in date
+        });
+
         // Handle booking details
-        const newBookings = bookings.filter((booking) => {
+        const newBookings = sortedBookings.filter((booking) => {
           return !rightSideData.some((row) => {
             if (!row || !row[0]) return false;
             const rowMonth = String(row[0]);
             const rowName = String(row[1] || "");
-            const rowBookingCode = String(row[4] || "");
+            const rowBookingCode = String(row[5] || ""); // Now checking column F for booking code
+
+            // First check booking code match
+            if (rowBookingCode && rowBookingCode === booking.bookingCode) {
+              return true; // Skip if booking code already exists
+            }
+
+            // Then check month + guest name combination
             return (
-              (rowMonth.toLowerCase() === monthName.toLowerCase() &&
-                rowName.toLowerCase() === booking.guestName.toLowerCase()) ||
-              (rowBookingCode && rowBookingCode === booking.bookingCode)
+              rowMonth.toLowerCase() === monthName.toLowerCase() &&
+              rowName.toLowerCase() === booking.guestName.toLowerCase()
             );
           });
         });
@@ -323,7 +336,9 @@ export async function PUT(request) {
           // Prepare all values for batch update
           const batchUpdates = [];
 
-          newBookings.forEach((booking, index) => {
+          // Now using sortedBookings instead of newBookings
+          sortedBookings.forEach((booking, index) => {
+            const monthYearKey = `${year}-${monthNum}`;
             const revenue = Number(
               booking.revenueByMonth[monthYearKey] || 0
             ).toFixed(2);
@@ -340,8 +355,8 @@ export async function PUT(request) {
               booking.guestName,
               revenue === "0.00" ? "" : `$${revenue}`,
               cleaning === "0.00" ? "" : cleaning ? `$${cleaning}` : "",
-              booking.platform,
-              booking.bookingCode || "",
+              booking.platform, // Platform first
+              booking.bookingCode || "", // Booking code second
             ];
 
             batchUpdates.push({
@@ -403,6 +418,13 @@ export async function PUT(request) {
           );
         }
 
+        // Calculate owner profit correctly
+        const netAmountBeforeExpenses = monthTotal - cleaningTotal;
+        const ownerRevenueShare =
+          (netAmountBeforeExpenses * ownershipPercentage) / 100;
+        const ownerProfit = ownerRevenueShare - expensesTotal;
+        const finalNetAmount = netAmountBeforeExpenses - expensesTotal;
+
         // Update revenue and status
         await MonthEndService.updateRevenueAndStatus({
           propertyId,
@@ -413,10 +435,11 @@ export async function PUT(request) {
           revenueAmount: monthTotal || 0,
           cleaningAmount: cleaningTotal || 0,
           expensesAmount: expensesTotal || 0,
-          netAmount: monthTotal - cleaningTotal - expensesTotal || 0,
+          netAmount: finalNetAmount || 0,
           bookingsCount: bookings.length,
           sheetId,
           ownerPercentage: ownershipPercentage,
+          ownerProfit: ownerProfit,
           status: "ready",
           forceUpdate: true,
         });
