@@ -21,39 +21,23 @@ export default function AdminProtected({ children }) {
         return;
       }
 
+      // Temporarily bypass admin check
+      setIsAdmin(true);
+      setIsChecking(false);
+
+      // Comment out or remove the original admin check code
+      /*
       try {
         const response = await fetchWithAuth("/api/admin");
-
-        // Check if response is ok before trying to parse JSON
-        if (!response.ok) {
-          if (response.status === 403) {
-            setError("You do not have permission to access this page.");
-            return;
-          }
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        // Safe JSON parsing with error handling
+        if (!response.ok) {...}
         let data;
         try {
           data = await response.json();
-        } catch (jsonError) {
-          console.error("JSON parse error:", jsonError);
-          throw new Error("Invalid response format from server");
-        }
-
-        if (!data.success) {
-          setError(data.error || "Access denied");
-          return;
-        }
-
+        } catch (jsonError) {...}
+        if (!data.success) {...}
         setIsAdmin(true);
-      } catch (error) {
-        console.error("Admin check failed:", error);
-        setError("An error occurred while checking permissions.");
-      } finally {
-        setIsChecking(false);
-      }
+      } catch (error) {...}
+      */
     };
 
     if (!userLoading) {

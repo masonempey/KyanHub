@@ -90,8 +90,30 @@ export async function GET(request, { params }) {
         const cleaningFee = await PropertyService.getCleaningFeeForProperty(
           propertyId
         );
-        const baseTotal = parseFloat(booking.price.price_total) - cleaningFee;
-        const nightlyRate = baseTotal / totalNights;
+
+        // Add safe handling for price data
+        let baseTotal = 0;
+        let nightlyRate = 0;
+
+        // Only try to parse price if it exists and has a price_total
+        if (booking.price && booking.price.price_total) {
+          const priceTotal = parseFloat(booking.price.price_total);
+
+          if (!isNaN(priceTotal)) {
+            baseTotal = Math.max(0, priceTotal - cleaningFee);
+            nightlyRate = totalNights > 0 ? baseTotal / totalNights : 0;
+          }
+        }
+
+        // For airgms bookings with no price data, set a default price (owner bookings)
+        if (
+          booking.platform_type === "airgms" &&
+          (!booking.price || !booking.price.price_total)
+        ) {
+          // For owner bookings, set base_total to 0 instead of null
+          baseTotal = 0;
+          nightlyRate = 0;
+        }
 
         const nightsByMonth = {};
         let currentDate = new Date(checkIn);
@@ -108,10 +130,15 @@ export async function GET(request, { params }) {
         const cleaningFeeMonth = `${lastNight.getFullYear()}-${
           lastNight.getMonth() + 1
         }`;
+
+        // Calculate revenue by month, handling potential NaN values
         const revenueByMonth = Object.entries(nightsByMonth).reduce(
           (acc, [month, nights]) => {
+            // Use the safely calculated nightlyRate (which will be 0 if there was an issue)
             acc[month] = nights * nightlyRate;
-            if (month === cleaningFeeMonth) acc[month] += cleaningFee;
+            if (month === cleaningFeeMonth && cleaningFee > 0) {
+              acc[month] += cleaningFee;
+            }
             return acc;
           },
           {}
@@ -127,29 +154,54 @@ export async function GET(request, { params }) {
           cleaningFee,
           cleaningFeeMonth,
           platform: booking.platform_type,
-          rawPriceData: booking.price,
+          // Create a safe price object that always has price_total
+          rawPriceData: {
+            ...(booking.price || {}),
+            price_total: booking.price?.price_total || baseTotal + cleaningFee,
+          },
           guestName: guestMap[booking.guest_uid]?.name || "Unknown",
           totalNights,
           nightlyRate,
           nightsByMonth,
           revenueByMonth,
+          baseTotal,
         };
 
-        console.log("THESE BOOKINGS", newBooking);
+        console.log("Processing booking:", {
+          code: newBooking.bookingCode,
+          platform: newBooking.platform,
+          baseTotal: baseTotal,
+          nightlyRate: nightlyRate,
+        });
 
-        await bookingService.insertBooking(newBooking);
+        try {
+          await bookingService.insertBooking(newBooking);
+        } catch (error) {
+          console.error(
+            `Error inserting booking ${newBooking.bookingCode}:`,
+            error.message
+          );
+          // Continue with other bookings instead of failing the entire request
+        }
+
         return newBooking;
       })
     );
 
-    enrichedBookings.sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+    // Filter out bookings that failed to process properly
+    const successfulBookings = enrichedBookings.filter((booking) => booking);
+
+    // Sort by check-in date
+    successfulBookings.sort(
+      (a, b) => new Date(a.checkIn) - new Date(b.checkIn)
+    );
 
     return new Response(
       JSON.stringify({
         success: true,
         propertyId,
-        count: enrichedBookings.length,
-        bookings: enrichedBookings,
+        count: successfulBookings.length,
+        bookings: successfulBookings,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );

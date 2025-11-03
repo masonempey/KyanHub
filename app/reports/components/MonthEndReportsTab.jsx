@@ -30,7 +30,7 @@ const MonthEndReportsTab = ({
   const fetchCompletedReports = async (month, year) => {
     setLoadingReports(true);
     try {
-      console.log(`Fetching reports for ${month} ${year}`);
+      const monthNumber = new Date(`${month} 1, ${year}`).getMonth() + 1;
       const response = await fetchWithAuth(
         `/api/property-month-end/completed?month=${encodeURIComponent(
           month
@@ -38,18 +38,13 @@ const MonthEndReportsTab = ({
       );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API Error Response:", errorText);
-        throw new Error(`Failed to fetch reports (${response.status})`);
+        throw new Error("Failed to fetch reports");
       }
 
       const data = await response.json();
-      console.log(`Successfully fetched ${data.reports?.length || 0} reports`);
-      setCompletedReports(data.reports || []);
+      setCompletedReports(data.reports);
     } catch (error) {
-      console.error("Failed to fetch completed reports:", error);
-      setErrorMessage(error.message || "Failed to fetch reports.");
-      setErrorDialogOpen(true);
+      console.error("Error fetching completed reports:", error);
       setCompletedReports([]);
     } finally {
       setLoadingReports(false);
@@ -64,32 +59,125 @@ const MonthEndReportsTab = ({
     let successCount = 0;
     let errorCount = 0;
     let noOwnerCount = 0;
-    let ownerMap = new Map();
+    let errorMessages = [];
 
     try {
-      for (const report of completedReports) {
+      // Filter reports that haven't had emails sent yet and are in 'ready' status
+      const pendingReports = completedReports.filter(
+        (report) => !report.owner_email_sent && report.status === "ready"
+      );
+
+      if (pendingReports.length === 0) {
+        setErrorMessage(
+          "No pending emails to send. All emails have already been sent."
+        );
+        setErrorDialogOpen(true);
+        setUpdating(false);
+        return;
+      }
+
+      // Process each report one by one
+      for (const report of pendingReports) {
         try {
+          // Check if status is appropriate before sending
+          const statusCheckResponse = await fetchWithAuth(
+            `/api/property-month-end/options?propertyId=${report.property_id}&year=${report.year}&monthNumber=${report.month_number}&checkEmail=true`
+          );
+
+          if (!statusCheckResponse.ok) {
+            throw new Error("Failed to validate property status");
+          }
+
+          const statusCheck = await statusCheckResponse.json();
+          if (!statusCheck.canSendEmail) {
+            errorCount++;
+            errorMessages.push(
+              `${report.property_name}: ${
+                statusCheck.message || "Property not ready"
+              }`
+            );
+            continue;
+          }
+
+          // Fetch owner for the property
+          const ownerResponse = await fetchWithAuth(
+            `/api/properties/${report.property_id}/owner`
+          );
+
+          if (!ownerResponse.ok) {
+            noOwnerCount++;
+            errorMessages.push(`${report.property_name}: No owner found`);
+            continue;
+          }
+
+          const ownerData = await ownerResponse.json();
+          const ownerId = ownerData.owner?.id;
+
+          if (!ownerId) {
+            noOwnerCount++;
+            errorMessages.push(`${report.property_name}: No owner ID found`);
+            continue;
+          }
+
+          // Send the email
+          const emailResponse = await fetchWithAuth(
+            "/api/email/send-owner-report",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ownerId,
+                propertyName: report.property_name,
+                propertyId: report.property_id,
+                month: report.month,
+                year: report.year,
+                totalRevenue: report.revenue_amount,
+                totalCleaning: report.cleaning_fees_amount,
+                expenses: report.expenses_amount,
+                profit: report.owner_profit,
+                bookingCount: Number(report.booking_count || 0),
+                spreadsheetUrl: report.sheet_id,
+              }),
+            }
+          );
+
+          if (!emailResponse.ok) {
+            const errorData = await emailResponse.json();
+            throw new Error(errorData.error || "Failed to send owner email");
+          }
+
           successCount++;
         } catch (err) {
+          errorCount++;
+          errorMessages.push(`${report.property_name}: ${err.message}`);
           console.error(
             `Error sending email for ${report.property_name}:`,
             err
           );
-          errorCount++;
         }
       }
 
-      setErrorMessage(
-        `Email sending complete. Success: ${successCount}, Failed: ${errorCount}${
-          noOwnerCount > 0 ? `, Properties with no owner: ${noOwnerCount}` : ""
-        }`
-      );
-      setErrorDialogOpen(true);
-
-      // Refresh reports
+      // Refresh reports to show updated email status
       const month = reportsMonth.format("MMMM");
       const year = reportsMonth.format("YYYY");
-      fetchCompletedReports(month, year);
+      await fetchCompletedReports(month, year);
+
+      // Create detailed status message
+      let message = `Email sending complete. Success: ${successCount}`;
+      if (errorCount > 0) message += `, Failed: ${errorCount}`;
+      if (noOwnerCount > 0)
+        message += `, Properties with no owner: ${noOwnerCount}`;
+
+      // Add detailed error messages if there are any
+      if (errorMessages.length > 0) {
+        message += "\n\nDetails:";
+        errorMessages.forEach((msg, index) => {
+          message += `\n${index + 1}. ${msg}`;
+        });
+      }
+
+      setErrorMessage(message);
+      setErrorDialogOpen(true);
     } catch (error) {
       console.error("Error sending owner emails:", error);
       setErrorMessage("Failed to send owner emails: " + error.message);
